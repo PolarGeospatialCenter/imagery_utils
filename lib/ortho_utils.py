@@ -74,21 +74,21 @@ def buildParentArgumentParser():
      
     ####Optional Arguments
     parser.add_argument("-f", "--format", choices=formats.keys(), default="GTiff",
-                      help="output to the given format. Default=GTiff (%s)"%string.join(formats.keys(),',') )
+                      help="output to the given format (default=GTiff)")
     parser.add_argument("--gtiff_compression", choices=gtiff_compressions, default="lzw",
-                      help="GTiff compression type. Default=lzw (%s)"%string.join(gtiff_compressions,',') )
+                      help="GTiff compression type (default=lzw)")
     parser.add_argument("-p", "--epsg", required=True, type=int,
-                      help="epsg projection code for output files" )
+                      help="epsg projection code for output files")
     parser.add_argument("-d", "--dem",
                       help="the DEM to use for orthorectification")
     parser.add_argument("-t", "--outtype", choices=outtypes, default="Byte",
-                      help="output data type (%s). Default=Byte" %string.join(outtypes,',') )
+                      help="output data type (default=Byte)")
     parser.add_argument("-r", "--resolution",
                       help="output pixel resolution in units of the projection")
     parser.add_argument("-c", "--stretch", choices=stretches, default="rf",
-                      help="stretch type (ns: nostretch, rf: reflectance, mr: modified reflectance, rd: absolute radiance")
+                      help="stretch type [ns: nostretch, rf: reflectance (default), mr: modified reflectance, rd: absolute radiance]")
     parser.add_argument("--resample", choices=resamples, default="near",
-                      help="orthorectification resampling strategy - mimicks gdalwarp options (%s)" %",".join(resamples))
+                      help="orthorectification resampling strategy - mimicks gdalwarp options")
     parser.add_argument("--rgb", action="store_true", default=False,
                       help="output multispectral images as 3 band RGB")
     parser.add_argument("--bgrn", action="store_true", default=False,

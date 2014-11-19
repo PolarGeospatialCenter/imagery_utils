@@ -4,6 +4,7 @@ from datetime import datetime
 import gdal, ogr,osr, gdalconst
 
 from lib.mosaic import *
+from lib import ortho_utils
 
 
 ### Create Logger
@@ -32,7 +33,7 @@ def main():
                       help="target tile (default is to compute all valid tiles. multiple tiles should be delimited by a comma [ex: 23_24,23_25])")
     parser.add_argument("--overwrite", action="store_true", default=False,
                       help="overwrite any existing files")
-    parser.add_argument("--stretch", default="rf",
+    parser.add_argument("--stretch", choices=ortho_utils.stretches, default="rf",
                       help="stretch abbreviation used in image processing (default=rf)")
     parser.add_argument("-d", "--dem", action="store_true", default=False,
                       help="if a DEM is use in image processing")

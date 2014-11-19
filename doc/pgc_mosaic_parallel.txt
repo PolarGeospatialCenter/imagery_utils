@@ -1,0 +1,72 @@
+USAGE
+-----
+
+pgc_mosaic_parallel.py [-h] [-r RESOLUTION RESOLUTION]
+	[-e EXTENT EXTENT EXTENT EXTENT]
+	[-t TILESIZE TILESIZE] [--force_pan_to_multi]
+	[-b BANDS] [--tday TDAY] [--nosort]
+	[--use_exposure] [--exclude EXCLUDE]
+	[--mode {ALL,MOSAIC,SHP,TEST}] [--log LOG]
+	[--qsubscript QSUBSCRIPT] [-l L]
+	[--component_shp]
+	[--gtiff_compression {jpeg95,lzw}]
+	src mosaic_name
+
+DESCRIPTION
+-----------
+
+The pgc_mosaic_parallel utility sumbits mosaic jobs to HPC cluster.  This script invokes pgc_mosaic_build_tile.py and pgc_mosaic_build_cutlines.py for process execution for each job.
+
+src:
+	textfile or directory of input rasters.  Only tif images are considered for inclusion.
+	
+mosaic_name:
+	output mosaic name excluding extension
+
+-h, --help:
+	show this help message and exit
+	
+-r RESOLUTION RESOLUTION, --resolution RESOLUTION RESOLUTION:
+	output pixel resolution -- xres yres (default is same as first input file)
+	
+-e EXTENT EXTENT EXTENT EXTENT, --extent EXTENT EXTENT EXTENT EXTENT:
+	extent of output mosaic -- xmin xmax ymin ymax (default is union of all inputs)
+	
+-t TILESIZE TILESIZE, --tilesize TILESIZE TILESIZE:
+	tile size in coordinate system units -- xsize ysize (default is 40,000 times output resolution)
+	
+--force_pan_to_multi:
+	if output is multiband, force script to also use 1 band images
+	
+-b BANDS, --bands BANDS:
+	number of output bands( default is number of bands in the first image)
+	
+--tday TDAY:
+	month and day of the year to use as target for image suitability ranking (i.e 04-05)
+
+--nosort:
+	do not sort images by metadata. script uses the orderof the input textfile or directory.  Fist image is the frst droawn and subsequent images will overlay the earlier images. Not recommended if src is a directory; the sort order will be random.
+	
+--use_exposure:
+	use exposure settings in metadata to inform score.  This is applicable usually only in Antarctica.
+	
+--exclude EXCLUDE:
+	file of SCENE_IDs to exclude
+	
+--mode {ALL,MOSAIC,SHP,TEST}:
+	mode: ALL- all steps (default), SHP- create shapefiles, MOSAIC- create tiled tifs, TEST- create log only
+	
+--log LOG:
+	file to log progress (default is <output_dir>\mosaic.log
+	
+--qsubscript QSUBSCRIPT:
+	qsub script to use in cluster job submission (default is <script_dir>/qsub_mosaic.sh)
+	
+-l L:
+	PBS resources requested (mimicks qsub syntax)
+	
+--component_shp:
+	create shp of all componenet images as well as cutline shp
+	
+--gtiff_compression {jpeg95,lzw}:
+	GTiff compression type (default=lzw). JPEG95 is jpeg compression at 95%.
