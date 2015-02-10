@@ -31,47 +31,47 @@ class ImageInfo:
 
 
 class SpatialRef(object):
-    
+
     def __init__(self,epsg):
 	srs = osr.SpatialReference()
 	try:
 	    epsgcode = int(epsg)
-	    
+
 	except ValueError, e:
 	    raise RuntimeError("EPSG value must be an integer: %s" %epsg)
 	else:
-	
+
 	    err = srs.ImportFromEPSG(epsgcode)
 	    if err == 7:
 		raise RuntimeError("Invalid EPSG code: %d" %epsgcode)
 	    else:
 		proj4_string = srs.ExportToProj4()
-		
+
 		proj4_patterns = {
 		    "+ellps=GRS80 +towgs84=0,0,0,0,0,0,0":"+datum=NAD83",
 		    "+ellps=WGS84 +towgs84=0,0,0,0,0,0,0":"+datum=WGS84",
 		}
-		
+
 		for pattern, replacement in proj4_patterns.iteritems():
 		    if proj4_string.find(pattern) <> -1:
 			proj4_string = proj4_string.replace(pattern,replacement)
-		
+
 		self.srs = srs
 		self.proj4 = proj4_string
 		self.epsg = epsgcode
-                
+
 
 def buildParentArgumentParser():
-    
-    #### Set Up Arguments 
+
+    #### Set Up Arguments
     parser = argparse.ArgumentParser(add_help=False)
-    
+
     #### Positional Arguments
     parser.add_argument("src", help="source image, text file, or directory")
     parser.add_argument("dst", help="destination directory")
     pos_arg_keys = ["src","dst"]
-    
-     
+
+
     ####Optional Arguments
     parser.add_argument("-f", "--format", choices=formats.keys(), default="GTiff",
                       help="output to the given format (default=GTiff)")
@@ -99,7 +99,7 @@ def buildParentArgumentParser():
                       help="local working directory for cluster jobs (default is dst dir)")
     parser.add_argument("--skip_warp", action='store_true', default=False,
                       help="skip warping step")
-    
+
     return parser, pos_arg_keys
 
 
@@ -486,7 +486,7 @@ def calcStats(opt,info):
         info.vrtfile,
         info.localdst
         ))
-    
+
     (err,so,se) = ExecCmd(cmd)
     if err == 1:
         rc = 1
@@ -890,7 +890,7 @@ def WarpImage(opt,info):
                     info.localsrc,
                     info.warpfile
                     )
-                
+
                 (err,so,se) = ExecCmd(cmd)
                 #print err
                 if err == 1:
@@ -980,10 +980,17 @@ def overlap_check(geometry_wkt, spatial_ref, demPath):
 
                 dem_geometry_wkt = 'POLYGON (( %f %f, %f %f, %f %f, %f %f, %f %f ))' %(minx,miny,minx,maxy,maxx,maxy,maxx,miny,minx,miny)
                 demGeometry = ogr.CreateGeometryFromWkt(dem_geometry_wkt)
+		LogMsg("DEM extent: %s" %demGeometry)
                 demSpatialReference = osr.SpatialReference(demProjection)
 
                 coordinateTransformer = osr.CoordinateTransformation(imageSpatialReference, demSpatialReference)
-                imageGeometry.Transform(coordinateTransformer)
+		if not imageSpatialReference.IsSame(demSpatialReference):
+		    #LogMsg("Image Spatial Refernce: %s" %imageSpatialReference)
+		    #LogMsg("DEM Spatial ReferenceL %s" %demSpatialReference)
+		    #LogMsg("Image Geometry before transformation: %s" %imageGeometry)
+		    LogMsg("Transforming image geometry to dem spatial reference")
+                    imageGeometry.Transform(coordinateTransformer)
+		    #LogMsg("Image Geometry after transformation: %s" %imageGeometry)
 
                 dem = None
                 overlap = imageGeometry.Within(demGeometry)
@@ -1096,7 +1103,7 @@ def getDGXmlData(xmlpath,stretch):
             'WV02_BAND_RE':1342.0695,
             'WV02_BAND_N':1069.7302,
             'WV02_BAND_N2':861.2866,
-            
+
             'WV03_BAND_P':1616.4508,
             'WV03_BAND_C':1544.5748,
             'WV03_BAND_B':1971.4957,
@@ -1657,7 +1664,7 @@ def getSensor(srcfn):
     RAW_DG = "(?P<ts>\d\d[a-z]{3}\d{8})-(?P<prod>\w{4})?(?P<tile>\w+)?-(?P<oid>\d{12}_\d\d)_(?P<pnum>p\d{3})"
 
     RENAMED_DG = "(?P<snsr>\w\w\d\d)_(?P<ts>\d\d[a-z]{3}\d{9})-(?P<prod>\w{4})?(?P<tile>\w+)?-(?P<catid>[a-z0-9]+)"
-    
+
     RENAMED_DG2 = "(?P<snsr>\w\w\d\d)_(?P<ts>\d{14})_(?P<catid>[a-z0-9]{16})"
 
     RAW_GE = "(?P<snsr>\d[a-z])(?P<ts>\d{6})(?P<band>[a-z])(?P<said>\d{9})(?P<prod>\d[a-z])(?P<pid>\d{3})(?P<siid>\d{8})(?P<ver>\d)(?P<mono>[a-z0-9])_(?P<pnum>\d{8,9})"
@@ -1711,5 +1718,3 @@ def FindImages(inpath,exts):
                 image_path = string.replace(image_path,'\\','/')
                 image_list.append(image_path)
     return image_list
-
-
