@@ -368,9 +368,9 @@ def main():
             logger.info("Creating shapefile of components: %s" %comp_shp)
         
             if args.extent:
-                 cmd = r'qsub -N Cutlines -v p1="%s --cutline-step=512 %s %s %s" "%s"' %(cutline_builder_script,arg_str,comp_shp,aitpath,qsubpath)
+                 cmd = r'qsub -N Cutlines -v p1="%s --cutline_step=512 %s %s %s" "%s"' %(cutline_builder_script,arg_str,comp_shp,aitpath,qsubpath)
             else:
-                cmd = r'qsub -N Cutlines -v p1="%s --cutline-step=512 %s -e %f %f %f %f %s %s" "%s"' %(cutline_builder_script,arg_str,params.xmin,params.xmax,params.ymin,params.ymax,comp_shp,aitpath,qsubpath)
+                cmd = r'qsub -N Cutlines -v p1="%s --cutline_step=512 %s -e %f %f %f %f %s %s" "%s"' %(cutline_builder_script,arg_str,params.xmin,params.xmax,params.ymin,params.ymax,comp_shp,aitpath,qsubpath)
             logger.debug(cmd)
             if args.mode == "ALL" or args.mode == "SHP":
                 p = Popen(cmd,shell=True)

@@ -28,6 +28,8 @@ def main():
     
     parser.add_argument("--cutline_step", type=int, default=2,
                        help="cutline calculator pixel skip interval (default=2)")
+    parser.add_argument("--component_shp", action="store_true", default=False,
+                        help="create shp of all componenet images")
    
     #### Parse Arguments
     args = parser.parse_args()

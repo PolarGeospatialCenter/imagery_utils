@@ -1217,7 +1217,7 @@ def GetIKcalibDict(metafile,stretch):
         Esun = EsunDict[band]
 
         #print sunAngle, des, gain, Esun
-        redfact = 10000 / (calCoef * bw )
+        radfact = 10000 / (calCoef * bw )
         reflfact = (10000 * des**2 * math.pi) / (calCoef * bw * Esun * math.cos(math.radians(sunAngle)))
 
         if stretch == "rd":
