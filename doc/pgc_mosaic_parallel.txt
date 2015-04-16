@@ -15,10 +15,10 @@ pgc_mosaic_parallel.py [-h] [-r RESOLUTION RESOLUTION]
 DESCRIPTION
 -----------
 
-The pgc_mosaic_parallel utility sumbits mosaic jobs to HPC cluster.  This script invokes pgc_mosaic_build_tile.py and pgc_mosaic_build_cutlines.py for process execution for each job.
+The pgc_mosaic_parallel utility submits mosaic jobs to HPC cluster.  This script invokes pgc_mosaic_build_tile.py and pgc_mosaic_build_cutlines.py for process execution for each job.
 
 src:
-	textfile or directory of input rasters.  Only tif images are considered for inclusion.
+	text file or directory of input rasters.  Only tif images are considered for inclusion.
 	
 mosaic_name:
 	output mosaic name excluding extension
@@ -42,10 +42,10 @@ mosaic_name:
 	number of output bands( default is number of bands in the first image)
 	
 --tday TDAY:
-	month and day of the year to use as target for image suitability ranking (i.e 04-05)
+	month and day of the year to use as target for image suitability ranking (e.g. 04-05)
 
 --nosort:
-	do not sort images by metadata. script uses the orderof the input textfile or directory.  Fist image is the frst droawn and subsequent images will overlay the earlier images. Not recommended if src is a directory; the sort order will be random.
+	do not sort images by metadata. script uses the order of the input text file or directory.  Fist image is the first drawn and subsequent images will overlay the earlier images. Not recommended if src is a directory; the sort order will be random.
 	
 --use_exposure:
 	use exposure settings in metadata to inform score.  This is applicable usually only in Antarctica.
@@ -63,10 +63,49 @@ mosaic_name:
 	qsub script to use in cluster job submission (default is <script_dir>/qsub_mosaic.sh)
 	
 -l L:
-	PBS resources requested (mimicks qsub syntax)
+	PBS resources requested (mimics qsub syntax)
 	
 --component_shp:
-	create shp of all componenet images as well as cutline shp
+	create shp of all component images as well as cutline shp
 	
 --gtiff_compression {jpeg95,lzw}:
 	GTiff compression type (default=lzw). JPEG95 is jpeg compression at 95%.
+
+	
+MOSAIC SCORING ALGORITHM
+------------------------
+Image Score
+
+The mosaic tools scoring algorithm uses image metadata information sot score each images based on its suitability.  Each variable is normalized to a value between 0 and 1 and multiplied by a weighting factor relative to it’s importance.  Images with cloud cover > 50% are automatically excluded.
+
+Variables used are:
+1. Cloud cover - lower is preferred
+2. Sun elevation - higher is preferred
+3. Off nadir agnle - lower is preferred
+4. Distance from target day of the year - smaller is preferred
+
+If a target day of year is specified: 
+Score = 30 * (1 - CloudCoverPercent) + 10 * (SunElev/90) + 5 * (90 - OffNadirAngle)/90.0 + 55 * (183 -DistanceFromTargetDatOfYearf)/183.0
+
+Otherwise:
+Score = 48 * (1 - CloudCoverPercent) + 28 * (SunElev/90) + 24 * (90 - OffNadirAngle)/90.0
+
+Exposure Threshold
+
+The user has the option to exclude images with high exposure settings (--use-exposure option).  This is useful in Antarctica where the high albedo can render images useless.  Overexposure is defined as: TDI / Sun Elev > Sensor-band threshold
+
+For panchromatic images, the pan TDI is used.  For multispectral images, the green band TDI is used.  Sensor-band threshold values were derived empirically:
+
+Sensor		Band	Threshold Value
+WorldView-1	Pan	1400
+WorldView-2	Pan	1400
+WorldView-2	Green	400
+WorldView-3	Pan	1400
+WorldView-3	Green	400
+Quickbird	Pan	500
+Quickbird	Green	25
+Geoeye-1	Pan	None
+Geoeye-1	Green	170
+
+
+	

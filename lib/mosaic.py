@@ -267,12 +267,14 @@ class ImageInfo:
                     pan_exposure_thresholds = {
                         "WV01":1400,
                         "WV02":1400,
+                        "WV03":1400,
                         "QB02":500,
                         #"GE01":,
                     }
                     
                     multi_exposure_thresholds = {
                         "WV02":400,
+                        "WV03":400,
                         "GE01":170,
                         "QB02":25,
                     }
