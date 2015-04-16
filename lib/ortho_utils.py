@@ -99,6 +99,7 @@ def buildParentArgumentParser():
                       help="local working directory for cluster jobs (default is dst dir)")
     parser.add_argument("--skip_warp", action='store_true', default=False,
                       help="skip warping step")
+    parser.add_argument("--no_pyramids", action='store_true', default=False, help='suppress calculation of output image pyramids and stats')
 
     return parser, pos_arg_keys
 
@@ -475,8 +476,16 @@ def calcStats(opt,info):
         config_options = '--config GDAL_CACHEMAX 2048'
     else:
         config_options = ''
+        
+    if opt.no_pyramids:
+        base_cmd = 'gdal_translate'
+    else:
+        base_cmd = 'gdal_translate -stats'
+            
+    
 
-    cmd = ('gdal_translate %s -stats -ot %s -a_srs "%s" %s%s-of %s "%s" "%s"' %(
+    cmd = ('%s %s -ot %s -a_srs "%s" %s%s-of %s "%s" "%s"' %(
+        base_cmd,
         config_options,
         opt.outtype,
         opt.spatial_ref.proj4,
@@ -492,12 +501,13 @@ def calcStats(opt,info):
         rc = 1
 
     #### Calculate Pyramids
-    if opt.format in ["GTiff"]:
-        if os.path.isfile(info.localdst):
-            cmd = ('gdaladdo "%s" 2 4 8 16' %(info.localdst))
-            (err,so,se) = ExecCmd(cmd)
-            if err == 1:
-                rc = 1
+    if not opt.no_pyramids:
+        if opt.format in ["GTiff"]:
+            if os.path.isfile(info.localdst):
+                cmd = ('gdaladdo "%s" 2 4 8 16' %(info.localdst))
+                (err,so,se) = ExecCmd(cmd)
+                if err == 1:
+                    rc = 1
 
     #### Write .prj File
     if os.path.isfile(info.localdst):
