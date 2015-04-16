@@ -22,6 +22,38 @@ VRTdriver = gdal.GetDriverByName( formatVRT )
 ikMsiBands = ['blu','grn','red','nir']
 satList = ['WV01','QB02','WV02','GE01','IK01']
 
+PGC_DG_FILE = re.compile(r"""
+                         (?P<pgcpfx>                        # PGC prefix
+                            (?P<sensor>[a-z]{2}\d{2})_      # Sensor code
+                            (?P<tstamp>\d{14})_             # Acquisition time (yyyymmddHHMMSS)
+                            (?P<catid>[a-f0-9]{16})         # Catalog ID
+                         )_
+                         (?P<oname>                         # Original DG name
+                            (?P<ts>\d{2}[a-z]{3}\d{8})-     # Acquisition time (yymmmddHHMMSS)
+                            (?P<prod>[a-z0-9]{4})_?         # DG product code
+                            (?P<tile>R\d+C\d+)?-            # Tile code (mosaics, optional)
+                            (?P<oid>                        # DG Order ID
+                                (?P<onum>\d{12}_\d{2})_     # DG Order number
+                                (?P<pnum>P\d{3})            # Part number
+                            )
+                            (?P<tail>[a-z0-9_-]+(?=\.))?    # Descriptor (optional)
+                         )
+                         (?P<ext>\.[a-z0-9][a-z0-9.]*)      # File name extension
+                         """, re.I | re.X)
+PGC_IK_FILE = re.compile(r"""
+                         (?P<pgcpfx>                        # PGC prefix
+                            (?P<sensor>[a-z]{2}\d{2})_      # Sensor code
+                            (?P<tstamp>\d{14})_             # Acquisition time (yyyymmddHHMMSS)
+                            (?P<catid>\d{28})               # Catalog ID
+                         )_
+                         (?P<oname>
+                            po_(?P<po>\d{5,7})_             # PO number
+                            (?P<band>[a-z]+(?=_))?_?        # Band description
+                            (?P<cmp>\d{7}(?=[_.]))?         # Component number
+                            (?P<tail>[a-z0-9_-]+(?=\.))?    # Descriptor (optional)
+                         )
+                         (?P<ext>\.[a-z0-9][a-z0-9.]*)      # File name extension
+                         """, re.I | re.X)
 #### Create Loggers
 logger = logging.getLogger("logger")
 logger.setLevel(logging.DEBUG)
@@ -31,47 +63,47 @@ class ImageInfo:
 
 
 class SpatialRef(object):
-    
+
     def __init__(self,epsg):
 	srs = osr.SpatialReference()
 	try:
 	    epsgcode = int(epsg)
-	    
+
 	except ValueError, e:
 	    raise RuntimeError("EPSG value must be an integer: %s" %epsg)
 	else:
-	
+
 	    err = srs.ImportFromEPSG(epsgcode)
 	    if err == 7:
 		raise RuntimeError("Invalid EPSG code: %d" %epsgcode)
 	    else:
 		proj4_string = srs.ExportToProj4()
-		
+
 		proj4_patterns = {
 		    "+ellps=GRS80 +towgs84=0,0,0,0,0,0,0":"+datum=NAD83",
 		    "+ellps=WGS84 +towgs84=0,0,0,0,0,0,0":"+datum=WGS84",
 		}
-		
+
 		for pattern, replacement in proj4_patterns.iteritems():
 		    if proj4_string.find(pattern) <> -1:
 			proj4_string = proj4_string.replace(pattern,replacement)
-		
+
 		self.srs = srs
 		self.proj4 = proj4_string
 		self.epsg = epsgcode
-                
+
 
 def buildParentArgumentParser():
-    
-    #### Set Up Arguments 
+
+    #### Set Up Arguments
     parser = argparse.ArgumentParser(add_help=False)
-    
+
     #### Positional Arguments
     parser.add_argument("src", help="source image, text file, or directory")
     parser.add_argument("dst", help="destination directory")
     pos_arg_keys = ["src","dst"]
-    
-     
+
+
     ####Optional Arguments
     parser.add_argument("-f", "--format", choices=formats.keys(), default="GTiff",
                       help="output to the given format (default=GTiff)")
@@ -99,7 +131,7 @@ def buildParentArgumentParser():
                       help="local working directory for cluster jobs (default is dst dir)")
     parser.add_argument("--skip_warp", action='store_true', default=False,
                       help="skip warping step")
-    
+
     return parser, pos_arg_keys
 
 
@@ -486,7 +518,7 @@ def calcStats(opt,info):
         info.vrtfile,
         info.localdst
         ))
-    
+
     (err,so,se) = ExecCmd(cmd)
     if err == 1:
         rc = 1
@@ -692,10 +724,80 @@ def GetImageStats(opt, info):
 
 
     else:
+        LogMsg("Cannot open dataset: %s" %info.localsrc)
         rc = 1
 
     return info, rc
 
+def GetDGMetadataPath(info):
+    """
+    Returns the filepath of the XML, if it can be found. Returns
+    None if no valid filepath could be found.
+    """
+    if os.path.isfile(os.path.splitext(info.localsrc)[0]+'.xml'):
+        metapath = os.path.splitext(info.localsrc)[0]+'.xml'
+    elif os.path.isfile(os.path.splitext(info.localsrc)[0]+'.XML'):
+        metapath = os.path.splitext(info.localsrc)[0]+'.XML'
+    else:
+        # Tiled DG images may have a metadata file at the strip level
+        metapath = None
+        filename = os.path.basename(info.srcfp)
+        match = re.match(PGC_DG_FILE, filename)
+        if match:
+            try:
+                # Build the expected strip-level metadata filepath using
+                # parts of the source image filepath
+                metapath = os.path.dirname(info.srcfp)
+                metapath = os.path.join(metapath, match.group('pgcpfx'))
+                metapath += "_{}".format(match.group('ts'))
+                metapath += "-{}".format(match.group('prod'))
+                metapath += "-{}".format(match.group('oid'))
+
+                if os.path.isfile(metapath + '.xml'):
+                    metapath += ".xml"
+                elif os.path.isfile(metapath + ".XML"):
+                    metapath += ".XML"
+            # If any of the groups we use to build the metapath aren't there,
+            # a name error will be thrown, which means we won't be able to find
+            # the metapath.
+            except NameError:
+                metapath = None
+    if metapath and os.path.isfile(metapath):
+        return metapath
+    else:
+        return None
+
+def GetIKMetadataPath(info):
+    """
+    Same as GetDGMetadataPath, but for Ikonos.
+    """
+    # Most of the time, the metadata file will be the same filename
+    # except for the extension. However, some IK metadata will be for
+    # an entire strip, and will have a different filename, which we
+    # will look for if we need to.
+    metapath = os.path.splitext(info.localsrc)[0]+'.txt'
+    if not os.path.isfile(metapath):
+        source_filename = os.path.basename(info.srcfp)
+        match = re.match(PGC_IK_FILE, source_filename)
+        if match:
+            try:
+                # Build the expected strip-level metadata filepath using
+                # parts of the source image filepath
+                metapath = os.path.dirname(info.srcfp)
+                metapath = os.path.join(metapath, match.group('pgcpfx'))
+                metapath += "_po_{}".format(match.group('po'))
+
+                if os.path.isfile(metapath + '_metadata.txt'):
+                    metapath += "_metadata.txt"
+            # If any of the groups we use to build the metapath aren't there,
+            # a name error will be thrown, which means we won't be able to find
+            # the metapath.
+            except NameError:
+                metapath = None
+    if metapath and os.path.isfile(metapath):
+        return metapath
+    else:
+        return None
 
 def WriteOutputMetadata(opt,info):
 
@@ -705,12 +807,8 @@ def WriteOutputMetadata(opt,info):
     ####  Get xml/pvl metadata
     ####  If DG
     if info.vendor == 'DigitalGlobe':
-
-        if os.path.isfile(os.path.splitext(info.localsrc)[0]+'.xml'):
-            metapath = os.path.splitext(info.localsrc)[0]+'.xml'
-        elif os.path.isfile(os.path.splitext(info.localsrc)[0]+'.XML'):
-            metapath = os.path.splitext(info.localsrc)[0]+'.XML'
-        else:
+        metapath = GetDGMetadataPath(info)
+        if metapath is None or not os.path.isfile(metapath):
             LogMsg("Cannot find metadata file for image: %s" %info.srcfp)
             return 1
 
@@ -723,9 +821,15 @@ def WriteOutputMetadata(opt,info):
             imd = metad.find("IMD")
 
     ####  If GE
-    elif info.vendor == 'GeoEye':
-        metapath = os.path.splitext(info.localsrc)[0]+'.txt'
-        if os.path.isfile(metapath):
+    elif info.vendor == 'GeoEye' and info.sat == "GE01":
+        if os.path.isfile(os.path.splitext(info.localsrc)[0]+'.txt'):
+            metapath = os.path.splitext(info.localsrc)[0]+'.txt'
+        elif os.path.isfile(os.path.splitext(info.localsrc)[0]+'.pvl'):
+            metapath = os.path.splitext(info.localsrc)[0]+'.pvl'
+        else:
+            metapath = None
+
+        if metapath:
             metad = getGEMetadataAsXml(metapath)
             imd = ET.Element("IMD")
             include_tags = ["sensorInfo","inputImageInfo","correctionParams","bandSpecificInformation"]
@@ -744,8 +848,9 @@ def WriteOutputMetadata(opt,info):
             LogMsg("Cannot find metadata file: %s" %metapath)
             return 1
 
-    #elif info.sat in ['IK01']:
-        # write code for IK metadata
+    elif info.sat in ['IK01']:
+        imd = None
+        # TODO: write code for IK metadata
 
     ####  Determine custom MD
     dMD = {}
@@ -803,7 +908,6 @@ def WarpImage(opt,info):
     if not os.path.isfile(info.warpfile):
 
         LogMsg("Warping Image")
-        warp_rpc = True
 
         #### If Image is TIF, extract RPB
         if os.path.splitext(info.localsrc)[1].lower() == ".tif":
@@ -815,6 +919,8 @@ def WarpImage(opt,info):
 
             else:
                 rpb_p = None
+                logger.error("Cannot extract rpc's for Ikonos. Image cannot be terrain corrected with a DEM or avg elevation.")
+                rc = 1
 
             if rpb_p:
                 if not os.path.isfile(rpb_p):
@@ -822,80 +928,54 @@ def WarpImage(opt,info):
                     if err == 1:
                         rc = 1
                 if not os.path.isfile(rpb_p):
-                    logger.warning("No RPC information found. Image cannot be terrain corrected with a DEM or avg elevation.")
+                    logger.error("No RPC information found. Image cannot be terrain corrected with a DEM or avg elevation.")
                     rc = 1
 
-            else:
-                logger.warning("No RPC information found. Image cannot be terrain corrected with a DEM or avg elevation.")
-                rc = 1
 
         if rc <> 1:
-
-        #### Add code to identify 2A, 3A images
-
-            if warp_rpc is True:
-                ####  Set RPC_DEM or RPC_HEIGHT transformation option
-                if opt.dem != None:
-                    LogMsg('DEM: %s' %(os.path.basename(opt.dem)))
-                    to = "RPC_DEM=%s" %opt.dem
-
-                else:
-                    #### Get Constant Elevation From XML
-                    ds = gdal.Open(info.localsrc,gdalconst.GA_ReadOnly)
-                    if not ds == None and rc == 0:
-                        m = ds.GetMetadata("RPC")
-                        if "HEIGHT_OFF" in m:
-                            h = m["HEIGHT_OFF"]
-                            h = float(''.join([c for c in h if c in '1234567890.+-']))
-                        else:
-                            h = 0
-                            LogMsg("Cannot determine avg elevation. Using 0.")
-                    else:
-                        h = 0
-
-                    LogMsg("Average elevation: %f meters" %(h))
-                    to = "RPC_HEIGHT=%f" %h
-
-
-
-                #### GDALWARP Command
-                cmd = 'gdalwarp %s -of GTiff -ot UInt16 %s%s%s-co "TILED=YES" -co "BIGTIFF=IF_SAFER" -t_srs "%s" -r %s -et 0.01 -rpc -to "%s" "%s" "%s"' %(
-                    config_options,
-                    info.centerlong,
-                    info.extent,
-                    info.res,
-                    opt.spatial_ref.proj4,
-                    opt.resample,
-                    to,
-                    info.localsrc,
-                    info.warpfile
-                    )
-
-                (err,so,se) = ExecCmd(cmd)
-                #print err
-                if err == 1:
-                    rc = 1
-
-                ds = None
+            ####  Set RPC_DEM or RPC_HEIGHT transformation option
+            if opt.dem != None:
+                LogMsg('DEM: %s' %(os.path.basename(opt.dem)))
+                to = "RPC_DEM=%s" %opt.dem
 
             else:
+                #### Get Constant Elevation From XML
+                ds = gdal.Open(info.localsrc,gdalconst.GA_ReadOnly)
+                if not ds == None and rc == 0:
+                    m = ds.GetMetadata("RPC")
+                    if "HEIGHT_OFF" in m:
+                        h = m["HEIGHT_OFF"]
+                        h = float(''.join([c for c in h if c in '1234567890.+-']))
+                    else:
+                        h = 0
+                        LogMsg("Cannot determine avg elevation. Using 0.")
+                else:
+                    h = 0
 
-                cmd = 'gdalwarp %s -of GTiff -ot UInt16 %s%s%s-co "TILED=YES" -co "BIGTIFF=IF_SAFER" -t_srs "%s" -r %s "%s" "%s"' %(
-                    config_options,
-                    info.centerlong,
-                    info.extent,
-                    info.res,
-                    opt.spatial_ref.proj4,
-                    opt.resample,
-                    info.localsrc,
-                    info.warpfile
-                    )
-                
-                (err,so,se) = ExecCmd(cmd)
-                #print err
-                if err == 1:
-                    rc = 1
+                LogMsg("Average elevation: %f meters" %(h))
+                to = "RPC_HEIGHT=%f" %h
 
+
+
+            #### GDALWARP Command
+            cmd = 'gdalwarp %s -of GTiff -ot UInt16 %s%s%s-co "TILED=YES" -co "BIGTIFF=IF_SAFER" -t_srs "%s" -r %s -et 0.01 -rpc -to "%s" "%s" "%s"' %(
+                config_options,
+                info.centerlong,
+                info.extent,
+                info.res,
+                opt.spatial_ref.proj4,
+                opt.resample,
+                to,
+                info.localsrc,
+                info.warpfile
+                )
+
+            (err,so,se) = ExecCmd(cmd)
+            #print err
+            if err == 1:
+                rc = 1
+
+            ds = None
         return rc
 
 
@@ -905,26 +985,25 @@ def GetCalibrationFactors(info):
     CFlist = []
     sdsp = info.localsrc
 
-    print info.vendor
-
     if info.vendor == "DigitalGlobe":
 
-        xmlpath = None
-        if os.path.isfile(os.path.splitext(sdsp)[0] + ".xml"):
-            xmlpath = os.path.splitext(sdsp)[0] + ".xml"
-        if os.path.isfile(os.path.splitext(sdsp)[0] + ".XML"):
-            xmlpath = os.path.splitext(sdsp)[0] + ".XML"
-
-        if xmlpath:
+        xmlpath = GetDGMetadataPath(info)
+        if xmlpath and os.path.isfile(xmlpath):
             calibDict = getDGXmlData(xmlpath,info.stretch)
             bandList = DGbandList
         else:
-            LogMsg('xml does not exist for image: %s' %os.path.basenanme(sdsp))
+            LogMsg('xml does not exist for image: %s' %os.path.basename(sdsp))
 
     elif info.vendor == "GeoEye" and info.sat == "GE01":
 
-        metapath = os.path.splitext(sdsp)[0]+'.txt'
-        if not os.path.isfile(metapath):
+        if os.path.isfile(os.path.splitext(info.localsrc)[0]+'.txt'):
+            metapath = os.path.splitext(info.localsrc)[0]+'.txt'
+        elif os.path.isfile(os.path.splitext(info.localsrc)[0]+'.pvl'):
+            metapath = os.path.splitext(info.localsrc)[0]+'.pvl'
+        else:
+            metapath = None
+
+        if not metapath:
             LogMsg(metapath + ' does not exist. Skipping')
         else:
             calibDict = GetGEcalibDict(metapath,info.stretch)
@@ -934,8 +1013,8 @@ def GetCalibrationFactors(info):
             bandList = range(1,5,1)
 
     elif info.vendor == "GeoEye" and info.sat == "IK01":
-        metapath = os.path.splitext(sdsp)[0]+'.txt'
-        if not os.path.isfile(metapath):
+        metapath = GetIKMetadataPath(info)
+        if metapath is None:
             LogMsg(metapath + ' does not exist. Skipping')
         else:
             calibDict = GetIKcalibDict(metapath,info.stretch)
@@ -1096,7 +1175,7 @@ def getDGXmlData(xmlpath,stretch):
             'WV02_BAND_RE':1342.0695,
             'WV02_BAND_N':1069.7302,
             'WV02_BAND_N2':861.2866,
-            
+
             'WV03_BAND_P':1616.4508,
             'WV03_BAND_C':1544.5748,
             'WV03_BAND_B':1971.4957,
@@ -1210,7 +1289,7 @@ def GetIKcalibDict(metafile,stretch):
         Esun = EsunDict[band]
 
         #print sunAngle, des, gain, Esun
-        redfact = 10000 / (calCoef * bw )
+        radfact = 10000 / (calCoef * bw )
         reflfact = (10000 * des**2 * math.pi) / (calCoef * bw * Esun * math.cos(math.radians(sunAngle)))
 
         if stretch == "rd":
@@ -1222,102 +1301,110 @@ def GetIKcalibDict(metafile,stretch):
 
 
 def getIKMetadata(fp_mode, metafile):
-	ik2fp = [
-			("File_Format", "OUTPUT_FMT"),
-			("Product_Order_Number", "ORDER_ID"),
-			("Bits_per_Pixel_per_Band", "BITS_PIXEL"),
-			("Source_Image_ID", "CAT_ID"),
-			("Acquisition_Date_Time", "ACQ_TIME"),
-			("Scan_Direction", "SCAN_DIR"),
-			("Country_Code", "COUNTRY"),
-			("Percent_Component_Cloud_Cover", "CLOUDCOVER"),
-			("Sensor_Name", "SENSOR"),
+    ik2fp = [
+            ("File_Format", "OUTPUT_FMT"),
+            ("Product_Order_Number", "ORDER_ID"),
+            ("Bits_per_Pixel_per_Band", "BITS_PIXEL"),
+            ("Source_Image_ID", "CAT_ID"),
+            ("Acquisition_Date_Time", "ACQ_TIME"),
+            ("Scan_Direction", "SCAN_DIR"),
+            ("Country_Code", "COUNTRY"),
+            ("Percent_Component_Cloud_Cover", "CLOUDCOVER"),
+            ("Sensor_Name", "SENSOR"),
                         ("Sun_Angle_Elevation", "SUN_ELEV")
-		]
+    	]
 
 
-	metad = getIKMetadataAsXml(metafile)
-	if metad is not None:
-		metadict = {}
-		search_keys = dict(ik2fp)
+    metad = getIKMetadataAsXml(metafile)
+    if metad is not None:
+        metadict = {}
+        search_keys = dict(ik2fp)
 
-	else:
-		print "Unable to parse metadata from %s" % metafile
-		return None
+    else:
+        print "Unable to parse metadata from %s" % metafile
+        return None
 
-	metad_map = dict((c, p) for p in metad.getiterator() for c in p)  # Child/parent mapping
-	attribs = ["Source_Image_ID", "Component_ID"]  # nodes we need the attributes of
+    metad_map = dict((c, p) for p in metad.getiterator() for c in p)  # Child/parent mapping
+    attribs = ["Source_Image_ID", "Component_ID"]  # nodes we need the attributes of
 
-	# We must identify the exact Source_Image_ID and Component_ID for this image
-	# before loading the dictionary
+    # We must identify the exact Source_Image_ID and Component_ID for this image
+    # before loading the dictionary
 
-	# In raw mode we match the image file name to a Component_ID, this yields a Product_Image_ID,
-	# which in turn links to a Source_Image_ID; we accomplish this by examining all the
-	# Component_File_Name nodes for an image file name match, on a hit, the parent node of
-	# the CFN node will be the Component_ID node we are interested in
+    # In raw mode we match the image file name to a Component_ID, this yields a Product_Image_ID,
+    # which in turn links to a Source_Image_ID; we accomplish this by examining all the
+    # Component_File_Name nodes for an image file name match, on a hit, the parent node of
+    # the CFN node will be the Component_ID node we are interested in
 
-	if fp_mode == "renamed":
+    if fp_mode == "renamed":
 
-		# In renamed mode, we find the Source Image ID (from the file name) and then find
-		# the matching Component ID
+        # In renamed mode, we find the Source Image ID (from the file name) and then find
+        # the matching Component ID
 
-		siid = os.path.basename(metafile.lower())[5:33]
-		siid_nodes = metad.findall(r".//Source_Image_ID")
-		if siid_nodes is None:
-			print "Could not find any Source Image ID fields in metadata %s" % metafile
-			return None
+        # For new style(pgctools3) filename, we use a regex to get the source image ID.
+        # If we can't match the filename to the new style name regex, we assume
+        # that we have old style names, and we can get the source image ID directly from
+        # the filename, as shown below.
+        match = re.search(PGC_IK_FILE, metafile.lower())
+        if match:
+            siid = match.group('catid')
+        else:
+            siid = os.path.basename(metafile.lower())[5:33]
+        siid_nodes = metad.findall(r".//Source_Image_ID")
+        if siid_nodes is None:
+            print "Could not find any Source Image ID fields in metadata %s" % metafile
+            return None
 
-		siid_node = None
-		for node in siid_nodes:
-			if node.attrib["id"] == siid:
-				siid_node = node
-				break
-		if siid_node is None:
-			print "Could not locate SIID: %s in metadata %s" % (siid, metafile)
-			return None
+        siid_node = None
+        for node in siid_nodes:
+            if node.attrib["id"] == siid:
+                siid_node = node
+                break
+            if siid_node is None:
+                print "Could not locate SIID: %s in metadata %s" % (siid, metafile)
+                return None
 
-		spiid_node = siid_node.findall(r"Product_Image_ID")[0]
-		if spiid_node is None:
-			print "Could not find any Product Image ID fields in Source Image ID node %s" % siid_node.text
-			return None
+        spiid_node = siid_node.findall(r"Product_Image_ID")[0]
+        if spiid_node is None:
+            print "Could not find any Product Image ID fields in Source Image ID node %s" % siid_node.text
+            return None
 
-		cid_nodes = metad.findall(r".//Component_ID")
-		if cid_nodes is None:
-			print "Could not find any Component Image ID fields in metadata %s" % metafile
-			return None
+        cid_nodes = metad.findall(r".//Component_ID")
+        if cid_nodes is None:
+            print "Could not find any Component Image ID fields in metadata %s" % metafile
+            return None
 
-		cid_node = None
-		for node in cid_nodes:
-			cpiid_node = node.findall(r"Product_Image_ID")[0]
-			if cpiid_node.text == spiid_node.text:
-				cid_node = node
-				break
-		if cid_node is None:
-			print "Could not match a Component ID to PIID: %s" % spiid_node.text
-			return None
+        cid_node = None
+        for node in cid_nodes:
+            cpiid_node = node.findall(r"Product_Image_ID")[0]
+            if cpiid_node.text == spiid_node.text:
+                cid_node = node
+                break
+        if cid_node is None:
+            print "Could not match a Component ID to PIID: %s" % spiid_node.text
+            return None
 
-	# Now assemble the dict
-	for node in cid_node.getiterator():
-		if node.tag in search_keys:
-			metadict[node.tag] = node.text
+    # Now assemble the dict
+    for node in cid_node.getiterator():
+        if node.tag in search_keys:
+            metadict[node.tag] = node.text
 
-	for node in siid_node.getiterator():
-		if node.tag in search_keys:
-			if node.tag == "Source_Image_ID":
-				metadict[node.tag] = node.attrib["id"]
-			else:
-				metadict[node.tag] = node.text
+    for node in siid_node.getiterator():
+        if node.tag in search_keys:
+            if node.tag == "Source_Image_ID":
+                metadict[node.tag] = node.attrib["id"]
+            else:
+                metadict[node.tag] = node.text
 
-	keys = [key for key in search_keys.keys() if key not in attribs]
-	for key in keys:
-		nodes = metad.findall(r".//%s" % key)
-		if nodes is None or len(nodes) == 0:
-			print "Could not find key: %s" % key
-			metadict[key] = None
-		else:
-			metadict[key] = nodes[0].text
+    keys = [key for key in search_keys.keys() if key not in attribs]
+    for key in keys:
+        nodes = metad.findall(r".//%s" % key)
+        if nodes is None or len(nodes) == 0:
+            print "Could not find key: %s" % key
+            metadict[key] = None
+        else:
+            metadict[key] = nodes[0].text
 
-	return metadict
+    return metadict
 
 
 def getIKMetadataAsXml(metafile):
@@ -1657,7 +1744,7 @@ def getSensor(srcfn):
     RAW_DG = "(?P<ts>\d\d[a-z]{3}\d{8})-(?P<prod>\w{4})?(?P<tile>\w+)?-(?P<oid>\d{12}_\d\d)_(?P<pnum>p\d{3})"
 
     RENAMED_DG = "(?P<snsr>\w\w\d\d)_(?P<ts>\d\d[a-z]{3}\d{9})-(?P<prod>\w{4})?(?P<tile>\w+)?-(?P<catid>[a-z0-9]+)"
-    
+
     RENAMED_DG2 = "(?P<snsr>\w\w\d\d)_(?P<ts>\d{14})_(?P<catid>[a-z0-9]{16})"
 
     RAW_GE = "(?P<snsr>\d[a-z])(?P<ts>\d{6})(?P<band>[a-z])(?P<said>\d{9})(?P<prod>\d[a-z])(?P<pid>\d{3})(?P<siid>\d{8})(?P<ver>\d)(?P<mono>[a-z0-9])_(?P<pnum>\d{8,9})"
@@ -1686,14 +1773,14 @@ def getSensor(srcfn):
 
     for pattern in GE_patterns:
         p = re.compile(pattern)
-        m = p.match(srcfn.lower())
+        m = p.search(srcfn.lower())
         if m is not None:
             vendor = "GeoEye"
             sat = "GE01"
 
     for pattern in IK_patterns:
         p = re.compile(pattern)
-        m = p.match(srcfn.lower())
+        m = p.search(srcfn.lower())
         if m is not None:
             vendor = "GeoEye"
             sat = "IK01"
