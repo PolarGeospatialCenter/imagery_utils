@@ -740,6 +740,7 @@ def GetImageStats(opt, info):
 
     return info, rc
 
+
 def GetDGMetadataPath(info):
     """
     Returns the filepath of the XML, if it can be found. Returns
@@ -778,6 +779,7 @@ def GetDGMetadataPath(info):
     else:
         return None
 
+
 def GetIKMetadataPath(info):
     """
     Same as GetDGMetadataPath, but for Ikonos.
@@ -809,6 +811,7 @@ def GetIKMetadataPath(info):
         return metapath
     else:
         return None
+
 
 def WriteOutputMetadata(opt,info):
 
@@ -1171,6 +1174,7 @@ def calcEarthSunDist(t):
 
 def getDGXmlData(xmlpath,stretch):
     calibDict = {}
+    abscalfact_dict = {}
     xmldoc = minidom.parse(xmlpath)
 
     if len(xmldoc.getElementsByTagName('IMD')) >=1:
@@ -1231,48 +1235,66 @@ def getDGXmlData(xmlpath,stretch):
         else:
             return calibDict
 
+        
+        sunAngle = 90 - sunEl
+        des = calcEarthSunDist(datetime.strptime(t,"%Y-%m-%dT%H:%M:%S.%fZ"))
+        
         # get BAND tags
         for band in DGbandList:
             nodeBAND = nodeIMD.getElementsByTagName(band)
             #print nodeBAND
             if not len(nodeBAND) == 0:
-
+                
                 temp = nodeBAND[0].getElementsByTagName('ABSCALFACTOR')
                 if not len(temp) == 0:
                     abscal = float(temp[0].firstChild.data)
+                    
                 else:
                     return calibDict
-
+                    
                 temp = nodeBAND[0].getElementsByTagName('EFFECTIVEBANDWIDTH')
                 if not len(temp) == 0:
                     effbandw = float(temp[0].firstChild.data)
                 else:
                     return calibDict
-
-                sunAngle = 90 - sunEl
-                des = calcEarthSunDist(datetime.strptime(t,"%Y-%m-%dT%H:%M:%S.%fZ"))
-                satband = sat+'_'+band
-                if satband not in EsunDict:
-                    LogMsg("Cannot find sensor and band in Esun lookup table: %s.  Try using --stretch ns." %satband)
-                    return {}
-                else:
-                    Esun = EsunDict[satband]
-
-                #print abscal,des,Esun,math.cos(math.radians(sunAngle)),effbandw
-
-                radfact = abscal/effbandw
-                reflfact = (abscal * des**2 * math.pi) / (Esun * math.cos(math.radians(sunAngle)) * effbandw)
-
-                if sat == 'GE01':
-                    radfact = radfact * 10
-                    reflfact = reflfact * 10
-
-                #print satband, abscal, des, Esun, sunAngle, sunEl, effbandw
-
-                if stretch == "rd":
-                    calibDict[band] = radfact
-                else:
-                    calibDict[band] = reflfact
+                
+                abscalfact_dict[band] = (abscal,effbandw)
+        
+        #### Determine if unit shift factor should be applied
+        
+        ## 1) If BAND_B abscalfact < 0.002, then units are in W/cm2/nm and should be multiplied 
+        ##  by 10 in order to get units of W/m2/um
+        ## 1) If BAND_P abscalfact < 0.15, then units are in W/cm2/nm and should be multiplied 
+        ##  by 10 in order to get units of W/m2/um
+        
+        units_factor = 1
+        if sat == 'GE01':
+            if 'BAND_B' in abscalfact_dict:
+                if abscalfact_dict['BAND_B'] < 0.002:
+                    units_factor = 10
+            if 'BAND_P' in abscalfact_dict:
+                if abscalfact_dict['BAND_P'] < 0.15:
+                    units_factor = 10
+        
+        for band in abscalfact_dict:
+            satband = sat+'_'+band
+            if satband not in EsunDict:
+                LogMsg("Cannot find sensor and band in Esun lookup table: %s.  Try using --stretch ns." %satband)
+                return {}
+            else:
+                Esun = EsunDict[satband]
+            
+            #print abscal,des,Esun,math.cos(math.radians(sunAngle)),effbandw
+            
+            radfact = units_factor * (abscal/effbandw)
+            reflfact = units_factor * ((abscal * des**2 * math.pi) / (Esun * math.cos(math.radians(sunAngle)) * effbandw))
+                                
+            print satband, abscal, des, Esun, sunAngle, sunEl, effbandw, reflfact, radfact
+            
+            if stretch == "rd":
+                calibDict[band] = radfact
+            else:
+                calibDict[band] = reflfact
 
     return calibDict
 
