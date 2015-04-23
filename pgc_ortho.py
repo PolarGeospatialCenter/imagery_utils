@@ -7,7 +7,7 @@ from xml.etree import cElementTree as ET
 
 import gdal, ogr,osr, gdalconst
 
-from pgclib import ortho_utils as ortho_utils
+from lib import ortho_utils as ortho_utils
 
 #### Create Loggers
 logger = logging.getLogger("logger")
