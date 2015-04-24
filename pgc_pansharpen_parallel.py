@@ -168,7 +168,10 @@ def main():
                     sensor,res = dRegExs[regex]
                     print "Image: %s, Sensor: %s, Res: %f" %(srcname,sensor,res)
 
-            if sensor is not None:
+            if sensor is None:
+                print "Image did not match any panchromatic image pattern: %s" %srcname
+ 
+            else:
 
                 mul_name = get_multispectral_name(sensor,srcname)
                 mulp = os.path.join(srcdir,mul_name)
@@ -325,8 +328,6 @@ def main():
                                     os.remove(f)
                                 except Exception, e:
                                     LogMsg('Could not remove %s: %s' %(os.path.basename(f),e))
-
-
 
 
 if __name__ == '__main__':
