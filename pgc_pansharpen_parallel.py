@@ -13,7 +13,7 @@ import gdal, ogr,osr, gdalconst
 WV02p = re.compile("WV02_\w+-P")
 
 # WV03_12FEB061315046-P1BS-10300100106FC100.ntf
-WV02p = re.compile("WV03_\w+-P")
+WV03p = re.compile("WV03_\w+-P")
 
 # QB02_12FEB061315046-P1BS-10300100106FC100.ntf
 QB02p = re.compile("QB02_\w+-P")
@@ -167,7 +167,10 @@ def main():
                 if match is not None:
                     sensor,res = dRegExs[regex]
                     print "Image: %s, Sensor: %s, Res: %f" %(srcname,sensor,res)
-                
+
+            if sensor is None:
+                print "Image did not match any panchromatic image pattern: %s" %srcname
+ 
             if sensor is not None:
                
                 mul_name = get_multispectral_name(sensor,srcname)
