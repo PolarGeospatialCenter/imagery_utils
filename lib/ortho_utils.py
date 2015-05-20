@@ -166,6 +166,7 @@ def processImage(srcfp,dstfp,opt):
     #### Derive names
     info.localsrc = os.path.join(wd,info.srcfn)
     info.localdst = os.path.join(wd,info.dstfn)
+    info.rawvrt = os.path.splitext(info.localsrc)[0] + "_raw.vrt"
     info.warpfile = os.path.splitext(info.localsrc)[0] + "_warp.tif"
     info.vrtfile = os.path.splitext(info.localsrc)[0] + "_vrt.vrt"
 
@@ -276,13 +277,14 @@ def processImage(srcfp,dstfp,opt):
         err = 1
         LogMsg("ERROR: final image not present")
 
-    if not opt.save_temps:
-        deleteTempFiles([info.warpfile,info.vrtfile,info.localsrc])
-
     if err == 1:
         LogMsg("Processing failed: %s" %info.srcfn)
-        deleteTempFiles([dstfp])
-
+        if not opt.save_temps:
+            deleteTempFiles([dstfp,info.rawvrt,info.warpfile,info.vrtfile,info.localsrc])
+    
+    elif not opt.save_temps:
+        deleteTempFiles([info.rawvrt,info.warpfile,info.vrtfile,info.localsrc])
+        
     #### Calculate Total Time
     endtime = datetime.today()
     td = (endtime-starttime)
@@ -361,7 +363,7 @@ def stackIkBands(dstfp, members):
             rc = 1
 
         #print "Writing metadata to output"
-        dst_ds = gdal.Open(dstfp,gdalconst.GA_Update)
+        dst_ds = gdal.Open(dstfp,gdalconst.GA_ReadOnly)
         if dst_ds is not None:
             #### check that ds has correct number of bands
             if not dst_ds.RasterCount == len(band_dict):
@@ -968,27 +970,39 @@ def WarpImage(opt,info):
 
                 LogMsg("Average elevation: %f meters" %(h))
                 to = "RPC_HEIGHT=%f" %h
-
-
-
-            #### GDALWARP Command
-            cmd = 'gdalwarp %s -of GTiff -ot UInt16 %s%s%s-co "TILED=YES" -co "BIGTIFF=IF_SAFER" -t_srs "%s" -r %s -et 0.01 -rpc -to "%s" "%s" "%s"' %(
-                config_options,
-                info.centerlong,
-                info.extent,
-                info.res,
-                opt.spatial_ref.proj4,
-                opt.resample,
-                to,
-                info.localsrc,
-                info.warpfile
-                )
-
+                ds = None
+                
+            #### convert to VRT and modify 4th band
+            cmd = 'gdal_translate -of VRT "{0}" "{1}"'.format(info.localsrc,info.rawvrt)
             (err,so,se) = ExecCmd(cmd)
-            #print err
             if err == 1:
                 rc = 1
-            ds = None
+            
+            if os.path.isfile(info.rawvrt) and info.bands > 3:
+                vds = gdal.Open(info.rawvrt,gdalconst.GA_Update)
+                if vds.GetRasterBand(4).GetColorInterpretation() == 6:
+                    vds.GetRasterBand(4).SetColorInterpretation(gdalconst.GCI_Undefined)
+                vds = None
+
+            
+                #### GDALWARP Command
+                cmd = 'gdalwarp %s -of GTiff -ot UInt16 %s%s%s-co "TILED=YES" -co "BIGTIFF=IF_SAFER" -t_srs "%s" -r %s -et 0.01 -rpc -to "%s" "%s" "%s"' %(
+                    config_options,
+                    info.centerlong,
+                    info.extent,
+                    info.res,
+                    opt.spatial_ref.proj4,
+                    opt.resample,
+                    to,
+                    info.rawvrt,
+                    info.warpfile
+                    )
+    
+                (err,so,se) = ExecCmd(cmd)
+                #print err
+                if err == 1:
+                    rc = 1
+                
         return rc
 
 
