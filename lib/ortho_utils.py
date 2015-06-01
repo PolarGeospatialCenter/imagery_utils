@@ -985,23 +985,23 @@ def WarpImage(opt,info):
                 vds = None
 
             
-                #### GDALWARP Command
-                cmd = 'gdalwarp %s -of GTiff -ot UInt16 %s%s%s-co "TILED=YES" -co "BIGTIFF=IF_SAFER" -t_srs "%s" -r %s -et 0.01 -rpc -to "%s" "%s" "%s"' %(
-                    config_options,
-                    info.centerlong,
-                    info.extent,
-                    info.res,
-                    opt.spatial_ref.proj4,
-                    opt.resample,
-                    to,
-                    info.rawvrt,
-                    info.warpfile
-                    )
-    
-                (err,so,se) = ExecCmd(cmd)
-                #print err
-                if err == 1:
-                    rc = 1
+            #### GDALWARP Command
+            cmd = 'gdalwarp %s -of GTiff -ot UInt16 %s%s%s-co "TILED=YES" -co "BIGTIFF=IF_SAFER" -t_srs "%s" -r %s -et 0.01 -rpc -to "%s" "%s" "%s"' %(
+                config_options,
+                info.centerlong,
+                info.extent,
+                info.res,
+                opt.spatial_ref.proj4,
+                opt.resample,
+                to,
+                info.rawvrt,
+                info.warpfile
+                )
+
+            (err,so,se) = ExecCmd(cmd)
+            #print err
+            if err == 1:
+                rc = 1
                 
         return rc
 
