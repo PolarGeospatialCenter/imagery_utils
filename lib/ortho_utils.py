@@ -984,10 +984,11 @@ def WarpImage(opt,info):
                     vds.GetRasterBand(4).SetColorInterpretation(gdalconst.GCI_Undefined)
                 vds = None
 
-            
+            nodata_list = ["0"] * info.bands
             #### GDALWARP Command
-            cmd = 'gdalwarp %s -of GTiff -ot UInt16 %s%s%s-co "TILED=YES" -co "BIGTIFF=IF_SAFER" -t_srs "%s" -r %s -et 0.01 -rpc -to "%s" "%s" "%s"' %(
+            cmd = 'gdalwarp %s -srcnodata "%s" -of GTiff -ot UInt16 %s%s%s-co "TILED=YES" -co "BIGTIFF=IF_SAFER" -t_srs "%s" -r %s -et 0.01 -rpc -to "%s" "%s" "%s"' %(
                 config_options,
+                " ".join(nodata_list),
                 info.centerlong,
                 info.extent,
                 info.res,
@@ -996,8 +997,8 @@ def WarpImage(opt,info):
                 to,
                 info.rawvrt,
                 info.warpfile
-                )
-
+                )           
+            
             (err,so,se) = ExecCmd(cmd)
             #print err
             if err == 1:
@@ -1298,12 +1299,14 @@ def getDGXmlData(xmlpath,stretch):
             else:
                 Esun = EsunDict[satband]
             
+            abscal,effbandw = abscalfact_dict[band]
+            
             #print abscal,des,Esun,math.cos(math.radians(sunAngle)),effbandw
             
             radfact = units_factor * (abscal/effbandw)
             reflfact = units_factor * ((abscal * des**2 * math.pi) / (Esun * math.cos(math.radians(sunAngle)) * effbandw))
                                 
-            print satband, abscal, des, Esun, sunAngle, sunEl, effbandw, reflfact, radfact
+            print "{0}: absCalFact {1}, Earth-Sun distance {2}, Esun {3}, sun angle {4}, sun elev {5}, effBandwidth {6}, reflectance factor {7}, radience factor {8}".format(satband, abscal, des, Esun, sunAngle, sunEl, effbandw, reflfact, radfact)
             
             if stretch == "rd":
                 calibDict[band] = radfact
