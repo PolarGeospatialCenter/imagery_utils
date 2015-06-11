@@ -112,7 +112,7 @@ def buildParentArgumentParser():
     parser.add_argument("-p", "--epsg", required=True, type=int,
                       help="epsg projection code for output files")
     parser.add_argument("-d", "--dem",
-                      help="the DEM to use for orthorectification")
+                      help="the DEM to use for orthorectification (elevation values should be relative to the wgs84 ellipoid")
     parser.add_argument("-t", "--outtype", choices=outtypes, default="Byte",
                       help="output data type (default=Byte)")
     parser.add_argument("-r", "--resolution",
@@ -132,6 +132,7 @@ def buildParentArgumentParser():
     parser.add_argument("--skip_warp", action='store_true', default=False,
                       help="skip warping step")
     parser.add_argument("--no_pyramids", action='store_true', default=False, help='suppress calculation of output image pyramids and stats')
+    parser.add_argument("--ortho_height", type=long, help='constant elevation to use for orthorectification (value should be in meters above the wgs84 ellipoid)')
 
 
     return parser, pos_arg_keys
@@ -174,10 +175,17 @@ def processImage(srcfp,dstfp,opt):
     try:
         spatial_ref = SpatialRef(opt.epsg)
     except RuntimeError, e:
+        logger.error("Invalid EPSG code: {0)".format(opt.epsg))
 	err = 1
     else:
 	opt.spatial_ref = spatial_ref
-
+        
+    #### Verify that dem and ortho_height are not both specified
+    if opt.dem is not None and opt.ortho_height is not None:
+        logger.error("--dem and --ortho_height options are mutually exclusive.  Please choose only one.")
+        err = 1
+        
+    
     #### Check if image is level 2A and tiled, raise error
     p = re.compile("-(?P<prod>\w{4})?(_(?P<tile>\w+))?-\w+?(?P<ext>\.\w+)")
     m = p.search(info.srcfn)
@@ -231,12 +239,7 @@ def processImage(srcfp,dstfp,opt):
             if overlap is False:
                 err = 1
 
-    ####  Write Output Metadata
-    if not err == 1:
-        rc = WriteOutputMetadata(opt,info)
-        if rc == 1:
-            err = 1
-            LogMsg("ERROR in writing metadata file")
+    
 
     if not opt.skip_warp:
         #### Warp Image
@@ -259,7 +262,14 @@ def processImage(srcfp,dstfp,opt):
             if rc == 1:
                 err = 1
                 LogMsg("ERROR in image calculation")
-
+    
+    ####  Write Output Metadata
+    if not err == 1:
+        rc = WriteOutputMetadata(opt,info)
+        if rc == 1:
+            err = 1
+            LogMsg("ERROR in writing metadata file")
+    
     #### Copy image to final location if working dir is used
     if opt.wd is not None:
         if not err == 1:
@@ -874,18 +884,19 @@ def WriteOutputMetadata(opt,info):
     dMD["PROCESS_DATE"] = tm.strftime("%d-%b-%Y %H:%M:%S")
     if opt.dem:
         dMD["ORTHO_DEM"] = os.path.basename(opt.dem)
+    elif opt.ortho_height is not None:
+        dMD["ORTHO_HEIGHT"] = str(opt.ortho_height)
     else:
-        dMD["ORTHO_DEM"] = "None"
-    #dMD["DEM_RES"]
-    #dMD["ORTHO_CONSTELEV"]
-    #dMD["RESAMPLEMETHOD"]
-    dMD["STRETCH"] = info.stretch
+        h = get_rpc_height(info)
+        dMD["ORTHO_HEIGHT"] = str(h)
+    dMD["RESAMPLEMETHOD"] = opt.resample
+    dMD["STRETCH"] = opt.stretch
     dMD["BITDEPTH"] = opt.outtype
     dMD["FORMAT"] = opt.format
-    #dMD["COMPRESSION"]
+    dMD["COMPRESSION"] = opt.gtiff_compression
     #dMD["BANDNUMBER"]
     #dMD["BANDMAP"]
-    #dMD["PROJECTIONCODE"]
+    dMD["EPSG_CODE"] = str(opt.epsg)
 
     pgcmd = ET.Element("PGC_IMD")
     for tag in dMD:
@@ -954,20 +965,13 @@ def WarpImage(opt,info):
                 LogMsg('DEM: %s' %(os.path.basename(opt.dem)))
                 to = "RPC_DEM=%s" %opt.dem
 
+            elif opt.ortho_height is not None:
+                LogMsg("Elevation: {0} meters".format(opt.ortho_height))
+                to = "RPC_HEIGHT=%f" %opt.ortho_height
+                
             else:
                 #### Get Constant Elevation From XML
-                ds = gdal.Open(info.localsrc,gdalconst.GA_ReadOnly)
-                if not ds == None and rc == 0:
-                    m = ds.GetMetadata("RPC")
-                    if "HEIGHT_OFF" in m:
-                        h = m["HEIGHT_OFF"]
-                        h = float(''.join([c for c in h if c in '1234567890.+-']))
-                    else:
-                        h = 0
-                        LogMsg("Cannot determine avg elevation. Using 0.")
-                else:
-                    h = 0
-
+                h = get_rpc_height(info)
                 LogMsg("Average elevation: %f meters" %(h))
                 to = "RPC_HEIGHT=%f" %h
                 ds = None
@@ -1005,6 +1009,31 @@ def WarpImage(opt,info):
                 rc = 1
                 
         return rc
+
+def get_rpc_height(info):
+    ds = gdal.Open(info.localsrc,gdalconst.GA_ReadOnly)
+    if ds is not None:
+        m = ds.GetMetadata("RPC")
+        m2 = ds.GetMetadata("RPB")
+        if "HEIGHT_OFF" in m:
+            h1 = m["HEIGHT_OFF"]
+            h = float(''.join([c for c in h1 if c in '1234567890.+-']))
+        elif "HEIGHTOFFSET" in m:
+            h1 = m["HEIGHTOFFSET"]
+            h = float(''.join([c for c in h1 if c in '1234567890.+-']))
+        elif "HEIGHT_OFF" in m2:
+            h1 = m["HEIGHT_OFF"]
+            h = float(''.join([c for c in h1 if c in '1234567890.+-']))
+        elif "HEIGHTOFFSET" in m2:
+            h1 = m["HEIGHTOFFSET"]
+            h = float(''.join([c for c in h1 if c in '1234567890.+-']))
+        else:
+            h = 0
+            LogMsg("Cannot determine avg elevation. Using 0.")
+    else:
+        h = 0
+        LogMsg("Cannot determine avg elevation. Using 0.")
+    return h
 
 
 def GetCalibrationFactors(info):
@@ -1052,7 +1081,7 @@ def GetCalibrationFactors(info):
             bandList = range(0,4,1)
 
     else:
-        print "Vendor or sensor not recognized: %s, %s" (info.vendor, info.sat)
+        LogMsg( "Vendor or sensor not recognized: %s, %s" (info.vendor, info.sat))
 
     #LogMsg("Calibration factors: %s"%calibDict)
     if len(calibDict) > 0:
@@ -1127,7 +1156,6 @@ def ExtractRPB(item,rpb_p):
             tarlist = tar.getnames()
             for t in tarlist:
                 if '.rpb' in string.lower(t) or '_rpc' in string.lower(t): #or '.til' in string.lower(t):
-                    print t
                     tf = tar.extractfile(t)
                     fp = os.path.splitext(rpb_p)[0] + os.path.splitext(t)[1]
                     fpfh = open(fp,"w")
@@ -1212,15 +1240,15 @@ def getDGXmlData(xmlpath,stretch):
             'WV02_BAND_N':1069.7302,
             'WV02_BAND_N2':861.2866,
 
-            'WV03_BAND_P':1616.4508,
-            'WV03_BAND_C':1544.5748,
-            'WV03_BAND_B':1971.4957,
-            'WV03_BAND_G':1821.7494,
-            'WV03_BAND_Y':1779.2849,
-            'WV03_BAND_R':1586.8104,
-            'WV03_BAND_RE':1320.2137,
-            'WV03_BAND_N':1088.7935,
-            'WV03_BAND_N2':777.5231,
+            'WV03_BAND_P':1588.54256,
+            'WV03_BAND_C':1803.910899,
+            'WV03_BAND_B':1982.448496,
+            'WV03_BAND_G':1857.123219,
+            'WV03_BAND_Y':1746.59472,
+            'WV03_BAND_R':1556.972971,
+            'WV03_BAND_RE':1340.682185,
+            'WV03_BAND_N':1072.526674,
+            'WV03_BAND_N2':871.105797,
 
             'WV01_BAND_P':1487.54715,
 
@@ -1306,7 +1334,7 @@ def getDGXmlData(xmlpath,stretch):
             radfact = units_factor * (abscal/effbandw)
             reflfact = units_factor * ((abscal * des**2 * math.pi) / (Esun * math.cos(math.radians(sunAngle)) * effbandw))
                                 
-            print "{0}: absCalFact {1}, Earth-Sun distance {2}, Esun {3}, sun angle {4}, sun elev {5}, effBandwidth {6}, reflectance factor {7}, radience factor {8}".format(satband, abscal, des, Esun, sunAngle, sunEl, effbandw, reflfact, radfact)
+            LogMsg("{0}: absCalFact {1}, Earth-Sun distance {2}, Esun {3}, sun angle {4}, sun elev {5}, effBandwidth {6}, reflectance factor {7}, radience factor {8}".format(satband, abscal, des, Esun, sunAngle, sunEl, effbandw, reflfact, radfact))
             
             if stretch == "rd":
                 calibDict[band] = radfact
@@ -1377,7 +1405,7 @@ def getIKMetadata(fp_mode, metafile):
         search_keys = dict(ik2fp)
 
     else:
-        print "Unable to parse metadata from %s" % metafile
+        LogMsg("Unable to parse metadata from %s" % metafile)
         return None
 
     metad_map = dict((c, p) for p in metad.getiterator() for c in p)  # Child/parent mapping
@@ -1407,7 +1435,7 @@ def getIKMetadata(fp_mode, metafile):
             siid = os.path.basename(metafile.lower())[5:33]
         siid_nodes = metad.findall(r".//Source_Image_ID")
         if siid_nodes is None:
-            print "Could not find any Source Image ID fields in metadata %s" % metafile
+            LogMsg( "Could not find any Source Image ID fields in metadata %s" % metafile)
             return None
 
         siid_node = None
@@ -1416,17 +1444,17 @@ def getIKMetadata(fp_mode, metafile):
                 siid_node = node
                 break
             if siid_node is None:
-                print "Could not locate SIID: %s in metadata %s" % (siid, metafile)
+                LogMsg( "Could not locate SIID: %s in metadata %s" % (siid, metafile))
                 return None
 
         spiid_node = siid_node.findall(r"Product_Image_ID")[0]
         if spiid_node is None:
-            print "Could not find any Product Image ID fields in Source Image ID node %s" % siid_node.text
+            LogMsg( "Could not find any Product Image ID fields in Source Image ID node %s" % siid_node.text)
             return None
 
         cid_nodes = metad.findall(r".//Component_ID")
         if cid_nodes is None:
-            print "Could not find any Component Image ID fields in metadata %s" % metafile
+            LogMsg( "Could not find any Component Image ID fields in metadata %s" % metafile)
             return None
 
         cid_node = None
@@ -1436,7 +1464,7 @@ def getIKMetadata(fp_mode, metafile):
                 cid_node = node
                 break
         if cid_node is None:
-            print "Could not match a Component ID to PIID: %s" % spiid_node.text
+            LogMsg( "Could not match a Component ID to PIID: %s" % spiid_node.text)
             return None
 
     # Now assemble the dict
@@ -1455,7 +1483,7 @@ def getIKMetadata(fp_mode, metafile):
     for key in keys:
         nodes = metad.findall(r".//%s" % key)
         if nodes is None or len(nodes) == 0:
-            print "Could not find key: %s" % key
+            LogMsg( "Could not find key: %s" % key)
             metadict[key] = None
         else:
             metadict[key] = nodes[0].text
@@ -1476,7 +1504,7 @@ def getIKMetadataAsXml(metafile):
 		try:
 			metaf = open(metafile, "r")
 		except IOError, err:
-			print "Could not open metadata file %s because %s" % (metafile, err)
+			LogMsg( "Could not open metadata file %s because %s" % (metafile, err))
 			raise
 	else:
 		metaf = metafile

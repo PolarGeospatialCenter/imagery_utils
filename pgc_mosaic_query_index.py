@@ -71,7 +71,7 @@ def main():
     if args.log is not None:
         logfile = os.path.abspath(args.log)
     else:
-        logfile = os.path.join(os.path.dirname(dstdir),"queryFP_%s.log" %datetime.today().strftime("%Y%m%d%H%M%S"))
+        logfile = os.path.join(dstdir,"queryFP_%s.log" %datetime.today().strftime("%Y%m%d%H%M%S"))
     lfh = logging.FileHandler(logfile)
     #lfh = logging.StreamHandler()
     lfh.setLevel(logging.DEBUG)
@@ -394,7 +394,7 @@ def HandleTile(t,shp,dstdir,csvpath,args,exclude_list):
                             else:
                                 fn = contrib[contrib.rfind("/")+ 1:contrib.rfind(".")]
                             
-                            if args.dem is not None:
+                            if args.dem:
                                 mtxt.write(os.path.join(dstdir,"orthos",t.name,"ortho%s_u08%s%i.tif\n"% (fn, args.stretch, t.epsg)))
                             else:
                                 mtxt.write(os.path.join(dstdir,"orthos",t.name,"%s_u08%s%i.tif\n"% (fn, args.stretch, t.epsg)))

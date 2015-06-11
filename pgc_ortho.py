@@ -57,7 +57,10 @@ def main():
     except RuntimeError, e:
         parser.error(e)
 
-
+    #### Verify that dem and ortho_height are not both specified
+    if opt.dem is not None and opt.ortho_height is not None:
+        parser.error("--dem and --ortho_height options are mutually exclusive.  Please choose only one.")
+    
     #### Set Up Logging Handlers
     if opt.log == None:
         logfile = os.path.join(dstdir,"process.log")
