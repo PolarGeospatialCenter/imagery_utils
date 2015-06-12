@@ -1305,18 +1305,18 @@ def getDGXmlData(xmlpath,stretch):
         
         #### Determine if unit shift factor should be applied
         
-        ## 1) If BAND_B abscalfact < 0.002, then units are in W/cm2/nm and should be multiplied 
+        ## 1) If BAND_B abscalfact < 0.004, then units are in W/cm2/nm and should be multiplied 
         ##  by 10 in order to get units of W/m2/um
-        ## 1) If BAND_P abscalfact < 0.15, then units are in W/cm2/nm and should be multiplied 
+        ## 1) If BAND_P abscalfact < 0.01, then units are in W/cm2/nm and should be multiplied 
         ##  by 10 in order to get units of W/m2/um
         
         units_factor = 1
         if sat == 'GE01':
             if 'BAND_B' in abscalfact_dict:
-                if abscalfact_dict['BAND_B'] < 0.002:
+                if abscalfact_dict['BAND_B'][0] < 0.004:
                     units_factor = 10
             if 'BAND_P' in abscalfact_dict:
-                if abscalfact_dict['BAND_P'] < 0.15:
+                if abscalfact_dict['BAND_P'][0] < 0.01:
                     units_factor = 10
         
         for band in abscalfact_dict:
@@ -1333,8 +1333,8 @@ def getDGXmlData(xmlpath,stretch):
             
             radfact = units_factor * (abscal/effbandw)
             reflfact = units_factor * ((abscal * des**2 * math.pi) / (Esun * math.cos(math.radians(sunAngle)) * effbandw))
-                                
-            LogMsg("{0}: absCalFact {1}, Earth-Sun distance {2}, Esun {3}, sun angle {4}, sun elev {5}, effBandwidth {6}, reflectance factor {7}, radience factor {8}".format(satband, abscal, des, Esun, sunAngle, sunEl, effbandw, reflfact, radfact))
+            
+            LogMsg("{0}: absCalFact {1}, Earth-Sun distance {2}, Esun {3}, sun angle {4}, sun elev {5}, effBandwidth {6}, units factor {9}, reflectance factor {7}, radience factor {8}".format(satband, abscal, des, Esun, sunAngle, sunEl, effbandw, reflfact, radfact, units_factor))
             
             if stretch == "rd":
                 calibDict[band] = radfact

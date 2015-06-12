@@ -125,30 +125,26 @@ class ImageInfo:
             
         elif self.frmt == "raw":
             
-            if self.sensor in ['WV01','QB02','WV02']:
-                metapath = os.path.splitext(self.srcfp)[0]+'.xml'
-                if os.path.isfile(metapath):
-                    try:
-                        metad = ET.parse(metapath)
-                    except ET.ParseError, err:
-                        logger.warning("ERROR parsing metadata: %s, %s" %(err,metapath))
-                else:
-                    logger.warning("No metadata xml exists for %s" %self.srcfp)
+            metapath_xml = os.path.splitext(self.srcfp)[0]+'.xml'
+            metapath_txt = os.path.splitext(self.srcfp)[0]+'.txt'
+            if os.path.isfile(metapath_xml):
+                metapath = metapath_xml
+                try:
+                    metad = ET.parse(metapath)
+                except ET.ParseError, err:
+                    logger.warning("ERROR parsing metadata: %s, %s" %(err,metapath))
+            elif os.path.isfile(metapath_txt):
+                metapath = metapath_txt
+                try:
+                    metad = getGEMetadataAsXml(metapath)
+                except ET.ParseError, err:
+                    logger.warning("ERROR parsing metadata: %s, %s" %(err,metapath))
+            else:    
+                logger.warning("No metadata xml/txt exists for %s" %self.srcfp)
                     
-                  
-            ####  If GE
-            elif self.sensor in ['GE01']:
-                metapath = os.path.splitext(self.srcfp)[0]+'.txt'
-                if os.path.isfile(metapath):
-                    try:
-                        metad = getGEMetadataAsXml(metapath)
-                    except ET.ParseError, err:
-                        logger.warning("ERROR parsing metadata: %s, %s" %(err,metapath))
-                else:
-                    logger.warning("No metadata xml exists for %s" %self.srcfp)
             
             #### Write IK01 code        
-            #elif self.sensor in ['IK01']:
+            #if self.sensor in ['IK01']:
                     
         dAttribs = {
             "cc":None,
