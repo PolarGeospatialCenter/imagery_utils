@@ -1364,7 +1364,7 @@ def GetIKcalibDict(metafile,stretch):
 
     for band in range(0,5,1):
         sunElStr = metadict["Sun_Angle_Elevation"]
-        sunAngle = 90 - float(sunElStr.strip(" degrees"))
+        sunAngle = float(sunElStr.strip(" degrees"))
         datestr = metadict["Acquisition_Date_Time"] # 2011-12-09 18:43 GMT
         d = datetime.strptime(datestr,"%Y-%m-%d %H:%M GMT")
         des = calcEarthSunDist(d)
@@ -1405,7 +1405,6 @@ def getIKMetadata(fp_mode, metafile):
             ("Sensor_Name", "SENSOR"),
             ("Sun_Angle_Elevation", "SUN_ELEV")
     	]
-
 
     metad = getIKMetadataAsXml(metafile)
     if metad is not None:
@@ -1451,36 +1450,13 @@ def getIKMetadata(fp_mode, metafile):
             if node.attrib["id"] == siid:
                 siid_node = node
                 break
-            
+        
         if siid_node is None:
             LogMsg( "Could not locate SIID: %s in metadata %s" % (siid, metafile))
             return None
 
-        spiid_node = siid_node.findall(r"Product_Image_ID")[0]
-        if spiid_node is None:
-            LogMsg( "Could not find any Product Image ID fields in Source Image ID node %s" % siid_node.text)
-            return None
-
-        cid_nodes = metad.findall(r".//Component_ID")
-        if cid_nodes is None:
-            LogMsg( "Could not find any Component Image ID fields in metadata %s" % metafile)
-            return None
-
-        cid_node = None
-        for node in cid_nodes:
-            cpiid_node = node.findall(r"Product_Image_ID")[0]
-            if cpiid_node.text == spiid_node.text:
-                cid_node = node
-                break
-        if cid_node is None:
-            LogMsg( "Could not match a Component ID to PIID: %s" % spiid_node.text)
-            return None
 
     # Now assemble the dict
-    for node in cid_node.getiterator():
-        if node.tag in search_keys:
-            metadict[node.tag] = node.text
-
     for node in siid_node.getiterator():
         if node.tag in search_keys:
             if node.tag == "Source_Image_ID":
@@ -1488,15 +1464,7 @@ def getIKMetadata(fp_mode, metafile):
             else:
                 metadict[node.tag] = node.text
 
-    keys = [key for key in search_keys.keys() if key not in attribs]
-    for key in keys:
-        nodes = metad.findall(r".//%s" % key)
-        if nodes is None or len(nodes) == 0:
-            LogMsg( "Could not find key: %s" % key)
-            metadict[key] = None
-        else:
-            metadict[key] = nodes[0].text
-
+        
     return metadict
 
 
@@ -1641,7 +1609,7 @@ def GetGEcalibDict(metafile,stretch):
 
 
     for band in metadict["gain"].keys():
-        sunAngle = 90 - float(metadict["firstLineSunElevationAngle"])
+        sunAngle = float(metadict["firstLineSunElevationAngle"])
         datestr = metadict["originalFirstLineAcquisitionDateTime"] # 2009-11-01T01:49:33.685421Z
         des = calcEarthSunDist(datetime.strptime(datestr,"%Y-%m-%dT%H:%M:%S.%fZ"))
         gain = float(metadict["gain"][band])

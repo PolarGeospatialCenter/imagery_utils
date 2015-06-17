@@ -20,6 +20,7 @@ class TestMetadata(unittest.TestCase):
 	self.stretch = 'rf'
 	self.rd_stretch = 'rd'
     
+    #@unittest.skip("skipping")
     def test_parse_DG_md_files(self):
 	
 	dg_files = (
@@ -77,7 +78,7 @@ class TestMetadata(unittest.TestCase):
 		    self.assertNotEqual(calib_dict['BAND_B'],calib_dict['BAND_G'])
 		    
 	    
-	    
+    #@unittest.skip("skipping")	    
     def test_parse_GE_md_files(self):
 	ge_files = (
 	    ('GE01_110108M0010160234A222000100252M_000500940.txt',True),
@@ -88,12 +89,13 @@ class TestMetadata(unittest.TestCase):
 	    calib_dict = ortho_utils.GetGEcalibDict(metapath,self.stretch)
 	    self.assertEqual(bool(calib_dict),result)
 	    if calib_dict:
+		
 		if 5 in calib_dict:  # pan band
-		    self.assertGreater(calib_dict[5],0.0005)
-		    self.assertLess(calib_dict[5],0.0009)
+		    self.assertGreater(calib_dict[5],0.0002)
+		    self.assertLess(calib_dict[5],0.0008)
 		if 1 in calib_dict:  # blue band
-		    self.assertGreater(calib_dict[1],0.0005)
-		    self.assertLess(calib_dict[1],0.0009)
+		    self.assertGreater(calib_dict[1],0.0002)
+		    self.assertLess(calib_dict[1],0.0008)
 		if 1 in calib_dict and 2 in calib_dict: ### check bands are not equal
 		    self.assertNotEqual(calib_dict[1],calib_dict[2])
 		    
@@ -102,7 +104,7 @@ class TestMetadata(unittest.TestCase):
 	    calib_dict = ortho_utils.GetGEcalibDict(metapath,self.rd_stretch)
 	    self.assertEqual(bool(calib_dict),result)
 	    if calib_dict:
-		#print calib_dict
+		
 		if 5 in calib_dict:  # pan band
 		    self.assertGreater(calib_dict[5],0.01)
 		    self.assertLess(calib_dict[5],0.02)
@@ -127,12 +129,14 @@ class TestMetadata(unittest.TestCase):
 	    calib_dict = ortho_utils.GetIKcalibDict(metapath,self.stretch)
 	    self.assertEqual(bool(calib_dict),result)
 	    if calib_dict:
+		#print mdf
+		#print calib_dict
 		if 4 in calib_dict:  # pan band
 		    self.assertGreater(calib_dict[4],0.0004)
-		    self.assertLess(calib_dict[4],0.006)
+		    self.assertLess(calib_dict[4],0.0006)
 		if 0 in calib_dict:  # blue band
-		    self.assertGreater(calib_dict[0],0.0004)
-		    self.assertLess(calib_dict[0],0.006)
+		    self.assertGreater(calib_dict[0],0.0003)
+		    self.assertLess(calib_dict[0],0.0006)
 		if 0 in calib_dict and 1 in calib_dict: ### check bands are not equal
 		    self.assertNotEqual(calib_dict[0],calib_dict[1])
 		    
@@ -141,7 +145,7 @@ class TestMetadata(unittest.TestCase):
 	    calib_dict = ortho_utils.GetIKcalibDict(metapath,self.rd_stretch)
 	    self.assertEqual(bool(calib_dict),result)
 	    if calib_dict:
-		#print calib_dict
+		
 		if 4 in calib_dict:  # pan band
 		    self.assertGreater(calib_dict[4],0.1)
 		    self.assertLess(calib_dict[4],0.16)
@@ -158,7 +162,7 @@ class TestCollectFiles(unittest.TestCase):
 	for root, dirs, files in os.walk(test_dir):
 	    for f in files:
 		if f.lower().endswith(".ntf") or f.lower().endswith(".tif"):
-		    print f
+		    #print f
 		    #### Find metadata file
 		    srcfp = os.path.join(root,f)
 		    
