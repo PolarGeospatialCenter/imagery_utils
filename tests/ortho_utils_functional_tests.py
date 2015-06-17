@@ -13,6 +13,7 @@ def image_type_tests(pgc_ortho_script_path, test_imagery_directory, output_dir):
     
     test_images = [
         #(image_path, egsg)
+        ('renamed_pgctools3/IK01_2001060221531300000010031227_P2AS_387877/IK01_20010602215300_2001060221531300000010031227_po_387877_blu_0020000.ntf',3338), # tests ikonos metadata with multiple source ids
         ('renamed_pgctools3/WV01_102001001B02FA00_P1BS_052596100010_03/WV01_20120326222942_102001001B02FA00_12MAR26222942-P1BS-052596100010_03_P007.NTF',3413),
         ('renamed_pgctools3/WV02_103001001B998D00_M1BS_052754253040_01/WV02_20120719233558_103001001B998D00_12JUL19233558-M1BS-052754253040_01_P001.TIF',3413),
         ('renamed_pgctools3/WV02_10300100278D8500_P1BS_500099283010_01/WV02_20131005052802_10300100278D8500_13OCT05052802-P1BS-500099283010_01_P004.NTF',3031),
@@ -35,7 +36,7 @@ def image_type_tests(pgc_ortho_script_path, test_imagery_directory, output_dir):
     for test_image,epsg in test_images:
         
         test_image_path = os.path.join(test_imagery_directory,test_image)
-        command = r"""python "%s" -p %d "%s" "%s" """ %(pgc_ortho_script_path, epsg, test_image_path, output_dir)
+        command = r"""python "%s" --wd /local -p %d "%s" "%s" """ %(pgc_ortho_script_path, epsg, test_image_path, output_dir)
         print command
         subprocess.call(command, shell=True)
 

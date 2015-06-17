@@ -200,30 +200,47 @@ def processImage(srcfp,dstfp,opt):
         if gd['prod'][1:3] == '2A' and gd['tile'] is not None and gd['ext'] == '.tif':
             logger.error("Cannot process 2A tiled Geotiffs")
             err = 1
-
-
-    #### Check If Image is IKONOS msi that does not exist, if so, stack to dstdir, else, copy srcfn to dstdir
-    if "IK01" in info.srcfn and "msi" in info.srcfn and not os.path.isfile(info.srcfp):
-        LogMsg("Converting IKONOS band images to composite image")
-        members = [os.path.join(info.srcdir,info.srcfn.replace("msi",b)) for b in ikMsiBands]
-        status = [os.path.isfile(member) for member in members]
-        if sum(status) != 4:
-            logger.error("1 or more IKONOS multispectral member images are missing %s" %", ".join(members))
+    
+    #### Find metadata file
+    if not err == 1:
+        metafile = GetDGMetadataPath(info.srcfp)
+        if metafile is None:
+            metafile = GetIKMetadataPath(info.srcfp)
+        if metafile is None:
+            metafile = GetGEMetadataPath(info.srcfp)
+        if metafile is None:
+            logger.error("Cannot find metadata for image: {0}".format(info.srcfp))
             err = 1
-        elif not os.path.isfile(info.localsrc):
-            rc = stackIkBands(info.localsrc, members)
+        else:
+            info.metapath = metafile
 
-    else:
-        if os.path.isfile(info.srcfp):
-            if not err == 1:
+    if not err == 1:
+        #### Check If Image is IKONOS msi that does not exist, if so, stack to dstdir, else, copy srcfn to dstdir
+        if "IK01" in info.srcfn and "msi" in info.srcfn and not os.path.isfile(info.srcfp):
+            LogMsg("Converting IKONOS band images to composite image")
+            members = [os.path.join(info.srcdir,info.srcfn.replace("msi",b)) for b in ikMsiBands]
+            status = [os.path.isfile(member) for member in members]
+            if sum(status) != 4:
+                logger.error("1 or more IKONOS multispectral member images are missing %s" %", ".join(members))
+                err = 1
+            elif not os.path.isfile(info.localsrc):
+                rc = stackIkBands(info.localsrc, members)
+                #if not os.path.isfile(os.path.join(wd,os.path.basename(info.metapath))):
+                #    shutil.copy(info.metapath, os.path.join(wd,os.path.basename(info.metapath)))
+
+        else:
+            if os.path.isfile(info.srcfp):
                 LogMsg("Copying image to working directory")
-                for fpi in glob.glob("%s.*" %os.path.splitext(info.srcfp)[0]):
+                copy_list = glob.glob("%s.*" %os.path.splitext(info.srcfp)[0])
+                #copy_list.append(info.metapath)
+                for fpi in copy_list:
                     fpo = os.path.join(wd,os.path.basename(fpi))
                     if not os.path.isfile(fpo):
                         shutil.copy2(fpi,fpo)
-        else:
-            LogMsg("Source images does not exist: %s" %info.srcfp)
-            err = 1
+               
+            else:
+                LogMsg("Source images does not exist: %s" %info.srcfp)
+                err = 1
 
     #### Get Image Stats
     if not err == 1:
@@ -238,8 +255,6 @@ def processImage(srcfp,dstfp,opt):
             overlap = overlap_check(info.geometry_wkt,opt.spatial_ref,opt.dem)
             if overlap is False:
                 err = 1
-
-    
 
     if not opt.skip_warp:
         #### Warp Image
@@ -753,25 +768,25 @@ def GetImageStats(opt, info):
     return info, rc
 
 
-def GetDGMetadataPath(info):
+def GetDGMetadataPath(srcfp):
     """
     Returns the filepath of the XML, if it can be found. Returns
     None if no valid filepath could be found.
     """
-    if os.path.isfile(os.path.splitext(info.localsrc)[0]+'.xml'):
-        metapath = os.path.splitext(info.localsrc)[0]+'.xml'
-    elif os.path.isfile(os.path.splitext(info.localsrc)[0]+'.XML'):
-        metapath = os.path.splitext(info.localsrc)[0]+'.XML'
+    if os.path.isfile(os.path.splitext(srcfp)[0]+'.xml'):
+        metapath = os.path.splitext(srcfp)[0]+'.xml'
+    elif os.path.isfile(os.path.splitext(srcfp)[0]+'.XML'):
+        metapath = os.path.splitext(srcfp)[0]+'.XML'
     else:
         # Tiled DG images may have a metadata file at the strip level
         metapath = None
-        filename = os.path.basename(info.srcfp)
+        filename = os.path.basename(srcfp)
         match = re.match(PGC_DG_FILE, filename)
         if match:
             try:
                 # Build the expected strip-level metadata filepath using
                 # parts of the source image filepath
-                metapath = os.path.dirname(info.srcfp)
+                metapath = os.path.dirname(srcfp)
                 metapath = os.path.join(metapath, match.group('pgcpfx'))
                 metapath += "_{}".format(match.group('ts'))
                 metapath += "-{}".format(match.group('prod'))
@@ -792,23 +807,32 @@ def GetDGMetadataPath(info):
         return None
 
 
-def GetIKMetadataPath(info):
+def GetIKMetadataPath(srcfp):
     """
     Same as GetDGMetadataPath, but for Ikonos.
     """
     # Most of the time, the metadata file will be the same filename
-    # except for the extension. However, some IK metadata will be for
+    # except for the extension or with the band name replaced with rgb.
+    # However, some IK metadata will be for
     # an entire strip, and will have a different filename, which we
     # will look for if we need to.
-    metapath = os.path.splitext(info.localsrc)[0]+'.txt'
+    metapath = os.path.splitext(srcfp)[0]+'.txt'
+    
     if not os.path.isfile(metapath):
-        source_filename = os.path.basename(info.srcfp)
+        for b in ikMsiBands:
+            mp = metapath.replace(b,'rgb')
+            if os.path.isfile(mp):
+                metapath = mp
+                break
+            
+    if not os.path.isfile(metapath):
+        source_filename = os.path.basename(srcfp)
         match = re.match(PGC_IK_FILE, source_filename)
         if match:
             try:
                 # Build the expected strip-level metadata filepath using
                 # parts of the source image filepath
-                metapath = os.path.dirname(info.srcfp)
+                metapath = os.path.dirname(srcfp)
                 metapath = os.path.join(metapath, match.group('pgcpfx'))
                 metapath += "_po_{}".format(match.group('po'))
 
@@ -823,6 +847,23 @@ def GetIKMetadataPath(info):
         return metapath
     else:
         return None
+    
+    
+def GetGEMetadataPath(srcfp):
+    """
+    Same as GetDGMetadataPath, but for GE01.
+    """
+    # Most of the time, the metadata file will be the same filename
+    # except for the extension. However, some IK metadata will be for
+    # an entire strip, and will have a different filename, which we
+    # will look for if we need to.
+    metapath = os.path.splitext(srcfp)[0]+'.txt'
+    if not os.path.isfile(metapath):
+        metapath = os.path.splitext(srcfp)[0]+'.pvl'
+    if os.path.isfile(metapath):
+        return metapath
+    else:
+        return None
 
 
 def WriteOutputMetadata(opt,info):
@@ -833,11 +874,8 @@ def WriteOutputMetadata(opt,info):
     ####  Get xml/pvl metadata
     ####  If DG
     if info.vendor == 'DigitalGlobe':
-        metapath = GetDGMetadataPath(info)
-        if metapath is None or not os.path.isfile(metapath):
-            LogMsg("Cannot find metadata file for image: %s" %info.srcfp)
-            return 1
-
+        metapath = info.metapath
+        
         try:
             metad = ET.parse(metapath)
         except ET.ParseError:
@@ -848,32 +886,22 @@ def WriteOutputMetadata(opt,info):
 
     ####  If GE
     elif info.vendor == 'GeoEye' and info.sat == "GE01":
-        if os.path.isfile(os.path.splitext(info.localsrc)[0]+'.txt'):
-            metapath = os.path.splitext(info.localsrc)[0]+'.txt'
-        elif os.path.isfile(os.path.splitext(info.localsrc)[0]+'.pvl'):
-            metapath = os.path.splitext(info.localsrc)[0]+'.pvl'
-        else:
-            metapath = None
+        
+        metad = getGEMetadataAsXml(info.metapath)
+        imd = ET.Element("IMD")
+        include_tags = ["sensorInfo","inputImageInfo","correctionParams","bandSpecificInformation"]
 
-        if metapath:
-            metad = getGEMetadataAsXml(metapath)
-            imd = ET.Element("IMD")
-            include_tags = ["sensorInfo","inputImageInfo","correctionParams","bandSpecificInformation"]
+        elem = metad.find("productInfo")
+        if elem is not None:
+            rpc = elem.find("rationalFunctions")
+            elem.remove(rpc)
+            imd.append(elem)
 
-            elem = metad.find("productInfo")
-            if elem is not None:
-                rpc = elem.find("rationalFunctions")
-                elem.remove(rpc)
-                imd.append(elem)
+        for tag in include_tags:
+            elems = metad.findall(tag)
+            imd.extend(elems)
 
-            for tag in include_tags:
-                elems = metad.findall(tag)
-                imd.extend(elems)
-
-        else:
-            LogMsg("Cannot find metadata file: %s" %metapath)
-            return 1
-
+        
     elif info.sat in ['IK01']:
         imd = None
         # TODO: write code for IK metadata
@@ -1010,6 +1038,7 @@ def WarpImage(opt,info):
                 
         return rc
 
+
 def get_rpc_height(info):
     ds = gdal.Open(info.localsrc,gdalconst.GA_ReadOnly)
     if ds is not None:
@@ -1040,48 +1069,32 @@ def GetCalibrationFactors(info):
 
     calibDict = {}
     CFlist = []
-    sdsp = info.localsrc
 
     if info.vendor == "DigitalGlobe":
 
-        xmlpath = GetDGMetadataPath(info)
-        if xmlpath and os.path.isfile(xmlpath):
-            calibDict = getDGXmlData(xmlpath,info.stretch)
-            bandList = DGbandList
-        else:
-            LogMsg('xml does not exist for image: %s' %os.path.basename(sdsp))
+        xmlpath = info.metapath
+        calibDict = getDGXmlData(xmlpath,info.stretch)
+        bandList = DGbandList
 
     elif info.vendor == "GeoEye" and info.sat == "GE01":
 
-        if os.path.isfile(os.path.splitext(info.localsrc)[0]+'.txt'):
-            metapath = os.path.splitext(info.localsrc)[0]+'.txt'
-        elif os.path.isfile(os.path.splitext(info.localsrc)[0]+'.pvl'):
-            metapath = os.path.splitext(info.localsrc)[0]+'.pvl'
-        else:
-            metapath = None
-
-        if not metapath:
-            LogMsg(metapath + ' does not exist. Skipping')
-        else:
-            calibDict = GetGEcalibDict(metapath,info.stretch)
+        metapath = info.metapath
+        calibDict = GetGEcalibDict(metapath,info.stretch)
         if info.bands == 1:
             bandList = [5]
         elif info.bands == 4:
             bandList = range(1,5,1)
 
     elif info.vendor == "GeoEye" and info.sat == "IK01":
-        metapath = GetIKMetadataPath(info)
-        if metapath is None:
-            LogMsg(metapath + ' does not exist. Skipping')
-        else:
-            calibDict = GetIKcalibDict(metapath,info.stretch)
+        metapath = info.metapath
+        calibDict = GetIKcalibDict(metapath,info.stretch)
         if info.bands == 1:
             bandList = [4]
         elif info.bands == 4:
             bandList = range(0,4,1)
 
     else:
-        LogMsg( "Vendor or sensor not recognized: %s, %s" (info.vendor, info.sat))
+        LogMsg( "Vendor or sensor not recognized: %s, %s" %(info.vendor, info.sat))
 
     #LogMsg("Calibration factors: %s"%calibDict)
     if len(calibDict) > 0:
@@ -1177,18 +1190,6 @@ def ExtractRPB(item,rpb_p):
     return rc
 
 
-def getXmlHeight(xmlpath):
-    xmldoc = minidom.parse(xmlpath)
-    nodeRPC = xmldoc.getElementsByTagName('RPB')[0]
-
-    # get acquisition IMAGE tags
-    nodeIMAGE = nodeRPC.getElementsByTagName('IMAGE')
-
-    h = nodeIMAGE[0].getElementsByTagName('HEIGHTOFFSET')[0].firstChild.data
-
-    return h
-
-
 def calcEarthSunDist(t):
     year = t.year
     month = t.month
@@ -1218,128 +1219,133 @@ def calcEarthSunDist(t):
 def getDGXmlData(xmlpath,stretch):
     calibDict = {}
     abscalfact_dict = {}
-    xmldoc = minidom.parse(xmlpath)
+    try:
+        xmldoc = minidom.parse(xmlpath)
+    except Exception, e:
+        logger.error("Cannot parse metadata file: {0}".format(xmlpath))
+        return None
+    else:
 
-    if len(xmldoc.getElementsByTagName('IMD')) >=1:
-
-        nodeIMD = xmldoc.getElementsByTagName('IMD')[0]
-        EsunDict = {  # Spectral Irradiance in W/m2/um
-            'QB02_BAND_P':1381.79,
-            'QB02_BAND_B':1924.59,
-            'QB02_BAND_G':1843.08,
-            'QB02_BAND_R':1574.77,
-            'QB02_BAND_N':1113.71,
-
-            'WV02_BAND_P':1580.8140,
-            'WV02_BAND_C':1758.2229,
-            'WV02_BAND_B':1974.2416,
-            'WV02_BAND_G':1856.4104,
-            'WV02_BAND_Y':1738.4791,
-            'WV02_BAND_R':1559.4555,
-            'WV02_BAND_RE':1342.0695,
-            'WV02_BAND_N':1069.7302,
-            'WV02_BAND_N2':861.2866,
-
-            'WV03_BAND_P':1588.54256,
-            'WV03_BAND_C':1803.910899,
-            'WV03_BAND_B':1982.448496,
-            'WV03_BAND_G':1857.123219,
-            'WV03_BAND_Y':1746.59472,
-            'WV03_BAND_R':1556.972971,
-            'WV03_BAND_RE':1340.682185,
-            'WV03_BAND_N':1072.526674,
-            'WV03_BAND_N2':871.105797,
-
-            'WV01_BAND_P':1487.54715,
-
-            'GE01_BAND_P':1617,
-            'GE01_BAND_B':1960,
-            'GE01_BAND_G':1853,
-            'GE01_BAND_R':1505,
-            'GE01_BAND_N':1039,
-
-            'IK01_BAND_P':1375.8,
-            'IK01_BAND_B':1930.9,
-            'IK01_BAND_G':1854.8,
-            'IK01_BAND_R':1556.5,
-            'IK01_BAND_N':1156.9
-            }
-
-        # get acquisition IMAGE tags
-        nodeIMAGE = nodeIMD.getElementsByTagName('IMAGE')
-
-        sat = nodeIMAGE[0].getElementsByTagName('SATID')[0].firstChild.data
-        t = nodeIMAGE[0].getElementsByTagName('FIRSTLINETIME')[0].firstChild.data
-
-        if len(nodeIMAGE[0].getElementsByTagName('MEANSUNEL')) >= 1:
-            sunEl = float(nodeIMAGE[0].getElementsByTagName('MEANSUNEL')[0].firstChild.data)
-        elif len(nodeIMAGE[0].getElementsByTagName('SUNEL')) >= 1:
-            sunEl = float(nodeIMAGE[0].getElementsByTagName('SUNEL')[0].firstChild.data)
-        else:
-            return calibDict
-
-        
-        sunAngle = 90 - sunEl
-        des = calcEarthSunDist(datetime.strptime(t,"%Y-%m-%dT%H:%M:%S.%fZ"))
-        
-        # get BAND tags
-        for band in DGbandList:
-            nodeBAND = nodeIMD.getElementsByTagName(band)
-            #print nodeBAND
-            if not len(nodeBAND) == 0:
-                
-                temp = nodeBAND[0].getElementsByTagName('ABSCALFACTOR')
-                if not len(temp) == 0:
-                    abscal = float(temp[0].firstChild.data)
-                    
-                else:
-                    return calibDict
-                    
-                temp = nodeBAND[0].getElementsByTagName('EFFECTIVEBANDWIDTH')
-                if not len(temp) == 0:
-                    effbandw = float(temp[0].firstChild.data)
-                else:
-                    return calibDict
-                
-                abscalfact_dict[band] = (abscal,effbandw)
-        
-        #### Determine if unit shift factor should be applied
-        
-        ## 1) If BAND_B abscalfact < 0.004, then units are in W/cm2/nm and should be multiplied 
-        ##  by 10 in order to get units of W/m2/um
-        ## 1) If BAND_P abscalfact < 0.01, then units are in W/cm2/nm and should be multiplied 
-        ##  by 10 in order to get units of W/m2/um
-        
-        units_factor = 1
-        if sat == 'GE01':
-            if 'BAND_B' in abscalfact_dict:
-                if abscalfact_dict['BAND_B'][0] < 0.004:
-                    units_factor = 10
-            if 'BAND_P' in abscalfact_dict:
-                if abscalfact_dict['BAND_P'][0] < 0.01:
-                    units_factor = 10
-        
-        for band in abscalfact_dict:
-            satband = sat+'_'+band
-            if satband not in EsunDict:
-                LogMsg("Cannot find sensor and band in Esun lookup table: %s.  Try using --stretch ns." %satband)
-                return {}
+        if len(xmldoc.getElementsByTagName('IMD')) >=1:
+    
+            nodeIMD = xmldoc.getElementsByTagName('IMD')[0]
+            EsunDict = {  # Spectral Irradiance in W/m2/um
+                'QB02_BAND_P':1381.79,
+                'QB02_BAND_B':1924.59,
+                'QB02_BAND_G':1843.08,
+                'QB02_BAND_R':1574.77,
+                'QB02_BAND_N':1113.71,
+    
+                'WV02_BAND_P':1580.8140,
+                'WV02_BAND_C':1758.2229,
+                'WV02_BAND_B':1974.2416,
+                'WV02_BAND_G':1856.4104,
+                'WV02_BAND_Y':1738.4791,
+                'WV02_BAND_R':1559.4555,
+                'WV02_BAND_RE':1342.0695,
+                'WV02_BAND_N':1069.7302,
+                'WV02_BAND_N2':861.2866,
+    
+                'WV03_BAND_P':1588.54256,
+                'WV03_BAND_C':1803.910899,
+                'WV03_BAND_B':1982.448496,
+                'WV03_BAND_G':1857.123219,
+                'WV03_BAND_Y':1746.59472,
+                'WV03_BAND_R':1556.972971,
+                'WV03_BAND_RE':1340.682185,
+                'WV03_BAND_N':1072.526674,
+                'WV03_BAND_N2':871.105797,
+    
+                'WV01_BAND_P':1487.54715,
+    
+                'GE01_BAND_P':1617,
+                'GE01_BAND_B':1960,
+                'GE01_BAND_G':1853,
+                'GE01_BAND_R':1505,
+                'GE01_BAND_N':1039,
+    
+                'IK01_BAND_P':1375.8,
+                'IK01_BAND_B':1930.9,
+                'IK01_BAND_G':1854.8,
+                'IK01_BAND_R':1556.5,
+                'IK01_BAND_N':1156.9
+                }
+    
+            # get acquisition IMAGE tags
+            nodeIMAGE = nodeIMD.getElementsByTagName('IMAGE')
+    
+            sat = nodeIMAGE[0].getElementsByTagName('SATID')[0].firstChild.data
+            t = nodeIMAGE[0].getElementsByTagName('FIRSTLINETIME')[0].firstChild.data
+    
+            if len(nodeIMAGE[0].getElementsByTagName('MEANSUNEL')) >= 1:
+                sunEl = float(nodeIMAGE[0].getElementsByTagName('MEANSUNEL')[0].firstChild.data)
+            elif len(nodeIMAGE[0].getElementsByTagName('SUNEL')) >= 1:
+                sunEl = float(nodeIMAGE[0].getElementsByTagName('SUNEL')[0].firstChild.data)
             else:
-                Esun = EsunDict[satband]
+                return None
+    
             
-            abscal,effbandw = abscalfact_dict[band]
+            sunAngle = 90 - sunEl
+            des = calcEarthSunDist(datetime.strptime(t,"%Y-%m-%dT%H:%M:%S.%fZ"))
             
-            #print abscal,des,Esun,math.cos(math.radians(sunAngle)),effbandw
+            # get BAND tags
+            for band in DGbandList:
+                nodeBAND = nodeIMD.getElementsByTagName(band)
+                #print nodeBAND
+                if not len(nodeBAND) == 0:
+                    
+                    temp = nodeBAND[0].getElementsByTagName('ABSCALFACTOR')
+                    if not len(temp) == 0:
+                        abscal = float(temp[0].firstChild.data)
+                        
+                    else:
+                        return None
+                        
+                    temp = nodeBAND[0].getElementsByTagName('EFFECTIVEBANDWIDTH')
+                    if not len(temp) == 0:
+                        effbandw = float(temp[0].firstChild.data)
+                    else:
+                        return None
+                    
+                    abscalfact_dict[band] = (abscal,effbandw)
             
-            radfact = units_factor * (abscal/effbandw)
-            reflfact = units_factor * ((abscal * des**2 * math.pi) / (Esun * math.cos(math.radians(sunAngle)) * effbandw))
+            #### Determine if unit shift factor should be applied
             
-            LogMsg("{0}: absCalFact {1}, Earth-Sun distance {2}, Esun {3}, sun angle {4}, sun elev {5}, effBandwidth {6}, units factor {9}, reflectance factor {7}, radience factor {8}".format(satband, abscal, des, Esun, sunAngle, sunEl, effbandw, reflfact, radfact, units_factor))
+            ## 1) If BAND_B abscalfact < 0.004, then units are in W/cm2/nm and should be multiplied 
+            ##  by 10 in order to get units of W/m2/um
+            ## 1) If BAND_P abscalfact < 0.01, then units are in W/cm2/nm and should be multiplied 
+            ##  by 10 in order to get units of W/m2/um
             
-            if stretch == "rd":
-                calibDict[band] = radfact
-            else:
-                calibDict[band] = reflfact
+            units_factor = 1
+            if sat == 'GE01':
+                if 'BAND_B' in abscalfact_dict:
+                    if abscalfact_dict['BAND_B'][0] < 0.004:
+                        units_factor = 10
+                if 'BAND_P' in abscalfact_dict:
+                    if abscalfact_dict['BAND_P'][0] < 0.01:
+                        units_factor = 10
+            
+            for band in abscalfact_dict:
+                satband = sat+'_'+band
+                if satband not in EsunDict:
+                    LogMsg("Cannot find sensor and band in Esun lookup table: %s.  Try using --stretch ns." %satband)
+                    return None
+                else:
+                    Esun = EsunDict[satband]
+                
+                abscal,effbandw = abscalfact_dict[band]
+                
+                #print abscal,des,Esun,math.cos(math.radians(sunAngle)),effbandw
+                
+                radfact = units_factor * (abscal/effbandw)
+                reflfact = units_factor * ((abscal * des**2 * math.pi) / (Esun * math.cos(math.radians(sunAngle)) * effbandw))
+                
+                LogMsg("{0}: absCalFact {1}, Earth-Sun distance {2}, Esun {3}, sun angle {4}, sun elev {5}, effBandwidth {6}, units factor {9}, reflectance factor {7}, radience factor {8}".format(satband, abscal, des, Esun, sunAngle, sunEl, effbandw, reflfact, radfact, units_factor))
+                
+                if stretch == "rd":
+                    calibDict[band] = radfact
+                else:
+                    calibDict[band] = reflfact
 
     return calibDict
 
@@ -1371,11 +1377,13 @@ def GetIKcalibDict(metafile,stretch):
 
         bw = bwList[band]
         Esun = EsunDict[band]
-
+        
         #print sunAngle, des, gain, Esun
-        radfact = 10000 / (calCoef * bw )
-        reflfact = (10000 * des**2 * math.pi) / (calCoef * bw * Esun * math.cos(math.radians(sunAngle)))
-
+        radfact = 10000.0 / (calCoef * bw )
+        reflfact = (10000.0 * des**2 * math.pi) / (calCoef * bw * Esun * math.cos(math.radians(sunAngle)))
+        
+        LogMsg("{0}: calibration coef {1}, Earth-Sun distance {2}, Esun {3}, sun angle {4}, bandwidth {5}, reflectance factor {6}, radience factor {7}".format(band, calCoef, des, Esun, sunAngle, bw, reflfact, radfact))
+        
         if stretch == "rd":
             calibDict[band] = radfact
         else:
@@ -1395,7 +1403,7 @@ def getIKMetadata(fp_mode, metafile):
             ("Country_Code", "COUNTRY"),
             ("Percent_Component_Cloud_Cover", "CLOUDCOVER"),
             ("Sensor_Name", "SENSOR"),
-                        ("Sun_Angle_Elevation", "SUN_ELEV")
+            ("Sun_Angle_Elevation", "SUN_ELEV")
     	]
 
 
@@ -1443,9 +1451,10 @@ def getIKMetadata(fp_mode, metafile):
             if node.attrib["id"] == siid:
                 siid_node = node
                 break
-            if siid_node is None:
-                LogMsg( "Could not locate SIID: %s in metadata %s" % (siid, metafile))
-                return None
+            
+        if siid_node is None:
+            LogMsg( "Could not locate SIID: %s in metadata %s" % (siid, metafile))
+            return None
 
         spiid_node = siid_node.findall(r"Product_Image_ID")[0]
         if spiid_node is None:

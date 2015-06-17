@@ -292,7 +292,11 @@ class ImageInfo:
                     dAttribs["cc"] = 0.5
                 
                 if float(dAttribs["cc"]) > 0.5:
-                    logger.warning("Image too cloudy: %s --> %f" %(self.srcfp,float(dAttribs["cc"])))
+                    logger.warning("Image too cloudy (>50%): %s --> %f" %(self.srcfp,float(dAttribs["cc"])))
+                    score = -1
+                
+                if float(dAttribs["sunel"]) < 5:
+                    logger.warning("Sun elevation too low (<5 degrees): %s --> %f" %(self.srcfp,float(dAttribs["sunel"])))
                     score = -1
                         
                 #try:
