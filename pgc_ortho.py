@@ -84,9 +84,7 @@ def main():
     #### Print Warning regarding DEM use
     if opt.dem == None:
         ortho_utils.LogMsg("\nWARNING: No DEM is being used in this orthorectification.\nUse the -d flag on the command line to input a DEM\n")
-        dem_str = ""
     else:
-        dem_str = "ortho"
         #### Test if DEM exists
         if not os.path.isfile(opt.dem):
             ortho_utils.LogMsg("ERROR: DEM does not exist: %s" % opt.dem)
@@ -128,13 +126,12 @@ def main():
         #### Derive dstfp
         stretch = opt.stretch
 
-        dstfp = os.path.join(dstdir,"%s%s_%s%s%d%s" % (dem_str,
-                                                       os.path.splitext(srcfn)[0],
-                                                       ortho_utils.getBitdepth(opt.outtype),
-                                                       opt.stretch,
-                                                       spatial_ref.epsg,
-                                                       ortho_utils.formats[opt.format]
-                                                       ))
+        dstfp = os.path.join(dstdir,"%s_%s%s%d%s" % (os.path.splitext(srcfn)[0],
+	    ortho_utils.getBitdepth(opt.outtype),
+	    opt.stretch,
+	    spatial_ref.epsg,
+	    ortho_utils.formats[opt.format]
+	    ))
 
         done = os.path.isfile(dstfp)
 

@@ -48,8 +48,6 @@ def input_parameter_tests_dg(pgc_ortho_script_path, test_imagery_directory, outp
     several combinations of input parameters. The pgctools2 scene_id of the
     image being tested is QB02_12AUG271322429-M1BS-10100100101AD000
     """
-    if not os.path.isdir(output_dir + r"\dg_input_params"):
-        os.makedirs(output_dir + r"\dg_input_params")
 
     # epsg: 3413
     # stretch: ns
@@ -57,8 +55,9 @@ def input_parameter_tests_dg(pgc_ortho_script_path, test_imagery_directory, outp
     # format: GTiff
     # outtype: Byte
     # gtiff compression: jpeg95
-    # dem: Y:\private\elevation\dem\GIMP\GIMPv2\gimpdem_v2_30m.tif
-    command = r"""python "%s" --epsg 3413 --stretch ns --resample cubic --format GTiff --outtype Byte --gtiff_compression jpeg95 --dem Y:\private\elevation\dem\GIMP\GIMPv2\gimpdem_v2_30m.tif %s\QB02_10100100101AD000_M1BS_500122876080_01\QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.NTF %s""" % (pgc_ortho_script_path, test_imagery_directory, output_dir + r"\dg_input_params")
+    # dem: Y:/private/elevation/dem/GIMP/GIMPv2/gimpdem_v2_30m.tif
+    command = r"""python "%s" --epsg 3413 --stretch ns --resample cubic --format GTiff --outtype Byte --gtiff_compression jpeg95 --dem /mnt/agic/storage00/agic/private/elevation/dem/GIMP/GIMPv2/gimpdem_v2_30m.tif %s/renamed_pgctools3/QB02_10100100101AD000_M1BS_500122876080_01/QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.NTF %s""" % (pgc_ortho_script_path, test_imagery_directory, output_dir)
+    print command
     subprocess.call(command, shell=True)
 
     # epsg: 3413
@@ -67,8 +66,9 @@ def input_parameter_tests_dg(pgc_ortho_script_path, test_imagery_directory, outp
     # format: ENVI
     # outtype: Byte
     # gtiff compression: lzw
-    # dem: Y:\private\elevation\dem\GIMP\GIMPv2\gimpdem_v2_30m.tif
-    command = r"""python "%s" --epsg 3413 --stretch rf --resample near --format ENVI --outtype Byte --gtiff_compression lzw --dem Y:\private\elevation\dem\GIMP\GIMPv2\gimpdem_v2_30m.tif %s\QB02_10100100101AD000_M1BS_500122876080_01\QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.NTF %s""" % (pgc_ortho_script_path, test_imagery_directory, output_dir + r"\dg_input_params")
+    # dem: Y:/private/elevation/dem/GIMP/GIMPv2/gimpdem_v2_30m.tif
+    command = r"""python "%s" --epsg 3413 --stretch rf --resample near --format ENVI --outtype Byte --gtiff_compression lzw --dem /mnt/agic/storage00/agic/private/elevation/dem/GIMP/GIMPv2/gimpdem_v2_30m.tif %s/renamed_pgctools3/QB02_10100100101AD000_M1BS_500122876080_01/QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.NTF %s""" % (pgc_ortho_script_path, test_imagery_directory, output_dir)
+    print command
     subprocess.call(command, shell=True)
 
     # epsg: 3413
@@ -77,8 +77,9 @@ def input_parameter_tests_dg(pgc_ortho_script_path, test_imagery_directory, outp
     # format: HFA
     # outtype: Float32
     # gtiff compression: lzw
-    # dem: Y:\private\elevation\dem\GIMP\GIMPv2\gimpdem_v2_30m.tif
-    command = r"""python "%s" --epsg 3413 --stretch mr --resample near --format HFA --outtype Float32 --gtiff_compression lzw --dem Y:\private\elevation\dem\GIMP\GIMPv2\gimpdem_v2_30m.tif %s\QB02_10100100101AD000_M1BS_500122876080_01\QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.NTF %s""" % (pgc_ortho_script_path, test_imagery_directory, output_dir + r"\dg_input_params")
+    # dem: Y:/private/elevation/dem/GIMP/GIMPv2/gimpdem_v2_30m.tif
+    command = r"""python "%s" --epsg 3413 --stretch mr --resample near --format HFA --outtype Float32 --gtiff_compression lzw --dem /mnt/agic/storage00/agic/private/elevation/dem/GIMP/GIMPv2/gimpdem_v2_30m.tif %s/renamed_pgctools3/QB02_10100100101AD000_M1BS_500122876080_01/QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.NTF %s""" % (pgc_ortho_script_path, test_imagery_directory, output_dir)
+    print command
     subprocess.call(command, shell=True)
 
     # epsg: 3413
@@ -88,12 +89,14 @@ def input_parameter_tests_dg(pgc_ortho_script_path, test_imagery_directory, outp
     # outtype: UInt16
     # gtiff compression: lzw
     # dem: None
-    command = r"""python "%s" --epsg 3413 --stretch rd --resample near --format GTiff --outtype UInt16 --gtiff_compression lzw %s\QB02_10100100101AD000_M1BS_500122876080_01\QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.NTF %s""" % (pgc_ortho_script_path, test_imagery_directory, output_dir + r"\dg_input_params")
+    command = r"""python "%s" --epsg 3413 --stretch rd --resample near --format GTiff --outtype UInt16 --gtiff_compression lzw %s/renamed_pgctools3/QB02_10100100101AD000_M1BS_500122876080_01/QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.NTF %s""" % (pgc_ortho_script_path, test_imagery_directory, output_dir)
+    print command
     subprocess.call(command, shell=True)
 
-    # dem: Y:\private\elevation\dem\RAMP\RAMPv2\ RAMPv2_wgs84_200m.tif
+    # dem: Y:/private/elevation/dem/RAMP/RAMPv2/ RAMPv2_wgs84_200m.tif
     # should fail: the image is not contained within the DEM
-    command = r"""python "%s" --epsg 3413 --dem Y:\private\elevation\dem\RAMP\RAMPv2\RAMPv2_wgs84_200m.tif %s\QB02_10100100101AD000_M1BS_500122876080_01\QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.NTF %s""" % (pgc_ortho_script_path, test_imagery_directory, output_dir + r"\dg_input_params")
+    command = r"""python "%s" --epsg 3413 --dem /mnt/agic/storage00/agic/private/elevation/dem/RAMP/RAMPv2/RAMPv2_wgs84_200m.tif %s/renamed_pgctools3/QB02_10100100101AD000_M1BS_500122876080_01/QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.NTF %s""" % (pgc_ortho_script_path, test_imagery_directory, output_dir)
+    print command
     subprocess.call(command, shell=True)
 
 
@@ -104,4 +107,4 @@ if __name__ == '__main__':
     output_directory = os.path.join(script_dir,'testdata','output')
     
     image_type_tests(pgc_ortho_script_path, test_imagery_directory, output_directory)
-    #input_parameter_tests_dg(pgc_ortho_script_path, test_imagery_directory, output_directory)
+    input_parameter_tests_dg(pgc_ortho_script_path, test_imagery_directory, output_directory)

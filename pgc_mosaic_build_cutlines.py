@@ -223,7 +223,7 @@ def main():
             feat.SetField("ACQDATE",iinfo.acqdate)
             
             if iinfo.xres is not None:
-                res = "%.10f" %((iinfo.xres+iinfo.yres)/2)
+                res = "%.7f" %((iinfo.xres+iinfo.yres)/2)
             else:
                 res = ""
             feat.SetField("RESOLUTION", res)

@@ -34,10 +34,7 @@ def main():
     parser.add_argument("--overwrite", action="store_true", default=False,
                       help="overwrite any existing files")
     parser.add_argument("--stretch", choices=ortho_utils.stretches, default="rf",
-                      help="stretch abbreviation used in image processing (default=rf)")
-    parser.add_argument("-d", "--dem", action="store_true", default=False,
-                      help="if a DEM is use in image processing")
-    
+                      help="stretch abbreviation used in image processing (default=rf)")    
     
     #### Parse Arguments
     args = parser.parse_args()
@@ -394,10 +391,7 @@ def HandleTile(t,shp,dstdir,csvpath,args,exclude_list):
                             else:
                                 fn = contrib[contrib.rfind("/")+ 1:contrib.rfind(".")]
                             
-                            if args.dem:
-                                mtxt.write(os.path.join(dstdir,"orthos",t.name,"ortho%s_u08%s%i.tif\n"% (fn, args.stretch, t.epsg)))
-                            else:
-                                mtxt.write(os.path.join(dstdir,"orthos",t.name,"%s_u08%s%i.tif\n"% (fn, args.stretch, t.epsg)))
+                            mtxt.write(os.path.join(dstdir,"orthos",t.name,"%s_u08%s%i.tif\n"% (fn, args.stretch, t.epsg)))
                             
                         else:
                             logger.warning("Image does not exist: %s" %(contrib))
