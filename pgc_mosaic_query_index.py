@@ -98,6 +98,7 @@ def main():
         else:
             name = tile[2]
             if name != "name":
+                ### Tile csv schema: row, column, name, status, xmin, xmax, ymin, ymax, epsg code
                 t = TileParams(float(tile[4]),float(tile[5]),float(tile[6]),float(tile[7]),int(tile[0]),int(tile[1]),tile[2])
                 t.status = tile[3]
                 t.epsg = int(tile[8])

@@ -120,7 +120,7 @@ def buildParentArgumentParser():
     parser.add_argument("-c", "--stretch", choices=stretches, default="rf",
                       help="stretch type [ns: nostretch, rf: reflectance (default), mr: modified reflectance, rd: absolute radiance]")
     parser.add_argument("--resample", choices=resamples, default="near",
-                      help="orthorectification resampling strategy - mimicks gdalwarp options")
+                      help="resampling strategy - mimicks gdalwarp options")
     parser.add_argument("--rgb", action="store_true", default=False,
                       help="output multispectral images as 3 band RGB")
     parser.add_argument("--bgrn", action="store_true", default=False,
@@ -255,28 +255,20 @@ def processImage(srcfp,dstfp,opt):
             overlap = overlap_check(info.geometry_wkt,opt.spatial_ref,opt.dem)
             if overlap is False:
                 err = 1
+    
+    #### Warp Image
+    if not err == 1 and not os.path.isfile(info.warpfile):
+        rc = WarpImage(opt,info)
+        if rc == 1:
+            err = 1
+            LogMsg("ERROR in image warping")
 
-    if not opt.skip_warp:
-        #### Warp Image
-        if not err == 1 and not os.path.isfile(info.warpfile):
-            rc = WarpImage(opt,info)
-            if rc == 1:
-                err = 1
-                LogMsg("ERROR in image warping")
-
-        #### Calculate Output File
-        if not err == 1 and os.path.isfile(info.warpfile):
-            rc = calcStats(opt,info)
-            if rc == 1:
-                err = 1
-                LogMsg("ERROR in image calculation")
-
-    else:
-        if not err == 1:
-            rc = calcStats(opt,info)
-            if rc == 1:
-                err = 1
-                LogMsg("ERROR in image calculation")
+    #### Calculate Output File
+    if not err == 1 and os.path.isfile(info.warpfile):
+        rc = calcStats(opt,info)
+        if rc == 1:
+            err = 1
+            LogMsg("ERROR in image calculation")
     
     ####  Write Output Metadata
     if not err == 1:
@@ -460,13 +452,8 @@ def calcStats(opt,info):
         if len(CFlist) == 0:
             LogMsg("Cannot get image calibration factors from metadata")
             return 1
-
-    if not opt.skip_warp:
-        wds_fp = info.warpfile
-    else:
-        wds_fp = info.localsrc
-
-    wds = gdal.Open(wds_fp,gdalconst.GA_ReadOnly)
+    
+    wds = gdal.Open(info.warpfile,gdalconst.GA_ReadOnly)
     if wds is not None:
 
         xsize = wds.RasterXSize
@@ -658,6 +645,14 @@ def GetImageStats(opt, info):
             lly = gtf[3] + 0 * gtf[4] + ysize * gtf[5]
             lrx = gtf[0] + xsize * gtf[1] + ysize* gtf[2]
             lry = gtf[3] + xsize * gtf[4] + ysize * gtf[5]
+            
+            #print xsize, ysize
+            #print gtf
+            #print proj
+            #print ulx, uly
+            #print urx, ury
+            #print llx, lly
+            #print lrx,lry
 
         ds = None
 
@@ -963,70 +958,93 @@ def WarpImage(opt,info):
     if not os.path.isfile(info.warpfile):
 
         LogMsg("Warping Image")
+        
+        #### convert to VRT and modify 4th band
+        cmd = 'gdal_translate -of VRT "{0}" "{1}"'.format(info.localsrc,info.rawvrt)
+        (err,so,se) = ExecCmd(cmd)
+        if err == 1:
+            rc = 1
+        
+        if os.path.isfile(info.rawvrt) and info.bands > 3:
+            vds = gdal.Open(info.rawvrt,gdalconst.GA_Update)
+            if vds.GetRasterBand(4).GetColorInterpretation() == 6:
+                vds.GetRasterBand(4).SetColorInterpretation(gdalconst.GCI_Undefined)
+            vds = None
 
-        #### If Image is TIF, extract RPB
-        if os.path.splitext(info.localsrc)[1].lower() == ".tif":
-            if info.vendor == "DigitalGlobe":
-                rpb_p = os.path.splitext(info.localsrc)[0] + ".RPB"
-
-            elif info.vendor == "GeoEye" and info.sat == "GE01":
-                rpb_p = os.path.splitext(info.localsrc)[0] + "_rpc.txt"
-
-            else:
-                rpb_p = None
-                logger.error("Cannot extract rpc's for Ikonos. Image cannot be terrain corrected with a DEM or avg elevation.")
-                rc = 1
-
-            if rpb_p:
-                if not os.path.isfile(rpb_p):
-                    err = ExtractRPB(info.localsrc,rpb_p)
-                    if err == 1:
-                        rc = 1
-                if not os.path.isfile(rpb_p):
-                    logger.error("No RPC information found. Image cannot be terrain corrected with a DEM or avg elevation.")
+        nodata_list = ["0"] * info.bands
+        
+        
+        if not opt.skip_warp:
+        
+            #### If Image is TIF, extract RPB
+            if os.path.splitext(info.localsrc)[1].lower() == ".tif":
+                if info.vendor == "DigitalGlobe":
+                    rpb_p = os.path.splitext(info.localsrc)[0] + ".RPB"
+    
+                elif info.vendor == "GeoEye" and info.sat == "GE01":
+                    rpb_p = os.path.splitext(info.localsrc)[0] + "_rpc.txt"
+    
+                else:
+                    rpb_p = None
+                    logger.error("Cannot extract rpc's for Ikonos. Image cannot be terrain corrected with a DEM or avg elevation.")
                     rc = 1
-
-
-        if rc <> 1:
-            ####  Set RPC_DEM or RPC_HEIGHT transformation option
-            if opt.dem != None:
-                LogMsg('DEM: %s' %(os.path.basename(opt.dem)))
-                to = "RPC_DEM=%s" %opt.dem
-
-            elif opt.ortho_height is not None:
-                LogMsg("Elevation: {0} meters".format(opt.ortho_height))
-                to = "RPC_HEIGHT=%f" %opt.ortho_height
+    
+                if rpb_p:
+                    if not os.path.isfile(rpb_p):
+                        err = ExtractRPB(info.localsrc,rpb_p)
+                        if err == 1:
+                            rc = 1
+                    if not os.path.isfile(rpb_p):
+                        logger.error("No RPC information found. Image cannot be terrain corrected with a DEM or avg elevation.")
+                        rc = 1
+    
+    
+            if rc <> 1:
+                ####  Set RPC_DEM or RPC_HEIGHT transformation option
+                if opt.dem != None:
+                    LogMsg('DEM: %s' %(os.path.basename(opt.dem)))
+                    to = "RPC_DEM=%s" %opt.dem
+    
+                elif opt.ortho_height is not None:
+                    LogMsg("Elevation: {0} meters".format(opt.ortho_height))
+                    to = "RPC_HEIGHT=%f" %opt.ortho_height
+                    
+                else:
+                    #### Get Constant Elevation From XML
+                    h = get_rpc_height(info)
+                    LogMsg("Average elevation: %f meters" %(h))
+                    to = "RPC_HEIGHT=%f" %h
+                    ds = None
+                    
                 
-            else:
-                #### Get Constant Elevation From XML
-                h = get_rpc_height(info)
-                LogMsg("Average elevation: %f meters" %(h))
-                to = "RPC_HEIGHT=%f" %h
-                ds = None
+                #### GDALWARP Command
+                cmd = 'gdalwarp %s -wo NUM_THREADS=1 -srcnodata "%s" -of GTiff -ot UInt16 %s%s%s-co "TILED=YES" -co "BIGTIFF=IF_SAFER" -t_srs "%s" -r %s -et 0.01 -rpc -to "%s" "%s" "%s"' %(
+                    config_options,
+                    " ".join(nodata_list),
+                    info.centerlong,
+                    info.extent,
+                    info.res,
+                    opt.spatial_ref.proj4,
+                    opt.resample,
+                    to,
+                    info.rawvrt,
+                    info.warpfile
+                    )           
                 
-            #### convert to VRT and modify 4th band
-            cmd = 'gdal_translate -of VRT "{0}" "{1}"'.format(info.localsrc,info.rawvrt)
-            (err,so,se) = ExecCmd(cmd)
-            if err == 1:
-                rc = 1
-            
-            if os.path.isfile(info.rawvrt) and info.bands > 3:
-                vds = gdal.Open(info.rawvrt,gdalconst.GA_Update)
-                if vds.GetRasterBand(4).GetColorInterpretation() == 6:
-                    vds.GetRasterBand(4).SetColorInterpretation(gdalconst.GCI_Undefined)
-                vds = None
-
-            nodata_list = ["0"] * info.bands
+                (err,so,se) = ExecCmd(cmd)
+                #print err
+                if err == 1:
+                    rc = 1
+                
+                
+        else:
             #### GDALWARP Command
-            cmd = 'gdalwarp %s -srcnodata "%s" -of GTiff -ot UInt16 %s%s%s-co "TILED=YES" -co "BIGTIFF=IF_SAFER" -t_srs "%s" -r %s -et 0.01 -rpc -to "%s" "%s" "%s"' %(
+            cmd = 'gdalwarp %s -wo NUM_THREADS=1 -srcnodata "%s" -of GTiff -ot UInt16 %s-co "TILED=YES" -co "BIGTIFF=IF_SAFER" -t_srs "%s" -r %s "%s" "%s"' %(
                 config_options,
                 " ".join(nodata_list),
-                info.centerlong,
-                info.extent,
                 info.res,
                 opt.spatial_ref.proj4,
                 opt.resample,
-                to,
                 info.rawvrt,
                 info.warpfile
                 )           

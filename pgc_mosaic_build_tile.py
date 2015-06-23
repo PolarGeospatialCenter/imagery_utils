@@ -86,8 +86,6 @@ def main():
     poly_wkt = 'POLYGON (( %s %s, %s %s, %s %s, %s %s, %s %s ))' %(minx,miny,minx,maxy,maxx,maxy,maxx,miny,minx,miny)
     tile_geom = ogr.CreateGeometryFromWkt(poly_wkt)
     
-    
-    
     c = 0
     for img in final_intersects:
             

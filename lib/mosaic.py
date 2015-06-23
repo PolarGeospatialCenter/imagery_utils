@@ -292,7 +292,7 @@ class ImageInfo:
                     dAttribs["cc"] = 0.5
                 
                 if float(dAttribs["cc"]) > 0.5:
-                    logger.warning("Image too cloudy (>50%): %s --> %f" %(self.srcfp,float(dAttribs["cc"])))
+                    logger.warning("Image too cloudy (>0.50): %s --> %f" %(self.srcfp,float(dAttribs["cc"])))
                     score = -1
                 
                 if float(dAttribs["sunel"]) < 5:
@@ -329,6 +329,7 @@ class TileParams:
         poly_wkt = 'POLYGON (( %f %f, %f %f, %f %f, %f %f, %f %f ))' %(x,y,x,y2,x2,y2,x2,y,x,y)
         self.geom = ogr.CreateGeometryFromWkt(poly_wkt)
         
+
 
 def filterMatchingImages(imginfo_list,params,logger):
     imginfo_list2 = []
@@ -651,6 +652,15 @@ def ExecCmd(cmd):
     (so,se) = p.communicate()
     rc = p.wait()
     print (rc)
+    print (se)
+    print (so)
+    return rc
+
+
+def ExecCmd_mp(cmd):
+    print (cmd)
+    p = Popen(cmd,shell=True,stderr=PIPE,stdout=PIPE)
+    (so,se) = p.communicate()
     print (se)
     print (so)
     

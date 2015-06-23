@@ -1,13 +1,14 @@
 import os, string, sys, shutil, glob, re, tarfile, logging, argparse
 from datetime import *
 
-from subprocess import *
+import subprocess
 from math import *
 from xml.etree import cElementTree as ET
 
 from lib.mosaic import *
 import gdal, ogr, osr, gdalconst
 import numpy
+import multiprocessing as mp
 
 ### Create Logger
 logger = logging.getLogger("logger")
@@ -15,6 +16,7 @@ logger.setLevel(logging.DEBUG)
 
 default_qsub_script = "qsub_mosaic.sh"
 default_logfile = "mosaic.log"
+
 
 
 def main():
@@ -168,28 +170,48 @@ def main():
         sys.exit()
     else:
         logger.info("%i images match filter" %len(imginfo_list2))
+
+    #### if extent is specified, build tile params and compare extent to input image geom
+    if args.extent:
     
-    #### Get geom for each image
+        poly_wkt = 'POLYGON (( %f %f, %f %f, %f %f, %f %f, %f %f ))' %(params.xmin,params.ymin,params.xmin,params.ymax,params.xmax,params.ymax,params.xmax,params.ymin,params.xmin,params.ymin)
+        params.extent_geom = ogr.CreateGeometryFromWkt(poly_wkt)
+        
+        #### Get geom for each image
+        imginfo_list3 = []
+        for iinfo in imginfo_list2:
+            iinfo.geom, xs1, ys1 = getGeom(iinfo.srcfp)
+            if iinfo.geom is not None:
+                if params.extent_geom.Intersect(iinfo.geom) is True:
+                    xs = xs + xs1
+                    ys = ys + ys1
+                    imginfo_list3.append(iinfo)
+                else:
+                    logger.warning("Image does not intersect mosaic extent: %s" %iinfo.srcfp)
+            else: # remove from list if no geom
+                logger.warning("Cannot get geometry for image: %s" %iinfo.srcfp)
     
-    imginfo_list3 = []
-    for iinfo in imginfo_list2:
-        iinfo.geom, xs1, ys1 = getGeom(iinfo.srcfp)
-        if iinfo.geom is not None:
-            xs = xs + xs1
-            ys = ys + ys1
-            imginfo_list3.append(iinfo)
-        else: # remove from list if no geom
-            logger.warning("Cannot get geometry for image: %s" %iinfo.srcfp)
-    
-    #### set extent if not already set
-    if args.extent is None:
+    #### else set extent after image geoms computed
+    else:
+        
+        #### Get geom for each image
+        imginfo_list3 = []
+        for iinfo in imginfo_list2:
+            iinfo.geom, xs1, ys1 = getGeom(iinfo.srcfp)
+            if iinfo.geom is not None:
+                xs = xs + xs1
+                ys = ys + ys1
+                imginfo_list3.append(iinfo)
+            else: # remove from list if no geom
+                logger.warning("Cannot get geometry for image: %s" %iinfo.srcfp)
+        
         params.xmin = min(xs)
         params.xmax = max(xs)
         params.ymin = min(ys)
         params.ymax = max(ys)
     
-    poly_wkt = 'POLYGON (( %f %f, %f %f, %f %f, %f %f, %f %f ))' %(params.xmin,params.ymin,params.xmin,params.ymax,params.xmax,params.ymax,params.xmax,params.ymin,params.xmin,params.ymin)
-    params.extent_geom = ogr.CreateGeometryFromWkt(poly_wkt)
+        poly_wkt = 'POLYGON (( %f %f, %f %f, %f %f, %f %f, %f %f ))' %(params.xmin,params.ymin,params.xmin,params.ymax,params.xmax,params.ymax,params.xmax,params.ymin,params.xmin,params.ymin)
+        params.extent_geom = ogr.CreateGeometryFromWkt(poly_wkt)
         
     logger.info("Resolution: %f x %f, Tilesize: %f x %f, Extent: %f %f %f %f" %(params.xres,params.yres,params.xtilesize,params.ytilesize,params.xmin,params.xmax,params.ymin,params.ymax))
     
@@ -228,7 +250,7 @@ def main():
             else:
                 logger.warning("Image has an invalid score: %s --> %i" %(iinfo.srcfp, iinfo.score))
         else:
-            logger.warning("Image does not intersect mosaic extent: %s" %iinfo.srcfp)
+            logger.warning("Image does not intersect mosaic extent: %s" %iinfo.srcfp)  ### this line should never be needed.  non-intersecting images should be removed earlier if extent is provided, otherwise all images are in the extent.
     
     aitpath = mosaic+"_intersects.txt"
     ait = open(aitpath,"w")
@@ -353,6 +375,22 @@ def main():
                     
                 feat.Destroy()
                 
+    
+    ###############################################   
+    ####  Determine submission type based on presence of pbsnodes cmd
+    ###############################################
+    
+    try:
+        cmd = "pbsnodes"
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        so, se = p.communicate()
+    except OSError,e:
+        submission_type = 'vm'
+    else:
+        #submission_type = 'hpc'
+        submission_type = 'vm'
+    logger.info("Submission type: {0}".format(submission_type))
+    task_queue = []
                 
     ###############################################   
     ####  Write shapefile of mosaic components
@@ -367,14 +405,23 @@ def main():
             
             logger.info("Creating shapefile of components: %s" %comp_shp)
         
-            if args.extent:
-                 cmd = r'qsub -N Cutlines -v p1="%s --cutline_step=512 %s %s %s" "%s"' %(cutline_builder_script,arg_str,comp_shp,aitpath,qsubpath)
+            if submission_type == 'hpc':
+                if args.extent:
+                     cmd = r'qsub -N Cutlines -v p1="%s --cutline_step=512 %s %s %s" "%s"' %(cutline_builder_script,arg_str,comp_shp,aitpath,qsubpath)
+                else:
+                    cmd = r'qsub -N Cutlines -v p1="%s --cutline_step=512 %s -e %f %f %f %f %s %s" "%s"' %(cutline_builder_script,arg_str,params.xmin,params.xmax,params.ymin,params.ymax,comp_shp,aitpath,qsubpath)
+            
+            elif submission_type == 'vm':
+                if args.extent:
+                     cmd = r'python %s --cutline_step=512 %s %s %s' %(cutline_builder_script,arg_str,comp_shp,aitpath)
+                else:
+                    cmd = r'python %s --cutline_step=512 %s -e %f %f %f %f %s %s' %(cutline_builder_script,arg_str,params.xmin,params.xmax,params.ymin,params.ymax,comp_shp,aitpath)
             else:
-                cmd = r'qsub -N Cutlines -v p1="%s --cutline_step=512 %s -e %f %f %f %f %s %s" "%s"' %(cutline_builder_script,arg_str,params.xmin,params.xmax,params.ymin,params.ymax,comp_shp,aitpath,qsubpath)
+                cmd = None
+            
             logger.debug(cmd)
             if args.mode == "ALL" or args.mode == "SHP":
-                p = Popen(cmd,shell=True)
-                p.wait()  
+                task_queue.append(cmd)
     
     
     ###############################################   
@@ -388,14 +435,26 @@ def main():
         logger.info("Creating shapefile of cutlines: %s" %shp)
         
         arg_str2 = arg_str.replace("--component_shp","")
-        if args.extent:
-            cmd = r'qsub -N Cutlines -v p1="%s %s %s %s" "%s"' %(cutline_builder_script,arg_str2,shp,aitpath,qsubpath)
+        
+        if submission_type == 'hpc':
+            if args.extent:
+                cmd = r'qsub -N Cutlines -v p1="%s %s %s %s" "%s"' %(cutline_builder_script,arg_str2,shp,aitpath,qsubpath)
+            else:
+                cmd = r'qsub -N Cutlines -v p1="%s %s -e %f %f %f %f %s %s" "%s"' %(cutline_builder_script,arg_str2,params.xmin,params.xmax,params.ymin,params.ymax,shp,aitpath,qsubpath)
+        
+        elif submission_type == 'vm':
+            if args.extent:
+                cmd = r'python %s %s %s %s' %(cutline_builder_script,arg_str2,shp,aitpath)
+            else:
+                cmd = r'python %s %s -e %f %f %f %f %s %s' %(cutline_builder_script,arg_str2,params.xmin,params.xmax,params.ymin,params.ymax,shp,aitpath)
         else:
-            cmd = r'qsub -N Cutlines -v p1="%s %s -e %f %f %f %f %s %s" "%s"' %(cutline_builder_script,arg_str2,params.xmin,params.xmax,params.ymin,params.ymax,shp,aitpath,qsubpath)
+            cmd = None
+            
+        
         logger.debug(cmd)
         if args.mode == "ALL" or args.mode == "SHP":
-            p = Popen(cmd,shell=True)
-            p.wait()
+            task_queue.append(cmd)
+                
       
       
     ################################################
@@ -430,21 +489,54 @@ def main():
             it.close()
             
             #### Submit QSUB job
-            logger.info("Submitting mosaicking job for tile: %s" %os.path.basename(t.name))
+            logger.info("Building mosaicking job for tile: %s" %os.path.basename(t.name))
             if os.path.isfile(t.name) is False:
-                                
-                cmd = r'qsub -N Mosaic%04i -v p1="%s %s %s %s %s %f %f %f %f %f %f %s" "%s"' %(i,tile_builder_script,params.bands,itpath,t.name,int(params.force_pan_to_multi),params.xres,params.yres,t.minx,t.miny,t.maxx,t.maxy,args.gtiff_compression,qsubpath)
-                logger.debug(cmd)
+                
+                if submission_type == 'hpc':
+                    cmd = r'qsub -N Mosaic%04i -v p1="%s %s %s %s %s %f %f %f %f %f %f %s" "%s"' %(i,tile_builder_script,params.bands,itpath,t.name,int(params.force_pan_to_multi),params.xres,params.yres,t.minx,t.miny,t.maxx,t.maxy,args.gtiff_compression,qsubpath)
+                       
+                elif submission_type == 'vm':
+                    cmd = 'python %s %s %s %s %s %f %f %f %f %f %f %s' %(
+                        tile_builder_script,
+                        params.bands,
+                        itpath,
+                        t.name,
+                        int(params.force_pan_to_multi),
+                        params.xres,
+                        params.yres,
+                        t.minx,
+                        t.miny,
+                        t.maxx,
+                        t.maxy,
+                        args.gtiff_compression
+                        )
+                    
+                else:
+                    cmd = None
+                    
+                    
+                logger.debug(cmd)    
                 if args.mode == "ALL" or args.mode == "MOSAIC":
-                    p = Popen(cmd,shell=True)
-                    p.wait()
+                    task_queue.append(cmd)    
                 
             else:
                 logger.info("Tile already exists: %s" %t.name)
             
             j += 1
-        
         i += 1
+    
+    logger.info("Submitting jobs")
+    
+    logger.info(task_queue)
+    if submission_type == 'hpc':
+        for task in task_queue:
+            subprocess.call(cmd,shell=True)
+    elif submission_type == 'vm':
+        PROCESSES = int(mp.cpu_count() / 8.0)
+        print PROCESSES
+        pool = mp.Pool(PROCESSES)
+        result = pool.map(ExecCmd_mp,task_queue,1)
+        
     
 
 def FindImages(inpath,bTextfile,exclude_list):
