@@ -17,7 +17,7 @@ logger.setLevel(logging.DEBUG)
 default_qsub_script = "qsub_mosaic.sh"
 default_logfile = "mosaic.log"
 
-
+SUBMISSION_TYPES = ['HPC','VM']
 
 def main():
     
@@ -40,15 +40,20 @@ def main():
                         help=" mode: ALL- all steps (default), SHP- create shapefiles, MOSAIC- create tiled tifs, TEST- create log only")
     parser.add_argument("--log",
                         help="file to log progress (default is <output dir>\%s" %default_logfile)
+    parser.add_argument("--wd",
+                        help="scratch space (default is mosaic directory)")
     parser.add_argument("--qsubscript",
                         help="qsub script to use in cluster job submission (default is <script_dir>/%s)" %default_qsub_script)
     parser.add_argument("-l",
-                        help="PBS resources requested (mimicks qsub syntax)")
+                        help="PBS resources requested (mimicks qsub syntax). Use only on HPC systems.")
+    parser.add_argument("--processes", type=int,
+                        help="number of processes to spawn for bulding subtiles. Use only on non-HPC systems.")
+    parser.add_argument("--submission_type", choices=SUBMISSION_TYPES,
+                        help="job submission type. Default is determined automatically (%s)"%string.join(SUBMISSION_TYPES,','))
     parser.add_argument("--component_shp", action="store_true", default=False,
                         help="create shp of all componenet images")
     parser.add_argument("--gtiff_compression", choices=GTIFF_COMPRESSIONS, default="lzw",
                         help="GTiff compression type. Default=lzw (%s)"%string.join(GTIFF_COMPRESSIONS,','))
-        
     
     #### Parse Arguments
     args = parser.parse_args()
@@ -97,27 +102,9 @@ def main():
         m = 0
         d = 0
     
-    #### build args list to pass to builder scripts
+        
     #### Get -l args and make a var
     l = ("-l %s" %args.l) if args.l is not None else ""
-
-    args_dict = vars(args)
-    arg_list = []
-    arg_keys_to_remove = ('l','qsubscript','log','gtiff_compression','mode')
-    
-    ## Add optional args to arg_list
-    for k,v in args_dict.iteritems():
-        if k not in pos_arg_keys and k not in arg_keys_to_remove and v is not None:
-            if isinstance(v,list) or isinstance(v,tuple):
-                arg_list.append("--%s %s" %(k,' '.join([str(item) for item in v])))
-            elif isinstance(v,bool):
-                if v is True:
-                    arg_list.append("--%s" %(k))
-            else:
-                arg_list.append("--%s %s" %(k,str(v)))
-    
-    arg_str = " ".join(arg_list)
-    
     
     #### Configure Logger
     if args.log is not None:
@@ -126,12 +113,61 @@ def main():
         logfile = os.path.join(mosaic_dir,default_logfile)
     
     lfh = logging.FileHandler(logfile)
-    #lfh = logging.StreamHandler()
     lfh.setLevel(logging.DEBUG)
     formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s','%m-%d-%Y %H:%M:%S')
     lfh.setFormatter(formatter)
     logger.addHandler(lfh)
     
+    lsh = logging.StreamHandler()
+    lsh.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s','%m-%d-%Y %H:%M:%S')
+    lsh.setFormatter(formatter)
+    logger.addHandler(lsh)
+    
+    
+    ####  Determine submission type based on presence of pbsnodes cmd
+    try:
+        cmd = "pbsnodes"
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        so, se = p.communicate()
+    except OSError,e:
+        is_hpc = False
+    else:
+        is_hpc = True
+        
+    if args.submission_type is None:
+        submission_type = "HPC" if is_hpc else "VM"
+        
+    elif args.submission_type == "HPC" and is_hpc is False:
+        parser.error("Submission type HPC is not available on this system")
+    else:
+        submission_type = args.submission_type
+    
+    logger.info("Submission type: {0}".format(submission_type))
+    task_queue = []
+    
+    if args.processes and not submission_type == 'VM':
+        logger.warning("--processes option will not be used becasue submission type is not VM")
+    
+    if submission_type == 'VM':
+        if args.processes:
+            if mp.cpu_count() < args.processes:
+                logger.warning("Specified number of processes ({0}) is higher than the system cpu count ({1}), using cpu count".format(args.proceses,mp.count_cpu()))
+                processes = mp.count_cpu()
+                
+            elif args.processes < 1:
+                logger.warning("Specified number of processes ({0}) must be greater than 0, using 1".format(args.proceses,mp.count_cpu()))
+                processes = 1
+                
+            else:
+                processes = args.processes
+                
+        else:
+            processes = int(mp.cpu_count()/4.0)                           
+            
+        logger.info("Number of child processes to be used: {0}".format(processes))
+    
+
     #### Get exclude list if specified
     if args.exclude is not None:
         if not os.path.isfile(args.exclude):
@@ -142,11 +178,12 @@ def main():
     else:
         exclude_list = set()
 
+    
+    #### Get Images
     logger.info("Reading input images, checking that they conform, and calculating data geometry")
     xs = []
     ys = []
     
-    #### Get Images
     image_list = FindImages(inpath,bTextfile,exclude_list)
         
     if len(image_list) == 0:
@@ -156,14 +193,14 @@ def main():
         logger.info("%i existing images found" %len(image_list))
     
     #### gather image info list
-    imginfo_list = [ImageInfo(image,"warped",logger) for image in image_list]
+    imginfo_list = [ImageInfo(image,"warped") for image in image_list]
     
     #### Get mosaic parameters
     params = getMosaicParameters(imginfo_list[0],args)
     
     #### Remove images that do not match ref
     logger.info("Applying attribute filter")
-    imginfo_list2 = filterMatchingImages(imginfo_list,params,logger)
+    imginfo_list2 = filterMatchingImages(imginfo_list,params)
     
     if len(imginfo_list2) == 0:
         logger.error("No valid images found.  Check input filter parameters.")
@@ -187,9 +224,9 @@ def main():
                     ys = ys + ys1
                     imginfo_list3.append(iinfo)
                 else:
-                    logger.warning("Image does not intersect mosaic extent: %s" %iinfo.srcfp)
+                    logger.debug("Image does not intersect mosaic extent: %s" %iinfo.srcfp)
             else: # remove from list if no geom
-                logger.warning("Cannot get geometry for image: %s" %iinfo.srcfp)
+                logger.debug("Cannot get geometry for image: %s" %iinfo.srcfp)
     
     #### else set extent after image geoms computed
     else:
@@ -203,7 +240,7 @@ def main():
                 ys = ys + ys1
                 imginfo_list3.append(iinfo)
             else: # remove from list if no geom
-                logger.warning("Cannot get geometry for image: %s" %iinfo.srcfp)
+                logger.debug("Cannot get geometry for image: %s" %iinfo.srcfp)
         
         params.xmin = min(xs)
         params.xmax = max(xs)
@@ -232,7 +269,7 @@ def main():
     logger.info("Reading image metadata and determining sort order")
          
     for iinfo in imginfo_list3:
-        iinfo.score, iinfo.attribs = iinfo.getScore(params,logger)
+        iinfo.score, iinfo.attribs = iinfo.getScore(params)
             
     ####  Sort by score
     if not args.nosort:
@@ -248,9 +285,9 @@ def main():
             elif args.nosort:
                 intersects_all.append(iinfo)
             else:
-                logger.warning("Image has an invalid score: %s --> %i" %(iinfo.srcfp, iinfo.score))
+                logger.debug("Image has an invalid score: %s --> %i" %(iinfo.srcfp, iinfo.score))
         else:
-            logger.warning("Image does not intersect mosaic extent: %s" %iinfo.srcfp)  ### this line should never be needed.  non-intersecting images should be removed earlier if extent is provided, otherwise all images are in the extent.
+            logger.debug("Image does not intersect mosaic extent: %s" %iinfo.srcfp)  ### this line should never be needed.  non-intersecting images should be removed earlier if extent is provided, otherwise all images are in the extent.
     
     aitpath = mosaic+"_intersects.txt"
     ait = open(aitpath,"w")
@@ -309,9 +346,9 @@ def main():
         shp = mosaic + "_tiles.shp"
         
         if os.path.isfile(shp):
-            logger.info("Tiles shapefile already exists: %s" %shp)
+            logger.info("Tiles shapefile already exists: %s" %os.path.basename(shp))
         else:
-            logger.info("Creating shapefile of tiles: %s" %shp)
+            logger.info("Creating shapefile of tiles: %s" %os.path.basename(shp))
         
             fields = [('ROW', ogr.OFTInteger, 4),
                     ('COL', ogr.OFTInteger, 4),
@@ -362,10 +399,10 @@ def main():
                 feat.SetField("TILEPATH",t.name)
                 feat.SetField("ROW",t.j)
                 feat.SetField("COL",t.i)
-                feat.SetField("XMIN",t.minx)
-                feat.SetField("XMAX",t.maxx)
-                feat.SetField("YMIN",t.miny)
-                feat.SetField("YMAX",t.maxy)
+                feat.SetField("XMIN",t.xmin)
+                feat.SetField("XMAX",t.xmax)
+                feat.SetField("YMIN",t.ymin)
+                feat.SetField("YMAX",t.ymax)
                     
                 
                 feat.SetGeometry(t.geom)
@@ -375,53 +412,56 @@ def main():
                     
                 feat.Destroy()
                 
-    
-    ###############################################   
-    ####  Determine submission type based on presence of pbsnodes cmd
-    ###############################################
-    
-    try:
-        cmd = "pbsnodes"
-        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        so, se = p.communicate()
-    except OSError,e:
-        submission_type = 'vm'
-    else:
-        #submission_type = 'hpc'
-        submission_type = 'vm'
-    logger.info("Submission type: {0}".format(submission_type))
-    task_queue = []
                 
     ###############################################   
     ####  Write shapefile of mosaic components
     ###############################################
+    
     if args.component_shp is True:
+        
+        arg_keys_to_remove = ('l','qsubscript','processes','log','gtiff_compression','mode','extent','resolution','submission_type','wd')
+        shp_arg_str = build_arg_list(args, pos_arg_keys, arg_keys_to_remove)
         
         comp_shp = mosaic + "_components.shp"
     
         if os.path.isfile(comp_shp):
-            logger.info("Components shapefile already exists: %s" %comp_shp)
+            logger.info("Components shapefile already exists: %s" %os.path.basename(comp_shp))
         else:
             
-            logger.info("Creating shapefile of components: %s" %comp_shp)
+            logger.info("Processing components: %s" %os.path.basename(comp_shp))
         
-            if submission_type == 'hpc':
-                if args.extent:
-                     cmd = r'qsub -N Cutlines -v p1="%s --cutline_step=512 %s %s %s" "%s"' %(cutline_builder_script,arg_str,comp_shp,aitpath,qsubpath)
-                else:
-                    cmd = r'qsub -N Cutlines -v p1="%s --cutline_step=512 %s -e %f %f %f %f %s %s" "%s"' %(cutline_builder_script,arg_str,params.xmin,params.xmax,params.ymin,params.ymax,comp_shp,aitpath,qsubpath)
+            if submission_type == 'HPC':
+                cmd = r'qsub -N Cutlines -v p1="%s --cutline_step=512 %s -e %f %f %f %f %s %s" "%s"' %(
+                    cutline_builder_script,
+                    shp_arg_str,
+                    params.xmin,
+                    params.xmax,
+                    params.ymin,
+                    params.ymax,
+                    comp_shp,
+                    aitpath,
+                    qsubpath
+                    )
             
-            elif submission_type == 'vm':
-                if args.extent:
-                     cmd = r'python %s --cutline_step=512 %s %s %s' %(cutline_builder_script,arg_str,comp_shp,aitpath)
-                else:
-                    cmd = r'python %s --cutline_step=512 %s -e %f %f %f %f %s %s' %(cutline_builder_script,arg_str,params.xmin,params.xmax,params.ymin,params.ymax,comp_shp,aitpath)
+            elif submission_type == 'VM':
+                cmd = r'python %s --cutline_step=512 %s -e %f %f %f %f %s %s' %(
+                    cutline_builder_script,
+                    shp_arg_str,
+                    params.xmin,
+                    params.xmax,
+                    params.ymin,
+                    params.ymax,
+                    comp_shp,
+                    aitpath
+                    )
+                
             else:
                 cmd = None
             
             logger.debug(cmd)
             if args.mode == "ALL" or args.mode == "SHP":
-                task_queue.append(cmd)
+                job_name = "Components"
+                task_queue.append((job_name,cmd))
     
     
     ###############################################   
@@ -429,31 +469,45 @@ def main():
     ###############################################
     shp = mosaic + "_cutlines.shp"
     
+    arg_keys_to_remove = ('l','qsubscript','processes','log','gtiff_compression','mode','extent','resolution','component_shp','submission_type','wd')
+    shp_arg_str = build_arg_list(args, pos_arg_keys, arg_keys_to_remove)
+    
     if os.path.isfile(shp):
-        logger.info("Cutlines shapefile already exists: %s" %shp)
+        logger.info("Cutlines shapefile already exists: %s" %os.path.basename(shp))
     else:
-        logger.info("Creating shapefile of cutlines: %s" %shp)
+        logger.info("Processing cutlines: %s" %os.path.basename(shp))
         
-        arg_str2 = arg_str.replace("--component_shp","")
+        if submission_type == 'HPC':
+            cmd = r'qsub -N Cutlines -v p1="%s %s -e %f %f %f %f %s %s" "%s"' %(
+                cutline_builder_script,
+                shp_arg_str,
+                params.xmin,
+                params.xmax,
+                params.ymin,
+                params.ymax,
+                shp,
+                aitpath,
+                qsubpath
+                )
         
-        if submission_type == 'hpc':
-            if args.extent:
-                cmd = r'qsub -N Cutlines -v p1="%s %s %s %s" "%s"' %(cutline_builder_script,arg_str2,shp,aitpath,qsubpath)
-            else:
-                cmd = r'qsub -N Cutlines -v p1="%s %s -e %f %f %f %f %s %s" "%s"' %(cutline_builder_script,arg_str2,params.xmin,params.xmax,params.ymin,params.ymax,shp,aitpath,qsubpath)
-        
-        elif submission_type == 'vm':
-            if args.extent:
-                cmd = r'python %s %s %s %s' %(cutline_builder_script,arg_str2,shp,aitpath)
-            else:
-                cmd = r'python %s %s -e %f %f %f %f %s %s' %(cutline_builder_script,arg_str2,params.xmin,params.xmax,params.ymin,params.ymax,shp,aitpath)
+        elif submission_type == 'VM':
+            cmd = r'python %s %s -e %f %f %f %f %s %s' %(
+                cutline_builder_script,
+                shp_arg_str,
+                params.xmin,
+                params.xmax,
+                params.ymin,
+                params.ymax,
+                shp,
+                aitpath
+                )
         else:
             cmd = None
-            
         
         logger.debug(cmd)
         if args.mode == "ALL" or args.mode == "SHP":
-            task_queue.append(cmd)
+            job_name = "Cutlines"
+            task_queue.append((job_name,cmd))
                 
       
       
@@ -461,20 +515,23 @@ def main():
     ####  For each tile set up mosaic call to qsub
     ################################################
     
+    arg_keys_to_remove = ('l','qsubscript','processes','log','mode','extent','resolution','bands','component_shp','submission_type')
+    tile_arg_str = build_arg_list(args, pos_arg_keys, arg_keys_to_remove)
+    
     for t in tiles:
-        logger.info("Processing tile %d of %d: %s" %(i,num_tiles,t.name))
+        logger.info("Processing tile %d of %d: %s" %(i,num_tiles,os.path.basename(t.name)))
         
         ####    determine which images in each tile - create geom and query image geoms
-        logger.info("Running intersect with imagery")       
+        logger.debug("Running intersect with imagery")       
         
         intersects = []
         for iinfo in intersects_all:
             if t.geom.Intersect(iinfo.geom) is True:
                 if iinfo.score > 0:
-                    logger.info("intersects! %s - score %f" %(iinfo.srcfn,iinfo.score))
+                    logger.debug("intersects! %s - score %f" %(iinfo.srcfn,iinfo.score))
                     intersects.append(iinfo.srcfp)
                 elif args.nosort:
-                    logger.info("intersects! %s - score %f" %(iinfo.srcfn,iinfo.score))
+                    logger.debug("intersects! %s - score %f" %(iinfo.srcfn,iinfo.score))
                     intersects.append(iinfo.srcfp)
                 else:
                     logger.warning("Image has an invalid score: %s --> %i" %(iinfo.srcfp, iinfo.score))
@@ -489,26 +546,39 @@ def main():
             it.close()
             
             #### Submit QSUB job
-            logger.info("Building mosaicking job for tile: %s" %os.path.basename(t.name))
+            logger.debug("Building mosaicking job for tile: %s" %os.path.basename(t.name))
             if os.path.isfile(t.name) is False:
                 
-                if submission_type == 'hpc':
-                    cmd = r'qsub -N Mosaic%04i -v p1="%s %s %s %s %s %f %f %f %f %f %f %s" "%s"' %(i,tile_builder_script,params.bands,itpath,t.name,int(params.force_pan_to_multi),params.xres,params.yres,t.minx,t.miny,t.maxx,t.maxy,args.gtiff_compression,qsubpath)
-                       
-                elif submission_type == 'vm':
-                    cmd = 'python %s %s %s %s %s %f %f %f %f %f %f %s' %(
+                if submission_type == 'HPC':
+                    cmd = r'qsub -N Mosaic%04i -v p1="%s %s -e %f %f %f %f -r %s %s -b %d %s %s" "%s"' %(
+                        i,
                         tile_builder_script,
-                        params.bands,
-                        itpath,
-                        t.name,
-                        int(params.force_pan_to_multi),
+                        tile_arg_str,
+                        t.xmin,
+                        t.xmax,
+                        t.ymin,
+                        t.ymax,
                         params.xres,
                         params.yres,
-                        t.minx,
-                        t.miny,
-                        t.maxx,
-                        t.maxy,
-                        args.gtiff_compression
+                        params.bands,
+                        t.name,
+                        itpath,
+                        qsubpath
+                        )
+                       
+                elif submission_type == 'VM':
+                    cmd = r'python %s %s -e %f %f %f %f -r %s %s -b %d %s %s' %(
+                        tile_builder_script,
+                        tile_arg_str,
+                        t.xmin,
+                        t.xmax,
+                        t.ymin,
+                        t.ymax,
+                        params.xres,
+                        params.yres,
+                        params.bands,
+                        t.name,
+                        itpath,
                         )
                     
                 else:
@@ -517,25 +587,25 @@ def main():
                     
                 logger.debug(cmd)    
                 if args.mode == "ALL" or args.mode == "MOSAIC":
-                    task_queue.append(cmd)    
+                    job_name = "Tile {0}".format(os.path.basename(t.name))
+                    task_queue.append((job_name,cmd))
                 
             else:
-                logger.info("Tile already exists: %s" %t.name)
+                logger.info("Tile already exists: %s" %os.path.basename(t.name))
             
             j += 1
         i += 1
     
     logger.info("Submitting jobs")
-    
-    logger.info(task_queue)
-    if submission_type == 'hpc':
+    #logger.info(task_queue)
+    if submission_type == 'HPC':
         for task in task_queue:
             subprocess.call(cmd,shell=True)
-    elif submission_type == 'vm':
-        PROCESSES = int(mp.cpu_count() / 8.0)
-        print PROCESSES
-        pool = mp.Pool(PROCESSES)
-        result = pool.map(ExecCmd_mp,task_queue,1)
+    elif submission_type == 'VM':
+        pool = mp.Pool(processes)
+        pool.map(ExecCmd_mp,task_queue,1)
+        
+    logger.info("Done")
         
     
 
@@ -550,7 +620,7 @@ def FindImages(inpath,bTextfile,exclude_list):
             if os.path.isfile(image) and os.path.splitext(image)[1].lower() in EXTS:
                 image_list.append(image)
             else:
-                logger.warning("File in textfile does not exist or has an invalid extension: %s" %image)
+                logger.debug("File in textfile does not exist or has an invalid extension: %s" %image)
         t.close()
                 
     else:
@@ -569,9 +639,9 @@ def FindImages(inpath,bTextfile,exclude_list):
         for image in image_list:
             m = p.search(os.path.basename(image))
             if not m:
-                logger.warning("Cannot get scene ID from image name: %s" %os.path.basename(image))
+                logger.debug("Cannot get scene ID from image name: %s" %os.path.basename(image))
             elif m.group("sceneid") in exclude_list:
-                logger.warning("Scene ID is in exclude_list: %s" %image)
+                logger.debug("Scene ID is in exclude_list: %s" %image)
             else:
                 image_list2.append(image)
     

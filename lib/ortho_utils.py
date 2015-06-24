@@ -1018,7 +1018,7 @@ def WarpImage(opt,info):
                     
                 
                 #### GDALWARP Command
-                cmd = 'gdalwarp %s -wo NUM_THREADS=1 -srcnodata "%s" -of GTiff -ot UInt16 %s%s%s-co "TILED=YES" -co "BIGTIFF=IF_SAFER" -t_srs "%s" -r %s -et 0.01 -rpc -to "%s" "%s" "%s"' %(
+                cmd = 'gdalwarp %s --debug on -wo NUM_THREADS=1 -srcnodata "%s" -of GTiff -ot UInt16 %s%s%s-co "TILED=YES" -co "BIGTIFF=IF_SAFER" -t_srs "%s" -r %s -et 0.01 -rpc -to "%s" "%s" "%s"' %(
                     config_options,
                     " ".join(nodata_list),
                     info.centerlong,
@@ -1031,15 +1031,16 @@ def WarpImage(opt,info):
                     info.warpfile
                     )           
                 
-                (err,so,se) = ExecCmd(cmd)
+                call(cmd,shell=True)
+                #(err,so,se) = ExecCmd(cmd)
                 #print err
-                if err == 1:
-                    rc = 1
+                #if err == 1:
+                #    rc = 1
                 
                 
         else:
             #### GDALWARP Command
-            cmd = 'gdalwarp %s -wo NUM_THREADS=1 -srcnodata "%s" -of GTiff -ot UInt16 %s-co "TILED=YES" -co "BIGTIFF=IF_SAFER" -t_srs "%s" -r %s "%s" "%s"' %(
+            cmd = 'gdalwarp %s --debug on -wo NUM_THREADS=1 -srcnodata "%s" -of GTiff -ot UInt16 %s-co "TILED=YES" -co "BIGTIFF=IF_SAFER" -t_srs "%s" -r %s "%s" "%s"' %(
                 config_options,
                 " ".join(nodata_list),
                 info.res,

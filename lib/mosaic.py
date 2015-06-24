@@ -27,6 +27,25 @@ GTIFF_COMPRESSIONS = ["jpeg95","lzw"]
 #        self.panfact = dAttribs["panfact"]
 
 
+def build_arg_list(args,pos_arg_keys,arg_keys_to_remove):
+    args_dict = vars(args)
+    arg_list = []
+    
+    ## Add optional args to arg_list
+    for k,v in args_dict.iteritems():
+        if k not in pos_arg_keys and k not in arg_keys_to_remove and v is not None:
+            if isinstance(v,list) or isinstance(v,tuple):
+                arg_list.append("--%s %s" %(k,' '.join([str(item) for item in v])))
+            elif isinstance(v,bool):
+                if v is True:
+                    arg_list.append("--%s" %(k))
+            else:
+                arg_list.append("--%s %s" %(k,str(v)))
+    
+    arg_str = " ".join(arg_list)
+    return arg_str
+
+
 def buildMosaicParentArgumentParser():
     
     #### Set Up Arguments 
@@ -57,7 +76,7 @@ def buildMosaicParentArgumentParser():
 
 
 class ImageInfo:
-    def __init__(self,srcfp,frmt,logger):
+    def __init__(self,srcfp,frmt):
                 
         self.srcfp = srcfp
         self.srcdir, self.srcfn = os.path.split(srcfp)
@@ -105,7 +124,7 @@ class ImageInfo:
         ds = None
     
     
-    def getScore(self,params,logger):
+    def getScore(self,params):
         
         score = 0
         metad = None
@@ -118,9 +137,9 @@ class ImageInfo:
                 try:
                     metad = ET.parse(metapath)
                 except ET.ParseError, err:
-                    logger.warning("ERROR parsing metadata: %s, %s" %(err,metapath))
+                    logger.debug("ERROR parsing metadata: %s, %s" %(err,metapath))
             else:
-                logger.warning("No metadata xml exists for %s" %self.srcfp)
+                logger.debug("No metadata xml exists for %s" %self.srcfp)
             
             
         elif self.frmt == "raw":
@@ -132,15 +151,15 @@ class ImageInfo:
                 try:
                     metad = ET.parse(metapath)
                 except ET.ParseError, err:
-                    logger.warning("ERROR parsing metadata: %s, %s" %(err,metapath))
+                    logger.debug("ERROR parsing metadata: %s, %s" %(err,metapath))
             elif os.path.isfile(metapath_txt):
                 metapath = metapath_txt
                 try:
                     metad = getGEMetadataAsXml(metapath)
                 except ET.ParseError, err:
-                    logger.warning("ERROR parsing metadata: %s, %s" %(err,metapath))
+                    logger.debug("ERROR parsing metadata: %s, %s" %(err,metapath))
             else:    
-                logger.warning("No metadata xml/txt exists for %s" %self.srcfp)
+                logger.debug("No metadata xml/txt exists for %s" %self.srcfp)
                     
             
             #### Write IK01 code        
@@ -190,7 +209,7 @@ class ImageInfo:
                             vallist.append(val)
                             
                         except Exception, e:
-                            logger.warning("Error reading metadata values: %s, %s" %(metapath,e))
+                            logger.debug("Error reading metadata values: %s, %s" %(metapath,e))
                             
                 if dTags[tag] == 'tdi' and len(taglist) > 1:    
                     #### use pan or green band TDI for exposure calculation
@@ -203,20 +222,20 @@ class ImageInfo:
                     elif len(vallist) == 8:
                         dAttribs['tdi'] = vallist[3]
                     else:
-                        logger.warning("Unexpected number of TDI values and band count ( TDI: expected 1, 4, 5, or 8 - found %d ; Band cound, expected 1, 4, or 8 - found %d) %s" %(len(vallist), self.bands, metapath))
+                        logger.debug("Unexpected number of TDI values and band count ( TDI: expected 1, 4, 5, or 8 - found %d ; Band cound, expected 1, 4, or 8 - found %d) %s" %(len(vallist), self.bands, metapath))
                         
                 elif len(taglist) == 1:
                     val = vallist[0]
                     dAttribs[dTags[tag]] = val
                     
                 elif len(taglist) <> 0:
-                    logger.warning("Unexpected number of %s values, %s" %(tag,metapath))
+                    logger.debug("Unexpected number of %s values, %s" %(tag,metapath))
             
             #### Test if all required values were found in metadata search
             status = [val is None for val in dAttribs.values()]
             
             if sum(status) != 0:
-                logger.warning("Cannot determine score for image %s: %s" %(self.srcfp,str(dAttribs)))
+                logger.debug("Cannot determine score for image %s: %s" %(self.srcfp,str(dAttribs)))
                 score = -1
             
             #### Assign panfactor if pan images are to be included in a multispectral mosaic   
@@ -278,13 +297,13 @@ class ImageInfo:
                     if params.bands == 1:
                         if self.sensor in pan_exposure_thresholds:
                             if exfact > pan_exposure_thresholds[self.sensor]:
-                                logger.warning("Image overexposed: %s --> %i" %(self.srcfp,exfact))
+                                logger.debug("Image overexposed: %s --> %i" %(self.srcfp,exfact))
                                 score = -1
                     
                     else:
                         if self.sensor in multi_exposure_thresholds:
                             if exfact > multi_exposure_thresholds[self.sensor]:
-                                logger.warning("Image overexposed: %s --> %i" %(self.srcfp,exfact))
+                                logger.debug("Image overexposed: %s --> %i" %(self.srcfp,exfact))
                                 score = -1
                         
                 #### Handle nonesense or nodata cloud cover values
@@ -292,11 +311,11 @@ class ImageInfo:
                     dAttribs["cc"] = 0.5
                 
                 if float(dAttribs["cc"]) > 0.5:
-                    logger.warning("Image too cloudy (>0.50): %s --> %f" %(self.srcfp,float(dAttribs["cc"])))
+                    logger.debug("Image too cloudy (>0.50): %s --> %f" %(self.srcfp,float(dAttribs["cc"])))
                     score = -1
                 
                 if float(dAttribs["sunel"]) < 5:
-                    logger.warning("Sun elevation too low (<5 degrees): %s --> %f" %(self.srcfp,float(dAttribs["sunel"])))
+                    logger.debug("Sun elevation too low (<5 degrees): %s --> %f" %(self.srcfp,float(dAttribs["sunel"])))
                     score = -1
                         
                 #try:
@@ -319,10 +338,10 @@ class MosaicParams:
 
 class TileParams:
     def __init__(self,x,x2,y,y2,j,i,name):
-        self.minx = x
-        self.maxx = x2
-        self.miny = y
-        self.maxy = y2
+        self.xmin = x
+        self.xmax = x2
+        self.ymin = y
+        self.ymax = y2
         self.i = i
         self.j = j
         self.name = name
@@ -331,7 +350,7 @@ class TileParams:
         
 
 
-def filterMatchingImages(imginfo_list,params,logger):
+def filterMatchingImages(imginfo_list,params):
     imginfo_list2 = []
     
     for iinfo in imginfo_list:
@@ -351,7 +370,7 @@ def filterMatchingImages(imginfo_list,params,logger):
         if isSame is True:
             imginfo_list2.append(iinfo)
         else:
-            logger.warning("Image does not match filter: %s" %iinfo.srcfp)
+            logger.debug("Image does not match filter: %s" %iinfo.srcfp)
 
     return imginfo_list2
 
@@ -469,7 +488,7 @@ def GetExactTrimmedGeom(image, step=2, tolerance=1):
                 geom = ogr.CreateGeometryFromWkt(poly_wkt)
                 #print geom
                 #### Simplify geom
-                #logger.info("Simplification tolerance: %.10f" %tolerance)
+                #logger.debug("Simplification tolerance: %.10f" %tolerance)
                 if geom is not None:
                     geom2  = geom.Simplify(tolerance)
             
@@ -628,16 +647,16 @@ def buffernum(num,buf):
    
     
 def deleteTempFiles(names):
-    print ('Deleting Temp Files')
+    logger.info('Deleting Temp Files')
     for name in names:
         if name is not None:
             deleteList = glob.glob(os.path.splitext(name)[0]+'.*')
             for f in deleteList:
                 try:
                     os.remove(f)
-                    print ('Deleted '+os.path.basename(f))
+                    loger.info('Deleted '+os.path.basename(f))
                 except:
-                    print ('Could not remove '+os.path.basename(f))
+                    logger.info('Could not remove '+os.path.basename(f))
    
                     
 def copyall(srcfile,dstdir):
@@ -647,22 +666,23 @@ def copyall(srcfile,dstdir):
     
     
 def ExecCmd(cmd):
-    print (cmd)
+    logger.info(cmd)
     p = Popen(cmd,shell=True,stderr=PIPE,stdout=PIPE)
     (so,se) = p.communicate()
     rc = p.wait()
-    print (rc)
-    print (se)
-    print (so)
-    return rc
+    logger.info(rc)
+    logger.info(se)
+    logger.info(so)
 
 
-def ExecCmd_mp(cmd):
-    print (cmd)
+def ExecCmd_mp(job):
+    job_name, cmd = job
+    logger.info('Running job: {0}'.format(job_name))
+    logger.debug('Cmd: {0}'.format(cmd))
     p = Popen(cmd,shell=True,stderr=PIPE,stdout=PIPE)
     (so,se) = p.communicate()
-    print (se)
-    print (so)
+    logger.debug(so)
+    logger.debug(se)
     
 
 def getGEMetadataAsXml(metafile):

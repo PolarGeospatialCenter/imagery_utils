@@ -8,7 +8,6 @@ from lib.mosaic import *
 import gdal, ogr,osr,gdalconst
 
 logger = logging.getLogger("logger")
-logger.setLevel(logging.DEBUG)            
 
 def main():
     
@@ -29,7 +28,7 @@ def main():
     parser.add_argument("--cutline_step", type=int, default=2,
                        help="cutline calculator pixel skip interval (default=2)")
     parser.add_argument("--component_shp", action="store_true", default=False,
-                        help="create shp of all componenet images")
+                        help="create shp of all component images")
    
     #### Parse Arguments
     args = parser.parse_args()
@@ -55,7 +54,8 @@ def main():
         d = 0
     
     ##### Configure Logger
-    lfh = logging.StreamHandler()
+    logfile = os.path.splitext(shp)[0]+".log"
+    lfh = logging.FileHandler(logfile)
     lfh.setLevel(logging.DEBUG)
     formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s','%m-%d-%Y %H:%M:%S')
     lfh.setFormatter(formatter)
@@ -93,7 +93,7 @@ def main():
         
         #### gather image info list
         logger.info("Gathering image info")
-        imginfo_list = [ImageInfo(image,"warped",logger) for image in intersects]
+        imginfo_list = [ImageInfo(image,"warped") for image in intersects]
         
         #### Get mosaic parameters
         logger.info("Getting mosaic parameters")
@@ -123,7 +123,7 @@ def main():
         
         logger.info("Calculating image scores")
         for iinfo in imginfo_list2:
-            iinfo.score,iinfo.attribs = iinfo.getScore(params,logger)
+            iinfo.score,iinfo.attribs = iinfo.getScore(params)
             logger.info("%s: %s" %(iinfo.srcfn,iinfo.score))
                
         ####  Overlay geoms and remove non-contributors
