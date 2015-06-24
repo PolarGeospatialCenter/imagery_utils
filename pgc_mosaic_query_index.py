@@ -235,7 +235,7 @@ def HandleTile(t,shp,dstdir,csvpath,args,exclude_list):
                 
                     #### gather image info list
                     logger.info("Gathering image info")
-                    imginfo_list1 = [ImageInfo(image,"raw",logger) for image in image_list]
+                    imginfo_list1 = [ImageInfo(image,"raw") for image in image_list]
                     
                      #### Get mosaic parameters
                     logger.info("Getting mosaic parameters")
@@ -243,7 +243,7 @@ def HandleTile(t,shp,dstdir,csvpath,args,exclude_list):
                     
                     #### Remove images that do not match ref
                     logger.info("Setting image pattern filter")
-                    imginfo_list2 = filterMatchingImages(imginfo_list1,params,logger)
+                    imginfo_list2 = filterMatchingImages(imginfo_list1,params)
                     
                     logger.info("Number of images matching filter: %i" %(len(imginfo_list2)))
                     print ("Number of images matching filter: %i" %(len(imginfo_list2)))
@@ -267,7 +267,7 @@ def HandleTile(t,shp,dstdir,csvpath,args,exclude_list):
                     imginfo_list4 = []
                     for iinfo in imginfo_list3:
                         
-                        iinfo.score,iinfo.factors = iinfo.getScore(params,logger)
+                        iinfo.score,iinfo.factors = iinfo.getScore(params)
                         if iinfo.score > 0:
                             imginfo_list4.append(iinfo)
                     
