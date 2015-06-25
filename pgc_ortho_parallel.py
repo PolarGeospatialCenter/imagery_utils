@@ -243,10 +243,6 @@ def main():
 		pool.map(ExecCmd_mp,task_queue,1)
 		logger.info("Done")
 
-	
-
-
-
 
     ###############################
     ####  Execution logic
