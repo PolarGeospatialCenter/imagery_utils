@@ -59,15 +59,19 @@ def main():
     else:
 	parser.error("Error arg1 is not a recognized file path or file type: %s" %(src))
 
+
     if not os.path.isdir(dstdir):
 	parser.error("Error arg2 is not a valid file path: %s" %(dstdir))
+
 
     if opt.qsubscript is None:
 	qsubpath = os.path.join(os.path.dirname(scriptpath),'qsub_ortho.sh')
     else:
 	qsubpath = os.path.abspath(opt.qsubscript)
+
     if not os.path.isfile(qsubpath):
 	parser.error("qsub script path is not valid: %s" %qsubpath)
+
 
     #### Verify EPSG
     try:
@@ -79,28 +83,22 @@ def main():
     if opt.dem is not None and opt.ortho_height is not None:
 	parser.error("--dem and --ortho_height options are mutually exclusive.  Please choose only one.")
 
-    ####  Determine submission type based on presence of pbsnodes cmd
-    try:
-	cmd = "pbsnodes"
-	p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-	so, se = p.communicate()
-    except OSError,e:
-	is_hpc = False
+    #### Set Up Logging Handlers
+    lso = logging.StreamHandler()
+    lso.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s','%m-%d-%Y %H:%M:%S')
+    lso.setFormatter(formatter)
+    logger.addHandler(lso)
+
+
+    #### Print Warning regarding DEM use
+    if opt.dem == None:
+	logger.warning("WARNING: No DEM is being used in this orthorectification.  Use the -d flag on the command line to input a DEM")
     else:
-	is_hpc = True
-
-    if opt.submission_type is None:
-	submission_type = "HPC" if is_hpc else "VM"
-    elif opt.submission_type == "HPC" and is_hpc is False:
-	parser.error("Submission type HPC is not available on this system")
-    else:
-	submission_type = opt.submission_type
-
-    
-
-    #### Check DEM
-    if opt.dem and not os.path.isfile(opt.dem):
-	parser.error("DEM does not exist: %s" %opt.dem)
+	#### Test if DEM exists
+	if not os.path.isfile(opt.dem):
+	    LogMsg("ERROR: DEM does not exist: %s" %opt.dem)
+	    sys.exit()
 
     ###############################
     ####  Submission logic
@@ -108,15 +106,26 @@ def main():
 
     if srctype in ['dir','textfile']:
 	
-	#### Set Up Logging Handler
-	lso = logging.StreamHandler()
-	lso.setLevel(logging.INFO)
-	formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s','%m-%d-%Y %H:%M:%S')
-	lso.setFormatter(formatter)
-	logger.addHandler(lso)
-	
+	####  Determine submission type based on presence of pbsnodes cmd
+	try:
+	    cmd = "pbsnodes"
+	    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+	    so, se = p.communicate()
+	except OSError,e:
+	    is_hpc = False
+	else:
+	    is_hpc = True
+    
+	if opt.submission_type is None:
+	    submission_type = "HPC" if is_hpc else "VM"
+	elif opt.submission_type == "HPC" and is_hpc is False:
+	    parser.error("Submission type HPC is not available on this system")
+	else:
+	    submission_type = opt.submission_type
+    
 	logger.info("Submission type: {0}".format(submission_type))
-	
+	task_queue = []
+    
 	if opt.processes and not submission_type == 'VM':
 	    logger.warning("--processes option will not be used becasue submission type is not VM")
     
@@ -226,12 +235,15 @@ def main():
 	    logger.info("Submitting jobs")
 	    if submission_type == 'HPC':
 		for task in task_queue:
+		    job_name,cmd = task
 		    subprocess.call(cmd,shell=True)
+		logger.info("Images submitted: %i" %i)    
 	    elif submission_type == 'VM':
 		pool = mp.Pool(processes)
 		pool.map(ExecCmd_mp,task_queue,1)
+		logger.info("Done")
 
-	logger.info("Done")
+	
 
 
 
@@ -241,9 +253,9 @@ def main():
     ################################
 
     elif srctype == 'image':
-	
-	#### Derive dstfp
 	srcdir, srcfn = os.path.split(src)
+
+	#### Derive dstfp
 	dstfp = os.path.join(dstdir,"%s_%s%s%d%s" %(
 	    os.path.splitext(srcfn)[0],
 	    getBitdepth(opt.outtype),
@@ -251,28 +263,10 @@ def main():
 	    spatial_ref.epsg,
 	    formats[opt.format]
 	    ))
-	
-	#### Set Up Logging Handler
-	if submission_type == 'VM':
-	    logfile = os.path.splitext(dstfp)[0]+".log"
-	    lfh = logging.FileHandler(logfile)
-	    lfh.setLevel(logging.DEBUG)
-	    formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s','%m-%d-%Y %H:%M:%S')
-	    lfh.setFormatter(formatter)
-	    logger.addHandler(lfh)
-	    
-	else:
-	    lso = logging.StreamHandler()
-	    lso.setLevel(logging.INFO)
-	    formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s','%m-%d-%Y %H:%M:%S')
-	    lso.setFormatter(formatter)
-	    logger.addHandler(lso)
-	    
-	logger.info("Submission type: {0}".format(submission_type))
-	
-	
 
-	if not os.path.isfile(dstfp):
+	done = os.path.isfile(dstfp)
+
+	if done is False:
 	    rc = processImage(src,dstfp,opt)
 
 

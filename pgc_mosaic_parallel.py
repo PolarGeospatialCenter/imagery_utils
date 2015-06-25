@@ -594,6 +594,7 @@ def main():
     #logger.info(task_queue)
     if submission_type == 'HPC':
         for task in task_queue:
+            job_name,cmd = task
             subprocess.call(cmd,shell=True)
     elif submission_type == 'VM':
         pool = mp.Pool(processes)

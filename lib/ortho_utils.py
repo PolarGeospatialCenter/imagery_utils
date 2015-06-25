@@ -232,6 +232,7 @@ def processImage(srcfp,dstfp,opt):
             if os.path.isfile(info.srcfp):
                 LogMsg("Copying image to working directory")
                 copy_list = glob.glob("%s.*" %os.path.splitext(info.srcfp)[0])
+                print copy_list
                 #copy_list.append(info.metapath)
                 for fpi in copy_list:
                     fpo = os.path.join(wd,os.path.basename(fpi))
