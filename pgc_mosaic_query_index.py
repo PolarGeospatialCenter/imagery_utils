@@ -36,6 +36,8 @@ def main():
                       help="stretch abbreviation used in image processing (default=rf)")
     parser.add_argument("--build_shp", action='store_true', default=False,
                       help="build shapefile of intersecting images (only invoked if --no_sort is not used)")
+    parser.add_argument("--online_only", action='store_true', default=False,
+                      help="limit search to those records where status = online")
     
     #### Parse Arguments
     args = parser.parse_args()
@@ -163,7 +165,8 @@ def HandleTile(t,shp,dstdir,csvpath,args,exclude_list):
             lyr = ds.GetLayerByName( shpbn )
             
             #### attribute filter for online images
-            #lyr.SetAttributeFilter('STATUS = "online"')
+            if args.online_only:
+                lyr.SetAttributeFilter('STATUS = "online"')
             
             s_srs = lyr.GetSpatialRef()
             #logger.debug(str(s_srs))

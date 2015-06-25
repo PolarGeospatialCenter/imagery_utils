@@ -1,18 +1,19 @@
 import os, string, sys, shutil, math, glob, re, tarfile, logging, shlex, argparse
 from datetime import datetime, timedelta
 
-from subprocess import *
+import subprocess
 from xml.dom import minidom
 from xml.etree import cElementTree as ET
 
 import gdal, ogr,osr, gdalconst
-
+import multiprocessing as mp
 from lib.ortho_utils import *
 
 #### Create Loggers
 logger = logging.getLogger("logger")
 logger.setLevel(logging.DEBUG)
 
+SUBMISSION_TYPES = ['HPC','VM']
 
 def main():
 
@@ -20,187 +21,261 @@ def main():
     ####  Handle Options
     #########################################################
 
-    #### Set Up Arguments 
+    #### Set Up Arguments
     parent_parser, pos_arg_keys = buildParentArgumentParser()
     parser = argparse.ArgumentParser(
 	parents=[parent_parser],
 	description="Run/Submit batch image ortho and conversion in parallel"
 	)
 
+    parser.add_argument("--submission_type", choices=SUBMISSION_TYPES,
+			help="job submission type. Default is determined automatically (%s)"%string.join(SUBMISSION_TYPES,','))
+    parser.add_argument("--processes", type=int,
+			help="number of processes to spawn for bulding subtiles (default is cpu count / 2). Use only on non-HPC runs.")
     parser.add_argument("--qsubscript",
-                      help="qsub script to use in cluster job submission (default is qsub_ortho.sh in script root folder)")
+		      help="qsub script to use in cluster job submission (default is qsub_ortho.sh in script root folder)")
     parser.add_argument("-l",
-                      help="PBS resources requested (mimicks qsub syntax)")
-    
-    
+		      help="PBS resources requested (mimicks qsub syntax)")
+    parser.add_argument("--dryrun", action='store_true', default=False,
+			help='print actions without executing')
+
+
     #### Parse Arguments
     opt = parser.parse_args()
     scriptpath = os.path.abspath(sys.argv[0])
     src = os.path.abspath(opt.src)
     dstdir = os.path.abspath(opt.dst)
-    
-   
+
+
     #### Validate Required Arguments
     if os.path.isdir(src):
-        srctype = 'dir'
+	srctype = 'dir'
     elif os.path.isfile(src) and os.path.splitext(src)[1].lower() == '.txt':
-        srctype = 'textfile'
+	srctype = 'textfile'
     elif os.path.isfile(src) and os.path.splitext(src)[1].lower() in exts:
-        srctype = 'image'
+	srctype = 'image'
     elif os.path.isfile(src.replace('msi','blu')) and os.path.splitext(src)[1].lower() in exts:
-        srctype = 'image'
+	srctype = 'image'
     else:
-        parser.error("Error arg1 is not a recognized file path or file type: %s" %(src))
-    
-    
+	parser.error("Error arg1 is not a recognized file path or file type: %s" %(src))
+
     if not os.path.isdir(dstdir):
-        parser.error("Error arg2 is not a valid file path: %s" %(dstdir))
-    
-    
-    if opt.qsubscript is None: 
-        qsubpath = os.path.join(os.path.dirname(scriptpath),'qsub_ortho.sh')
+	parser.error("Error arg2 is not a valid file path: %s" %(dstdir))
+
+    if opt.qsubscript is None:
+	qsubpath = os.path.join(os.path.dirname(scriptpath),'qsub_ortho.sh')
     else:
-        qsubpath = os.path.abspath(opt.qsubscript)
-        
+	qsubpath = os.path.abspath(opt.qsubscript)
     if not os.path.isfile(qsubpath):
-        parser.error("qsub script path is not valid: %s" %qsubpath)
-    
-    
+	parser.error("qsub script path is not valid: %s" %qsubpath)
+
     #### Verify EPSG
     try:
-        spatial_ref = SpatialRef(opt.epsg)
+	spatial_ref = SpatialRef(opt.epsg)
     except RuntimeError, e:
 	parser.error(e)
-	
+
     #### Verify that dem and ortho_height are not both specified
     if opt.dem is not None and opt.ortho_height is not None:
-        parser.error("--dem and --ortho_height options are mutually exclusive.  Please choose only one.")
-    
-    #### Set Up Logging Handlers
-    lso = logging.StreamHandler()
-    lso.setLevel(logging.DEBUG)
-    formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s','%m-%d-%Y %H:%M:%S')
-    lso.setFormatter(formatter)
-    logger.addHandler(lso)
-    
-    #### Print Warning regarding DEM use
-    if opt.dem == None:
-        LogMsg("\nWARNING: No DEM is being used in this orthorectification.\nUse the -d flag on the command line to input a DEM\n")
+	parser.error("--dem and --ortho_height options are mutually exclusive.  Please choose only one.")
+
+    ####  Determine submission type based on presence of pbsnodes cmd
+    try:
+	cmd = "pbsnodes"
+	p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+	so, se = p.communicate()
+    except OSError,e:
+	is_hpc = False
     else:
-        #### Test if DEM exists
-        if not os.path.isfile(opt.dem):
-            LogMsg("ERROR: DEM does not exist: %s" %opt.dem)
-            sys.exit()
+	is_hpc = True
+
+    if opt.submission_type is None:
+	submission_type = "HPC" if is_hpc else "VM"
+    elif opt.submission_type == "HPC" and is_hpc is False:
+	parser.error("Submission type HPC is not available on this system")
+    else:
+	submission_type = opt.submission_type
+
     
+
+    #### Check DEM
+    if opt.dem and not os.path.isfile(opt.dem):
+	parser.error("DEM does not exist: %s" %opt.dem)
+
     ###############################
     ####  Submission logic
     ################################
-    
-    if srctype in ['dir','textfile']:
-        
-        #### Get args ready to pass through
-        #### Get -l args and make a var
-        l = ("-l %s" %opt.l) if opt.l is not None else ""
-    
-        args_dict = vars(opt)
-        arg_list = []
-        arg_keys_to_remove = ('l','qsubscript')
-        
-        ## Add optional args to arg_list
-        for k,v in args_dict.iteritems():
-            if k not in pos_arg_keys and k not in arg_keys_to_remove and v is not None:
-                if isinstance(v,list) or isinstance(v,tuple):
-                    arg_list.append("--%s %s" %(k,' '.join([str(item) for item in v])))
-                elif isinstance(v,bool):
-                    if v is True:
-                        arg_list.append("--%s" %(k))
-                else:
-                    arg_list.append("--%s %s" %(k,str(v)))
-        
-        arg_str = " ".join(arg_list)
 
-        
-        if srctype == 'dir':
-            image_list = FindImages(src,exts)
-        elif srctype == 'textfile':
-            t = open(src,'r')
-            image_list = []
-            for line in t.readlines():
-                if os.path.isfile(line.rstrip()):
-                    image_list.append(line.rstrip())
-                else:
-                    LogMsg('Src image does not exist: %s' %line.rstrip())
-            t.close()
-        
-        
-        #### Group Ikonos
-        image_list2 = []
-        for srcfp in image_list:
-            srcdir,srcfn = os.path.split(srcfp)
-            if "IK01" in srcfn and sum([b in srcfn for b in ikMsiBands]) > 0:
-                for b in ikMsiBands:
-                    if b in srcfn:
-                        newname = os.path.join(srcdir,srcfn.replace(b,"msi"))
-                image_list2.append(newname)
-            
-            else:
-                image_list2.append(srcfp)
-        
-        image_list3 = list(set(image_list2))
-        
+    if srctype in ['dir','textfile']:
+	
+	#### Set Up Logging Handler
+	lso = logging.StreamHandler()
+	lso.setLevel(logging.INFO)
+	formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s','%m-%d-%Y %H:%M:%S')
+	lso.setFormatter(formatter)
+	logger.addHandler(lso)
+	
+	logger.info("Submission type: {0}".format(submission_type))
+	
+	if opt.processes and not submission_type == 'VM':
+	    logger.warning("--processes option will not be used becasue submission type is not VM")
     
-        #### Iterate Through Found Images
-        print 'Number of src images: %i' %len(image_list3)
-        i = 0
-        
-        for srcfp in image_list3:
-            
-            srcdir, srcfn = os.path.split(srcfp)
-            dstfp = os.path.join(dstdir,"%s_%s%s%d%s" %(
+	if submission_type == 'VM':
+	    processes = int(mp.cpu_count()/2.0)
+	    if opt.processes:
+		if mp.cpu_count() < opt.processes:
+		    logger.warning("Specified number of processes ({0}) is higher than the system cpu count ({1}), using default".format(opt.proceses,mp.count_cpu()))
+    
+		elif opt.processes < 1:
+		    logger.warning("Specified number of processes ({0}) must be greater than 0, using default".format(opt.proceses,mp.count_cpu()))
+    
+		else:
+		    processes = opt.processes
+    
+	    logger.info("Number of child processes to spawn: {0}".format(processes))
+	
+
+	#### Get args ready to pass through
+	#### Get -l args and make a var
+	l = ("-l %s" %opt.l) if opt.l is not None else ""
+
+	args_dict = vars(opt)
+	arg_list = []
+	arg_keys_to_remove = ('l','qsubscript','dryrun')
+
+	## Add optional args to arg_list
+	for k,v in args_dict.iteritems():
+	    if k not in pos_arg_keys and k not in arg_keys_to_remove and v is not None:
+		if isinstance(v,list) or isinstance(v,tuple):
+		    arg_list.append("--%s %s" %(k,' '.join([str(item) for item in v])))
+		elif isinstance(v,bool):
+		    if v is True:
+			arg_list.append("--%s" %(k))
+		else:
+		    arg_list.append("--%s %s" %(k,str(v)))
+
+	arg_str = " ".join(arg_list)
+
+
+	if srctype == 'dir':
+	    image_list = FindImages(src,exts)
+	elif srctype == 'textfile':
+	    t = open(src,'r')
+	    image_list = []
+	    for line in t.readlines():
+		if os.path.isfile(line.rstrip()):
+		    image_list.append(line.rstrip())
+		else:
+		    LogMsg('Src image does not exist: %s' %line.rstrip())
+	    t.close()
+
+
+	#### Group Ikonos
+	image_list2 = []
+	for srcfp in image_list:
+	    srcdir,srcfn = os.path.split(srcfp)
+	    if "IK01" in srcfn and sum([b in srcfn for b in ikMsiBands]) > 0:
+		for b in ikMsiBands:
+		    if b in srcfn:
+			newname = os.path.join(srcdir,srcfn.replace(b,"msi"))
+		image_list2.append(newname)
+
+	    else:
+		image_list2.append(srcfp)
+
+	image_list3 = list(set(image_list2))
+
+
+	#### Iterate Through Found Images
+	logger.info('Number of src images: %i' %len(image_list3))
+	i = 0
+	task_queue = []
+
+	for srcfp in image_list3:
+
+	    srcdir, srcfn = os.path.split(srcfp)
+	    dstfp = os.path.join(dstdir,"%s_%s%s%d%s" %(
 		os.path.splitext(srcfn)[0],
 		getBitdepth(opt.outtype),
 		opt.stretch,
 		spatial_ref.epsg,
 		formats[opt.format]
 		))
-            
-            done = os.path.isfile(dstfp)
-            
-            if done is False:
-                #print dstfp
-                
-                cmd = r'qsub %s -N Ortho%04i -v p1="%s %s %s %s" "%s"' %(l,i,scriptpath,arg_str,srcfp,dstdir,qsubpath)
-		p = Popen(cmd,shell=True)
-                p.wait()
-                i+=1
-            #else:
-                #print dstfp, "exists"
-                
-        print "Number of images to process: %i" %i
-    
-    
+
+	    done = os.path.isfile(dstfp)
+
+	    if done is False:
+
+		if submission_type == 'HPC':
+		    cmd = r'qsub %s -N Ortho%04i -v p1="%s %s %s %s" "%s"' %(l,i,scriptpath,arg_str,srcfp,dstdir,qsubpath)
+
+		elif submission_type == 'VM':
+		    cmd = r'python %s %s %s %s' %(scriptpath,arg_str,srcfp,dstdir)
+
+		else:
+		    cmd = None
+
+		job_name = srcfn
+		task_queue.append((job_name,cmd))
+		i+=1
+
+	logger.info("Number of images to process: %i" %i)
+
+	if not opt.dryrun:
+	#logger.info(task_queue)
+	    logger.info("Submitting jobs")
+	    if submission_type == 'HPC':
+		for task in task_queue:
+		    subprocess.call(cmd,shell=True)
+	    elif submission_type == 'VM':
+		pool = mp.Pool(processes)
+		pool.map(ExecCmd_mp,task_queue,1)
+
+	logger.info("Done")
+
+
+
+
     ###############################
     ####  Execution logic
     ################################
-    
+
     elif srctype == 'image':
-        srcdir, srcfn = os.path.split(src)
-        
-        #### Derive dstfp
-        dstfp = os.path.join(dstdir,"%s_%s%s%d%s" %(
+	
+	#### Derive dstfp
+	srcdir, srcfn = os.path.split(src)
+	dstfp = os.path.join(dstdir,"%s_%s%s%d%s" %(
 	    os.path.splitext(srcfn)[0],
 	    getBitdepth(opt.outtype),
 	    opt.stretch,
 	    spatial_ref.epsg,
 	    formats[opt.format]
 	    ))
-            
-        done = os.path.isfile(dstfp)
-        
-        if done is False:
-            rc = processImage(src,dstfp,opt)
+	
+	#### Set Up Logging Handler
+	if submission_type == 'VM':
+	    logfile = os.path.splitext(dstfp)[0]+".log"
+	    lfh = logging.FileHandler(logfile)
+	    lfh.setLevel(logging.DEBUG)
+	    formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s','%m-%d-%Y %H:%M:%S')
+	    lfh.setFormatter(formatter)
+	    logger.addHandler(lfh)
+	    
+	else:
+	    lso = logging.StreamHandler()
+	    lso.setLevel(logging.INFO)
+	    formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s','%m-%d-%Y %H:%M:%S')
+	    lso.setFormatter(formatter)
+	    logger.addHandler(lso)
+	    
+	logger.info("Submission type: {0}".format(submission_type))
+	
+	
 
-   
+	if not os.path.isfile(dstfp):
+	    rc = processImage(src,dstfp,opt)
+
+
 
 if __name__ == "__main__":
     main()

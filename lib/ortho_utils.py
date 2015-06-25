@@ -1031,11 +1031,10 @@ def WarpImage(opt,info):
                     info.warpfile
                     )           
                 
-                call(cmd,shell=True)
-                #(err,so,se) = ExecCmd(cmd)
+                (err,so,se) = ExecCmd(cmd)
                 #print err
-                #if err == 1:
-                #    rc = 1
+                if err == 1:
+                    rc = 1
                 
                 
         else:
@@ -1806,6 +1805,16 @@ def ExecCmd(cmd):
     logger.debug("STDERR:  "+se)
     return (err,so,se)
 
+
+def ExecCmd_mp(job):
+    job_name, cmd = job
+    logger.info('Running job: {0}'.format(job_name))
+    logger.debug('Cmd: {0}'.format(cmd))
+    p = Popen(cmd,shell=True,stderr=PIPE,stdout=PIPE)
+    (so,se) = p.communicate()
+    logger.debug(so)
+    logger.debug(se)
+    
 
 def getBitdepth(outtype):
     if outtype == "Byte":

@@ -47,7 +47,7 @@ def main():
     parser.add_argument("-l",
                         help="PBS resources requested (mimicks qsub syntax). Use only on HPC systems.")
     parser.add_argument("--processes", type=int,
-                        help="number of processes to spawn for bulding subtiles. Use only on non-HPC systems.")
+                        help="number of processes to spawn for bulding subtiles (default is cpu count / 4). Use only on non-HPC runs.")
     parser.add_argument("--submission_type", choices=SUBMISSION_TYPES,
                         help="job submission type. Default is determined automatically (%s)"%string.join(SUBMISSION_TYPES,','))
     parser.add_argument("--component_shp", action="store_true", default=False,
@@ -150,22 +150,18 @@ def main():
         logger.warning("--processes option will not be used becasue submission type is not VM")
     
     if submission_type == 'VM':
+        processes = int(mp.cpu_count()/4.0)
         if args.processes:
             if mp.cpu_count() < args.processes:
-                logger.warning("Specified number of processes ({0}) is higher than the system cpu count ({1}), using cpu count".format(args.proceses,mp.count_cpu()))
-                processes = mp.count_cpu()
+                logger.warning("Specified number of processes ({0}) is higher than the system cpu count ({1}), using default".format(args.proceses,mp.count_cpu()))
                 
             elif args.processes < 1:
-                logger.warning("Specified number of processes ({0}) must be greater than 0, using 1".format(args.proceses,mp.count_cpu()))
-                processes = 1
+                logger.warning("Specified number of processes ({0}) must be greater than 0, using default".format(args.proceses,mp.count_cpu()))
                 
             else:
-                processes = args.processes
-                
-        else:
-            processes = int(mp.cpu_count()/4.0)                           
+                processes = args.processes            
             
-        logger.info("Number of child processes to be used: {0}".format(processes))
+        logger.info("Number of child processes to spawn: {0}".format(processes))
     
 
     #### Get exclude list if specified
