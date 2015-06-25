@@ -9,7 +9,6 @@ from lib import ortho_utils
 
 ### Create Logger
 logger = logging.getLogger("logger")
-logger.setLevel(logging.DEBUG)              
 
 EPSG_WGS84 = 4326
 
@@ -34,7 +33,9 @@ def main():
     parser.add_argument("--overwrite", action="store_true", default=False,
                       help="overwrite any existing files")
     parser.add_argument("--stretch", choices=ortho_utils.stretches, default="rf",
-                      help="stretch abbreviation used in image processing (default=rf)")    
+                      help="stretch abbreviation used in image processing (default=rf)")
+    parser.add_argument("--build_shp", action='store_true', default=False,
+                      help="build shapefile of intersecting images (only invoked if --no_sort is not used)")
     
     #### Parse Arguments
     args = parser.parse_args()
@@ -69,12 +70,17 @@ def main():
         logfile = os.path.abspath(args.log)
     else:
         logfile = os.path.join(dstdir,"queryFP_%s.log" %datetime.today().strftime("%Y%m%d%H%M%S"))
+    
     lfh = logging.FileHandler(logfile)
-    #lfh = logging.StreamHandler()
     lfh.setLevel(logging.DEBUG)
     formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s','%m-%d-%Y %H:%M:%S')
     lfh.setFormatter(formatter)
     logger.addHandler(lfh)
+    
+    lsh = logging.StreamHandler()
+    lsh.setLevel(logging.INFO)
+    lsh.setFormatter(formatter)
+    logger.addHandler(lsh)
     
     #### Get exclude_list if specified
     if args.exclude is not None:
@@ -86,7 +92,7 @@ def main():
     else:
         exclude_list = set()
     
-    logger.info("Exclude list: %s" %str(exclude_list))
+    logger.debug("Exclude list: %s" %str(exclude_list))
     
     #### Parse csv, validate tile ID and get tilegeom
     tiles = {}
@@ -113,13 +119,12 @@ def main():
     
         for ttile in ttiles:
             if ttile not in tiles:
-                print "Target tile is not in the tile csv: %s" %ttile
+                logger.info("Target tile is not in the tile csv: %s" %ttile)
                 
             else:
                 t = tiles[ttile]
                 if t.status == "0":
                     logger.error("Tile status indicates it should not be created: %s, %s" %(ttile,t.status))
-                    print "Tile status indicates it should not be created: %s, %s" %(ttile,t.status)
                 else:
                     HandleTile(t,shp,dstdir,csvpath,args,exclude_list)
     
@@ -140,9 +145,8 @@ def HandleTile(t,shp,dstdir,csvpath,args,exclude_list):
     
     if os.path.isfile(otxtpath) and os.path.isfile(mtxtpath) and args.overwrite is False:
         logger.info("Tile %s processing files already exist" %t.name)
-        print ("Tile %s processing files already exist" %t.name)
     else:
-        logger.info("Tile %s" %(t.name))
+        logger.debug("Tile %s" %(t.name))
     
         t_srs = osr.SpatialReference()
         t_srs.ImportFromEPSG(t.epsg)
@@ -162,8 +166,8 @@ def HandleTile(t,shp,dstdir,csvpath,args,exclude_list):
             #lyr.SetAttributeFilter('STATUS = "online"')
             
             s_srs = lyr.GetSpatialRef()
-            #logger.info(str( s_srs))
-            logger.info(str(t.geom))
+            #logger.debug(str(s_srs))
+            logger.debug(str(t.geom))
         
             if not t_srs.IsSame(s_srs):
                 ict = osr.CoordinateTransformation(t_srs, s_srs)
@@ -172,195 +176,141 @@ def HandleTile(t,shp,dstdir,csvpath,args,exclude_list):
             lyr.ResetReading()
             feat = lyr.GetNextFeature()
             
-            image_list = []
+            imginfo_list1 = []
             
             while feat:
                 
-                i = feat.GetFieldIndex("S_FILEPATH")
-                if i == -1:
-                    i = feat.GetFieldIndex("O_FILEPATH")
-                elif len(feat.GetFieldAsString(i)) == 0:
-                    i = feat.GetFieldIndex("O_FILEPATH")
-                path = feat.GetFieldAsString(i)
-                i = feat.GetFieldIndex("CLOUDCOVER")
-                cc = feat.GetFieldAsDouble(i)
-                i = feat.GetFieldIndex("SENSOR")
-                sensor = feat.GetFieldAsString(i)
-                i = feat.GetFieldIndex("SCENE_ID")
-                scene_id = feat.GetFieldAsString(i)
-                geom = feat.GetGeometryRef()
+                iinfo = ImageInfo(feat,"RECORD",srs=s_srs)
                 
-                #print (scene_id)
-                if geom is not None and geom.GetGeometryType() == ogr.wkbPolygon:
+                if iinfo.geom is not None and iinfo.geom.GetGeometryType() == ogr.wkbPolygon:
                     if not t_srs.IsSame(s_srs):
-                        geom.Transform(ct)
-                    if geom.Intersect(t.geom):
-                        #print (scene_id, path)
-                        if len(path) > 1:
-                            if r"V:/pgc/agic/private" in path:
-                                srcfp = path.replace(r"V:/pgc",r'/mnt/agic/storage00')
-                            elif r"/pgc/agic/private" in path:
-                                srcfp = path.replace(r"/pgc",r'/mnt/agic/storage00')
-                            elif r"V:/pgc/data" in path:
-                                srcfp = path.replace(r"V:/pgc/data",r'/mnt/pgc/data')
-                            elif r"/pgc/data" in path:
-                                srcfp = path.replace(r"/pgc/data",r'/mnt/pgc/data')
-                            else:
-                                srcfp = path
-                            
-                            if scene_id in exclude_list:
-                                logger.info("Scene in exclude list: %s" %srcfp)
-                            elif not os.path.isfile(srcfp):
-                                logger.warning("Intersecting image not found on file system: %s" %srcfp)
-                            else:
-                                logger.info( "INTERSECT %s, %s: %s" %(scene_id, srcfp, str(geom)))
-                                image_list.append(srcfp)
+                        iinfo.geom.Transform(ct)
+                    
+                    if iinfo.geom.Intersect(t.geom):
+                        
+                        if iinfo.scene_id in exclude_list:
+                            logger.debug("Scene in exclude list: %s" %srcfp)
                         else:
-                            logger.warning("path field not found in shp")
-                                
+                            logger.debug( "Intersect %s, %s: %s" %(iinfo.scene_id, iinfo.srcfp, str(iinfo.geom)))
+                            imginfo_list1.append(iinfo)                                
                             
-                    #else:
-                        #logger.info( "No polygon geometry: %s" %path)
                 feat = lyr.GetNextFeature()
             
             ds = None
         
-            logger.info("Number of intersects in tile %s: %i" %(t.name,len(image_list)))
-            print "Number of intersects in tile %s: %i" %(t.name,len(image_list))
+            logger.info("Number of intersects in tile %s: %i" %(t.name,len(imginfo_list1)))
             
-           
-            
-            if len(image_list) > 0:
+            if len(imginfo_list1) > 0:
                 if args.nosort is False:
                 
-                    #### gather image info list
-                    logger.info("Gathering image info")
-                    imginfo_list1 = [ImageInfo(image,"raw") for image in image_list]
-                    
-                     #### Get mosaic parameters
-                    logger.info("Getting mosaic parameters")
+                    #### Get mosaic parameters
+                    logger.debug("Getting mosaic parameters")
                     params = getMosaicParameters(imginfo_list1[0],args)
                     
                     #### Remove images that do not match ref
-                    logger.info("Setting image pattern filter")
+                    logger.debug("Setting image pattern filter")
                     imginfo_list2 = filterMatchingImages(imginfo_list1,params)
-                    
                     logger.info("Number of images matching filter: %i" %(len(imginfo_list2)))
-                    print ("Number of images matching filter: %i" %(len(imginfo_list2)))
                     
-                    #### Get RPC projected geom for each image
-                    logger.info("Getting RPC geom")
-                    
+                    #### Sort by quality
+                    logger.debug("Sorting images by quality")
                     imginfo_list3 = []
                     for iinfo in imginfo_list2:
-                        geom = getRpcGeom(iinfo,args.dem,t_srs)
-                        if geom is not None:
-                            logger.info("%s geom: %s" %(iinfo.srcfn,str(geom)))
-                            iinfo.geom = geom
-                            imginfo_list3.append(iinfo)
-                        else:
-                            logger.warning("Cannot determine geom: %s" %iinfo.srcfp)
                         
-                    #### Sort by quality
-                    logger.info("Sorting images by quality")
-                    
-                    imginfo_list4 = []
-                    for iinfo in imginfo_list3:
-                        
-                        iinfo.score,iinfo.factors = iinfo.getScore(params)
+                        iinfo.getScore(params)
                         if iinfo.score > 0:
-                            imginfo_list4.append(iinfo)
+                            imginfo_list3.append(iinfo)
                     
-                    imginfo_list4.sort(key=lambda x: x.score)
+                    imginfo_list3.sort(key=lambda x: x.score)
                     
-                    #######################################################
-                    #### Create RPC Shp
-                    
-                    shp = os.path.join(dstdir,"%s_%s_imagery.shp" %(os.path.basename(csvpath)[:-4],t.name))
-               
-                    logger.info("Creating shapefile of geoms: %s" %shp)
-                
-                    fields = [("IMAGENAME", ogr.OFTString, 100),
-                        ("SCORE", ogr.OFTReal, 0)]
-                    
-                    OGR_DRIVER = "ESRI Shapefile"
-                    
-                    ogrDriver = ogr.GetDriverByName(OGR_DRIVER)
-                    if ogrDriver is None:
-                        logger.info("OGR: Driver %s is not available" % OGR_DRIVER)
-                        sys.exit(-1)
-                    
-                    if os.path.isfile(shp):
-                        ogrDriver.DeleteDataSource(shp)
-                    vds = ogrDriver.CreateDataSource(shp)
-                    if vds is None:
-                        logger.info("Could not create shp")
-                        sys.exit(-1)
-                    
-                    shpd, shpn = os.path.split(shp)
-                    shpbn, shpe = os.path.splitext(shpn)
-                    
-                    
-                    lyr = vds.CreateLayer(shpbn, t_srs, ogr.wkbPolygon)
-                    if lyr is None:
-                        logger.info("ERROR: Failed to create layer: %s" % shpbn)
-                        sys.exit(-1)
-                    
-                    for fld, fdef, flen in fields:
-                        field_defn = ogr.FieldDefn(fld, fdef)
-                        if fdef == ogr.OFTString:
-                            field_defn.SetWidth(flen)
-                        if lyr.CreateField(field_defn) != 0:
-                            logger.info("ERROR: Failed to create field: %s" % fld)
-                    
-                    for iinfo in imginfo_list4:
-                        geom = iinfo.geom
+                    if args.build_shp:
                         
-                        logger.info("Image: %s" %(iinfo.srcfn))
+                        #######################################################
+                        #### Create Shp
                         
-                        feat = ogr.Feature(lyr.GetLayerDefn())
+                        shp = os.path.join(dstdir,"%s_%s_imagery.shp" %(os.path.basename(csvpath)[:-4],t.name))
+                   
+                        logger.debug("Creating shapefile of geoms: %s" %shp)
+                    
+                        fields = [("IMAGENAME", ogr.OFTString, 100),
+                            ("SCORE", ogr.OFTReal, 0)]
                         
-                        feat.SetField("IMAGENAME",iinfo.srcfn)
-                        feat.SetField("SCORE",iinfo.score)
+                        OGR_DRIVER = "ESRI Shapefile"
+                        
+                        ogrDriver = ogr.GetDriverByName(OGR_DRIVER)
+                        if ogrDriver is None:
+                            logger.debug("OGR: Driver %s is not available" % OGR_DRIVER)
+                            sys.exit(-1)
+                        
+                        if os.path.isfile(shp):
+                            ogrDriver.DeleteDataSource(shp)
+                        vds = ogrDriver.CreateDataSource(shp)
+                        if vds is None:
+                            logger.debug("Could not create shp")
+                            sys.exit(-1)
+                        
+                        shpd, shpn = os.path.split(shp)
+                        shpbn, shpe = os.path.splitext(shpn)
+                        
+                        
+                        lyr = vds.CreateLayer(shpbn, t_srs, ogr.wkbPolygon)
+                        if lyr is None:
+                            logger.debug("ERROR: Failed to create layer: %s" % shpbn)
+                            sys.exit(-1)
+                        
+                        for fld, fdef, flen in fields:
+                            field_defn = ogr.FieldDefn(fld, fdef)
+                            if fdef == ogr.OFTString:
+                                field_defn.SetWidth(flen)
+                            if lyr.CreateField(field_defn) != 0:
+                                logger.debug("ERROR: Failed to create field: %s" % fld)
+                        
+                        for iinfo in imginfo_list3:
+                        
+                            logger.debug("Image: %s" %(iinfo.srcfn))
                             
-                        feat.SetGeometry(geom)
-                        
-                        if lyr.CreateFeature(feat) != 0:
-                            logger.info("ERROR: Could not create feature for image %s" % image)
-                        else:
-                            logger.info("Created feature for image: %s" %image)
+                            feat = ogr.Feature(lyr.GetLayerDefn())
                             
-                        feat.Destroy()
+                            feat.SetField("IMAGENAME",iinfo.srcfn)
+                            feat.SetField("SCORE",iinfo.score)
+    
+                            feat.SetGeometry(iinfo.geom)
+                            if lyr.CreateFeature(feat) != 0:
+                                logger.debug("ERROR: Could not create feature for image %s" % iinfo.srcfn)
+                            else:
+                                logger.debug("Created feature for image: %s" %iinfo.srcfn)
+                                
+                            feat.Destroy()
                     
                     
                     ####  Overlay geoms and remove non-contributors
-                    logger.info("Overlaying images to determine contributors")
+                    logger.debug("Overlaying images to determine contributors")
                     contribs = []
                     
-                    for i in xrange(0,len(imginfo_list4)):
-                        iinfo = imginfo_list4[i]
+                    for i in xrange(0,len(imginfo_list3)):
+                        iinfo = imginfo_list3[i]
                         basegeom = iinfo.geom
     
-                        for j in range(i+1,len(imginfo_list4)):
-                            iinfo2 = imginfo_list4[j]
+                        for j in range(i+1,len(imginfo_list3)):
+                            iinfo2 = imginfo_list3[j]
                             geom2 = iinfo2.geom
                             
                             if basegeom.Intersects(geom2):
                                 basegeom = basegeom.Difference(geom2)
                                 if basegeom is None or basegeom.IsEmpty():
-                                    #logger.info("Broke after %i comparisons" %j)
+                                    #logger.debug("Broke after %i comparisons" %j)
                                     break
                                     
                         if basegeom is None:
-                            logger.info("Function Error: %s" %iinfo.srcfp)
+                            logger.debug("Function Error: %s" %iinfo.srcfp)
                         elif basegeom.IsEmpty():
-                            logger.info("Removing non-contributing image: %s" %iinfo.srcfp)
+                            logger.debug("Removing non-contributing image: %s" %iinfo.srcfp)
                         else:
                             basegeom = basegeom.Intersection(t.geom)
                             if basegeom is None:
-                                logger.info("Function Error: %s" %iinfo.srcfp)
+                                logger.debug("Function Error: %s" %iinfo.srcfp)
                             elif basegeom.IsEmpty():
-                                logger.info("Removing non-contributing image: %s" %iinfo.srcfp)
+                                logger.debug("Removing non-contributing image: %s" %iinfo.srcfp)
                             else:
                                 contribs.append(iinfo.srcfp)
                                                 
@@ -368,7 +318,6 @@ def HandleTile(t,shp,dstdir,csvpath,args,exclude_list):
                     contribs = image_list
             
                 logger.info("Number of contributing images: %i" %(len(contribs)))      
-                print "Number of contributing images: %i" %(len(contribs))
             
                 if len(contribs) > 0:
                     
@@ -377,28 +326,16 @@ def HandleTile(t,shp,dstdir,csvpath,args,exclude_list):
                         os.makedirs(dstdir)
                     
                     otxtpath = os.path.join(dstdir,"%s_%s_orig.txt" %(os.path.basename(csvpath)[:-4],t.name))
-                    mtxtpath = os.path.join(dstdir,"%s_%s_ortho.txt" %(os.path.basename(csvpath)[:-4],t.name))
-                    
                     otxt = open(otxtpath,'w')
-                    mtxt = open(mtxtpath,'w')
                     
                     for contrib in contribs:
                         
-                        if os.path.isfile(contrib):
-                        
-                            otxt.write("%s\n" %contrib)
-                            if "\\" in contrib:
-                                fn = contrib[contrib.rfind("\\")+ 1:contrib.rfind(".")]
-                            else:
-                                fn = contrib[contrib.rfind("/")+ 1:contrib.rfind(".")]
-                            
-                            mtxt.write(os.path.join(dstdir,"orthos",t.name,"%s_u08%s%i.tif\n"% (fn, args.stretch, t.epsg)))
-                            
-                        else:
+                        if not os.path.isfile(contrib):
                             logger.warning("Image does not exist: %s" %(contrib))
                             
+                        otxt.write("%s\n" %contrib)
+ 
                     otxt.close()
-                    mtxt.close()
 
 
 

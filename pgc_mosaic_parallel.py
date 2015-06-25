@@ -193,9 +193,11 @@ def main():
         logger.info("%i existing images found" %len(image_list))
     
     #### gather image info list
-    imginfo_list = [ImageInfo(image,"warped") for image in image_list]
+    logger.info("Getting image info")
+    imginfo_list = [ImageInfo(image,"IMAGE") for image in image_list]
     
     #### Get mosaic parameters
+    logger.info("Setting mosaic parameters")
     params = getMosaicParameters(imginfo_list[0],args)
     
     #### Remove images that do not match ref
@@ -214,19 +216,16 @@ def main():
         poly_wkt = 'POLYGON (( %f %f, %f %f, %f %f, %f %f, %f %f ))' %(params.xmin,params.ymin,params.xmin,params.ymax,params.xmax,params.ymax,params.xmax,params.ymin,params.xmin,params.ymin)
         params.extent_geom = ogr.CreateGeometryFromWkt(poly_wkt)
         
-        #### Get geom for each image
+        #### Check geom overlaps extent
         imginfo_list3 = []
         for iinfo in imginfo_list2:
-            iinfo.geom, xs1, ys1 = getGeom(iinfo.srcfp)
             if iinfo.geom is not None:
                 if params.extent_geom.Intersect(iinfo.geom) is True:
-                    xs = xs + xs1
-                    ys = ys + ys1
                     imginfo_list3.append(iinfo)
                 else:
-                    logger.debug("Image does not intersect mosaic extent: %s" %iinfo.srcfp)
+                    logger.debug("Image does not intersect mosaic extent: %s" %iinfo.srcfn)
             else: # remove from list if no geom
-                logger.debug("Cannot get geometry for image: %s" %iinfo.srcfp)
+                logger.debug("Null geometry for image: %s" %iinfo.srcfn)
     
     #### else set extent after image geoms computed
     else:
@@ -234,13 +233,12 @@ def main():
         #### Get geom for each image
         imginfo_list3 = []
         for iinfo in imginfo_list2:
-            iinfo.geom, xs1, ys1 = getGeom(iinfo.srcfp)
             if iinfo.geom is not None:
-                xs = xs + xs1
-                ys = ys + ys1
+                xs = xs + iinfo.xs
+                ys = ys + iinfo.ys
                 imginfo_list3.append(iinfo)
             else: # remove from list if no geom
-                logger.debug("Cannot get geometry for image: %s" %iinfo.srcfp)
+                logger.debug("Null geometry for image: %s" %iinfo.srcfn)
         
         params.xmin = min(xs)
         params.xmax = max(xs)
@@ -249,18 +247,18 @@ def main():
     
         poly_wkt = 'POLYGON (( %f %f, %f %f, %f %f, %f %f, %f %f ))' %(params.xmin,params.ymin,params.xmin,params.ymax,params.xmax,params.ymax,params.xmax,params.ymin,params.xmin,params.ymin)
         params.extent_geom = ogr.CreateGeometryFromWkt(poly_wkt)
-        
-    logger.info("Resolution: %f x %f, Tilesize: %f x %f, Extent: %f %f %f %f" %(params.xres,params.yres,params.xtilesize,params.ytilesize,params.xmin,params.xmax,params.ymin,params.ymax))
-    
+     
     #### Check number of remaining images
     num_images = len(imginfo_list3)
 
     if num_images > 0:            
-        logger.info("%d of %d input images images are valid" %(num_images,len(image_list)))
+        logger.info("%d of %d input images intersect mosaic extent" %(num_images,len(image_list)))
+        logger.info("Mosaic parameters: resolution %f x %f, tilesize %f x %f, extent %f %f %f %f" %(params.xres,params.yres,params.xtilesize,params.ytilesize,params.xmin,params.xmax,params.ymin,params.ymax))
+        
     else:
         logger.error("No valid images found")
         sys.exit(0)
-    
+
     
     #####################################################
     ####  Read xmls and order imagery (cloud cover, off-nadir angle, sun elev, acq date, exposure/TDI? )
@@ -269,7 +267,7 @@ def main():
     logger.info("Reading image metadata and determining sort order")
          
     for iinfo in imginfo_list3:
-        iinfo.score, iinfo.attribs = iinfo.getScore(params)
+        iinfo.getScore(params)
             
     ####  Sort by score
     if not args.nosort:
@@ -305,7 +303,7 @@ def main():
     
     xtiledim = ceil((params.xmax-params.xmin)/params.xtilesize)
     ytiledim = ceil((params.ymax-params.ymin)/params.ytilesize)
-    logger.info("Tiles: %d x %d" %(xtiledim,ytiledim))
+    logger.info("Tiles: %d rows, %d columns" %(ytiledim,xtiledim))
     
     xtdb = len(str(int(xtiledim)))
     ytdb = len(str(int(ytiledim)))

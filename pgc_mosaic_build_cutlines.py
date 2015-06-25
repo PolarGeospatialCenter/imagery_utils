@@ -1,4 +1,4 @@
-import os, string, sys, shutil, glob, re, tarfile,argparse, numpy
+import os, string, sys, shutil, glob, re, tarfile,argparse, numpy, logging
 from datetime import datetime, timedelta
 from subprocess import *
 from math import *
@@ -8,6 +8,8 @@ from lib.mosaic import *
 import gdal, ogr,osr,gdalconst
 
 logger = logging.getLogger("logger")
+logger.setLevel(logging.DEBUG)
+
 
 def main():
     
@@ -37,7 +39,7 @@ def main():
     inpath = os.path.abspath(args.src)
     shp = os.path.abspath(args.shp)
     
-    print " ".join(sys.argv)
+    #print (" ".join(sys.argv))
     
     #### Validate target day option
     if args.tday is not None:
@@ -93,7 +95,7 @@ def main():
         
         #### gather image info list
         logger.info("Gathering image info")
-        imginfo_list = [ImageInfo(image,"warped") for image in intersects]
+        imginfo_list = [ImageInfo(image,"IMAGE") for image in intersects]
         
         #### Get mosaic parameters
         logger.info("Getting mosaic parameters")
@@ -123,7 +125,7 @@ def main():
         
         logger.info("Calculating image scores")
         for iinfo in imginfo_list2:
-            iinfo.score,iinfo.attribs = iinfo.getScore(params)
+            iinfo.getScore(params)
             logger.info("%s: %s" %(iinfo.srcfn,iinfo.score))
                
         ####  Overlay geoms and remove non-contributors
@@ -149,15 +151,15 @@ def main():
                             break
                             
                 if basegeom is None:
-                    logger.info("Function Error: %s" %iinfo.srcfp)
+                    logger.info("Function Error: %s" %iinfo.srcfn)
                 elif basegeom.IsEmpty():
-                    logger.info("Removing non-contributing image: %s" %iinfo.srcfp)
+                    logger.info("Removing non-contributing image: %s" %iinfo.srcfn)
                 else:
                     basegeom = basegeom.Intersection(extent_geom)
                     if basegeom is None:
-                        logger.info("Function Error: %s" %iinfo.srcfp)
+                        logger.info("Function Error: %s" %iinfo.srcfn)
                     elif basegeom.IsEmpty():
-                        logger.info("Removing non-contributing image: %s" %iinfo.srcfp)
+                        logger.info("Removing non-contributing image: %s" %iinfo.srcfn)
                     else:
                         contribs.append((iinfo,basegeom))
                         tm = datetime.today()    
@@ -170,15 +172,20 @@ def main():
    
         logger.info("Creating shapefile of image boundaries: %s" %shp)
     
-        fields = [("IMAGENAME", ogr.OFTString, 100),
+        fields = (
+            ("IMAGENAME", ogr.OFTString, 100),
             ("SENSOR", ogr.OFTString, 10),
             ("ACQDATE", ogr.OFTString, 10),
             ("CAT_ID", ogr.OFTString, 30),
-            ("RESOLUTION", ogr.OFTString, 10),
+            ("RESOLUTION", ogr.OFTReal, 0),
             ("OFF_NADIR", ogr.OFTReal, 0),
+            ("SUN_ELEV", ogr.OFTReal, 0),
+            ("CLOUDCOVER", ogr.OFTReal, 0),
+            ("TDI", ogr.OFTReal, 0),
+            ("DATE_DIFF", ogr.OFTReal, 0),
             ("SCORE", ogr.OFTReal, 0),
-            ("FACTORS", ogr.OFTString, 254)]
-        
+        )
+
         OGR_DRIVER = "ESRI Shapefile"
         
         ogrDriver = ogr.GetDriverByName(OGR_DRIVER)
@@ -219,31 +226,21 @@ def main():
             
             feat.SetField("IMAGENAME",iinfo.srcfn)
             feat.SetField("SENSOR",iinfo.sensor)
+            feat.SetField("ACQDATE",iinfo.acqdate.strftime("%Y-%m-%d"))
+            feat.SetField("CAT_ID",iinfo.catid)
+            feat.SetField("OFF_NADIR",iinfo.ona)
+            feat.SetField("SUN_ELEV",iinfo.sunel)
+            feat.SetField("CLOUDCOVER",iinfo.cloudcover)
             feat.SetField("SCORE",iinfo.score)
-            feat.SetField("ACQDATE",iinfo.acqdate)
             
-            if iinfo.xres is not None:
-                res = "%.7f" %((iinfo.xres+iinfo.yres)/2)
-            else:
-                res = ""
-            feat.SetField("RESOLUTION", res)
-        
-            d, catid, sensor = getInfoFromName(iinfo.srcfn)
-            if catid is not None:
-                feat.SetField("CAT_ID",catid)
+            tdi = iinfo.tdi if iinfo.tdi else 0
+            feat.SetField("TDI",tdi)
             
-            try:
-                ona = "%.2f" %iinfo.attribs["ona"]
-            except Exception:
-                ona = ""
-            feat.SetField("OFF_NADIR",ona)
+            date_diff = iinfo.date_diff if iinfo.date_diff else -9999
+            feat.SetField("DATE_DIFF",date_diff)
             
-            keys = iinfo.attribs.keys()
-            keys.sort()
-            factlist = []
-            for k in keys:
-                factlist.append("%s: %s" %(k,str(iinfo.attribs[k])))
-            feat.SetField("FACTORS",", ".join(factlist))
+            res = ((iinfo.xres+iinfo.yres)/2.0) if iinfo.xres else 0
+            feat.SetField("RESOLUTION",res)
                 
             feat.SetGeometry(geom)
             

@@ -6,16 +6,13 @@ from math import *
 from xml.etree import cElementTree as ET
 
 from lib.mosaic import *
-
+import numpy
 import gdal, ogr,osr, gdalconst
     
 logger = logging.getLogger("logger")
-#### Set the working directory.  This may need to be changed on other systems.
+logger.setLevel(logging.DEBUG)
 
 
-import numpy
-
-    
     
 def main():
     
@@ -57,7 +54,7 @@ def main():
     lfh.setLevel(logging.DEBUG)
     formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s','%m-%d-%Y %H:%M:%S')
     lfh.setFormatter(formatter)
-    logger.addHandler(lfh)    
+    logger.addHandler(lfh) 
     
     #### get working directory
     if args.wd:
@@ -67,7 +64,6 @@ def main():
             parser.error("scratch space directory does not exist: {0}".format(args.wd))
     else:
         localpath = os.path.dirname(tile)
-    
     
     intersects = []
     t = open(inpath,'r')
