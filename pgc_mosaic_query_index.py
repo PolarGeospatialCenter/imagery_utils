@@ -37,7 +37,7 @@ def main():
     parser.add_argument("--build_shp", action='store_true', default=False,
                       help="build shapefile of intersecting images (only invoked if --no_sort is not used)")
     parser.add_argument("--online_only", action='store_true', default=False,
-                      help="limit search to those records where status = online")
+                      help="limit search to those records where status = online and image is found on the file system")
     
     #### Parse Arguments
     args = parser.parse_args()
@@ -192,7 +192,11 @@ def HandleTile(t,shp,dstdir,csvpath,args,exclude_list):
                     if iinfo.geom.Intersect(t.geom):
                         
                         if iinfo.scene_id in exclude_list:
-                            logger.debug("Scene in exclude list: %s" %srcfp)
+                            logger.debug("Scene in exclude list, excluding: %s" %iinfo.srcfp)
+                            
+                        elif args.online_only and not os.path.isfile(iinfo.srcfp):
+                            logger.warning("Scene does not exist, excluding: {0}".format(iinfo.srcfp))
+                            
                         else:
                             logger.debug( "Intersect %s, %s: %s" %(iinfo.scene_id, iinfo.srcfp, str(iinfo.geom)))
                             imginfo_list1.append(iinfo)                                
