@@ -127,7 +127,7 @@ class ImageInfo:
             else:
                 srcfp = path
             
-        self.srcfp = path
+        self.srcfp = srcfp
         self.srcdir, self.srcfn = os.path.split(srcfp)
         
         i = feat.GetFieldIndex("COLUMNS")

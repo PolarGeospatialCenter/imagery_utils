@@ -959,21 +959,6 @@ def WarpImage(opt,info):
 
         LogMsg("Warping Image")
         
-        #### convert to VRT and modify 4th band
-        cmd = 'gdal_translate -of VRT "{0}" "{1}"'.format(info.localsrc,info.rawvrt)
-        (err,so,se) = ExecCmd(cmd)
-        if err == 1:
-            rc = 1
-        
-        if os.path.isfile(info.rawvrt) and info.bands > 3:
-            vds = gdal.Open(info.rawvrt,gdalconst.GA_Update)
-            if vds.GetRasterBand(4).GetColorInterpretation() == 6:
-                vds.GetRasterBand(4).SetColorInterpretation(gdalconst.GCI_Undefined)
-            vds = None
-
-        nodata_list = ["0"] * info.bands
-        
-        
         if not opt.skip_warp:
         
             #### If Image is TIF, extract RPB
@@ -997,8 +982,25 @@ def WarpImage(opt,info):
                     if not os.path.isfile(rpb_p):
                         logger.error("No RPC information found. Image cannot be terrain corrected with a DEM or avg elevation.")
                         rc = 1
-    
-    
+                        
+                        
+        #### convert to VRT and modify 4th band
+        cmd = 'gdal_translate -of VRT "{0}" "{1}"'.format(info.localsrc,info.rawvrt)
+        (err,so,se) = ExecCmd(cmd)
+        if err == 1:
+            rc = 1
+        
+        if os.path.isfile(info.rawvrt) and info.bands > 3:
+            vds = gdal.Open(info.rawvrt,gdalconst.GA_Update)
+            if vds.GetRasterBand(4).GetColorInterpretation() == 6:
+                vds.GetRasterBand(4).SetColorInterpretation(gdalconst.GCI_Undefined)
+            vds = None
+
+        nodata_list = ["0"] * info.bands
+        
+        
+        if not opt.skip_warp:
+
             if rc <> 1:
                 ####  Set RPC_DEM or RPC_HEIGHT transformation option
                 if opt.dem != None:

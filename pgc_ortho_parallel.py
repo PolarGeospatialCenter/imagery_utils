@@ -87,19 +87,22 @@ def main():
     if opt.dem:
 	if not os.path.isfile(opt.dem):
 	    parser.error("DEM does not exist: %s" %opt.dem)
-
+    
+    #### Set Up Logging Handlers
+	lso = logging.StreamHandler()
+	lso.setLevel(logging.INFO)
+	formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s','%m-%d-%Y %H:%M:%S')
+	lso.setFormatter(formatter)
+	logger.addHandler(lso)
+    
+    
     ###############################
     ####  Submission logic
     ################################
 
     if srctype in ['dir','textfile']:
 	
-	#### Set Up Logging Handlers
-	lso = logging.StreamHandler()
-	lso.setLevel(logging.INFO)
-	formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s','%m-%d-%Y %H:%M:%S')
-	lso.setFormatter(formatter)
-	logger.addHandler(lso)
+	
 	    
 	####  Determine submission type based on presence of pbsnodes cmd
 	try:
