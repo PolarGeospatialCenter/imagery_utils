@@ -30,8 +30,8 @@ def main():
 
     parser.add_argument("--submission_type", choices=SUBMISSION_TYPES,
 			help="job submission type. Default is determined automatically (%s)"%string.join(SUBMISSION_TYPES,','))
-    parser.add_argument("--processes", type=int,
-			help="number of processes to spawn for bulding subtiles (default is cpu count / 2). Use only on non-HPC runs.")
+    parser.add_argument("--processes", type=int, default=1,
+			help="number of processes to spawn for bulding subtiles (default 1). Use only on non-HPC runs.")
     parser.add_argument("--qsubscript",
 		      help="qsub script to use in cluster job submission (default is qsub_ortho.sh in script root folder)")
     parser.add_argument("-l",
@@ -83,22 +83,10 @@ def main():
     if opt.dem is not None and opt.ortho_height is not None:
 	parser.error("--dem and --ortho_height options are mutually exclusive.  Please choose only one.")
 
-    #### Set Up Logging Handlers
-    lso = logging.StreamHandler()
-    lso.setLevel(logging.INFO)
-    formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s','%m-%d-%Y %H:%M:%S')
-    lso.setFormatter(formatter)
-    logger.addHandler(lso)
-
-
-    #### Print Warning regarding DEM use
-    if opt.dem == None:
-	logger.warning("WARNING: No DEM is being used in this orthorectification.  Use the -d flag on the command line to input a DEM")
-    else:
-	#### Test if DEM exists
+    #### Test if DEM exists
+    if opt.dem:
 	if not os.path.isfile(opt.dem):
-	    LogMsg("ERROR: DEM does not exist: %s" %opt.dem)
-	    sys.exit()
+	    parser.error("DEM does not exist: %s" %opt.dem)
 
     ###############################
     ####  Submission logic
@@ -106,6 +94,13 @@ def main():
 
     if srctype in ['dir','textfile']:
 	
+	#### Set Up Logging Handlers
+	lso = logging.StreamHandler()
+	lso.setLevel(logging.INFO)
+	formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s','%m-%d-%Y %H:%M:%S')
+	lso.setFormatter(formatter)
+	logger.addHandler(lso)
+	    
 	####  Determine submission type based on presence of pbsnodes cmd
 	try:
 	    cmd = "pbsnodes"
@@ -130,7 +125,7 @@ def main():
 	    logger.warning("--processes option will not be used becasue submission type is not VM")
     
 	if submission_type == 'VM':
-	    processes = int(mp.cpu_count()/2.0)
+	    processes = 1
 	    if opt.processes:
 		if mp.cpu_count() < opt.processes:
 		    logger.warning("Specified number of processes ({0}) is higher than the system cpu count ({1}), using default".format(opt.proceses,mp.count_cpu()))
@@ -259,6 +254,14 @@ def main():
 	    spatial_ref.epsg,
 	    formats[opt.format]
 	    ))
+	
+	#### Set Up Logging Handlers
+	logfile = os.path.splitext(dstfp)[0]+".log"
+	lfh = logging.FileHandler(logfile)
+	lfh.setLevel(logging.DEBUG)
+	formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s','%m-%d-%Y %H:%M:%S')
+	lfh.setFormatter(formatter)
+	logger.addHandler(lfh)
 
 	done = os.path.isfile(dstfp)
 

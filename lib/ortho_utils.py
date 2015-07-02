@@ -232,7 +232,6 @@ def processImage(srcfp,dstfp,opt):
             if os.path.isfile(info.srcfp):
                 LogMsg("Copying image to working directory")
                 copy_list = glob.glob("%s.*" %os.path.splitext(info.srcfp)[0])
-                print copy_list
                 #copy_list.append(info.metapath)
                 for fpi in copy_list:
                     fpo = os.path.join(wd,os.path.basename(fpi))
@@ -1786,10 +1785,11 @@ def deleteTempFiles(names):
     for name in names:
         deleteList = glob.glob(os.path.splitext(name)[0]+'.*')
         for f in deleteList:
-            try:
-                os.remove(f)
-            except Exception, e:
-                LogMsg('Could not remove %s: %s' %(os.path.basename(f),e))
+            if not "log" in os.path.basename(f):
+                try:
+                    os.remove(f)
+                except Exception, e:
+                    LogMsg('Could not remove %s: %s' %(os.path.basename(f),e))
 
 
 def LogMsg(msg):

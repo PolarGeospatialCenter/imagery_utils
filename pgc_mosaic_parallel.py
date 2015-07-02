@@ -150,7 +150,7 @@ def main():
         logger.warning("--processes option will not be used becasue submission type is not VM")
     
     if submission_type == 'VM':
-        processes = int(mp.cpu_count()/4.0)
+        processes = 1
         if args.processes:
             if mp.cpu_count() < args.processes:
                 logger.warning("Specified number of processes ({0}) is higher than the system cpu count ({1}), using default".format(args.proceses,mp.count_cpu()))
