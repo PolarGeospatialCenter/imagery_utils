@@ -30,7 +30,7 @@ def main():
 
     parser.add_argument("--submission_type", choices=SUBMISSION_TYPES,
 			help="job submission type. Default is determined automatically (%s)"%string.join(SUBMISSION_TYPES,','))
-    parser.add_argument("--processes", type=int, default=1,
+    parser.add_argument("--processes", type=int,
 			help="number of processes to spawn for orthoing individual images (default 1). Use only on non-HPC runs.")
     parser.add_argument("--qsubscript",
 		      help="qsub script to use in cluster job submission (default is qsub_ortho.sh in script root folder)")
