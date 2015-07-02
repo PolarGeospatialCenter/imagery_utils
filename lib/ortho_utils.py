@@ -7,7 +7,7 @@ from xml.etree import cElementTree as ET
 
 import gdal, ogr,osr, gdalconst
 
-DGbandList = ['BAND_P','BAND_C','BAND_B','BAND_G','BAND_Y','BAND_R','BAND_RE','BAND_N','BAND_N2']
+DGbandList = ['BAND_P','BAND_C','BAND_B','BAND_G','BAND_Y','BAND_R','BAND_RE','BAND_N','BAND_N2','BAND_S1','BAND_S2','BAND_S3','BAND_S4','BAND_S5','BAND_S6','BAND_S7','BAND_S8']
 formats = {'GTiff':'.tif','JP2OpenJPEG':'.jp2','ENVI':'.envi','HFA':'.img'}
 outtypes = ['Byte','UInt16','Float32']
 stretches = ["ns","rf","mr","rd"]
@@ -1254,7 +1254,9 @@ def getDGXmlData(xmlpath,stretch):
                 'QB02_BAND_G':1843.08,
                 'QB02_BAND_R':1574.77,
                 'QB02_BAND_N':1113.71,
-    
+                
+                'WV01_BAND_P':1487.54715,
+                
                 'WV02_BAND_P':1580.8140,
                 'WV02_BAND_C':1758.2229,
                 'WV02_BAND_B':1974.2416,
@@ -1274,8 +1276,14 @@ def getDGXmlData(xmlpath,stretch):
                 'WV03_BAND_RE':1340.682185,
                 'WV03_BAND_N':1072.526674,
                 'WV03_BAND_N2':871.105797,
-    
-                'WV01_BAND_P':1487.54715,
+                'WV03_BAND_S1':494.4049774,
+                'WV03_BAND_S2':261.6434525,
+                'WV03_BAND_S3':230.4614177,
+                'WV03_BAND_S4':196.7908515,
+                'WV03_BAND_S5':80.35901853,
+                'WV03_BAND_S6':74.81263622,
+                'WV03_BAND_S7':69.01250464,
+                'WV03_BAND_S8':59.79459729,
     
                 'GE01_BAND_P':1617,
                 'GE01_BAND_B':1960,
