@@ -1,4 +1,4 @@
-import os, string, sys, shutil, glob, re, tarfile, logging, argparse
+import os, string, sys, shutil, glob, re, tarfile, logging, argparse, signal
 from datetime import *
 from subprocess import *
 from math import *
@@ -746,17 +746,25 @@ def ExecCmd(cmd):
     logger.info(rc)
     logger.info(se)
     logger.info(so)
+    
+     
 
 
 def ExecCmd_mp(job):
     job_name, cmd = job
     logger.info('Running job: {0}'.format(job_name))
     logger.debug('Cmd: {0}'.format(cmd))
-    p = Popen(cmd,shell=True,stderr=PIPE,stdout=PIPE)
-    (so,se) = p.communicate()
-    logger.debug(so)
-    logger.debug(se)
     
+    p = Popen(cmd,shell=True,stderr=PIPE,
+              stdout=PIPE,preexec_fn=os.setsid)
+    try:
+        (so,se) = p.communicate()
+    except KeyboardInterrupt:
+        os.killpg(p.pid, signal.SIGTERM)
+    
+    else:
+        logger.debug(so)
+        logger.debug(se)
 
 def getGEMetadataAsXml(metafile):
 	if os.path.isfile(metafile):

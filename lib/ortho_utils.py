@@ -1,4 +1,4 @@
-import os, string, sys, shutil, math, glob, re, tarfile, logging, shlex, platform, argparse
+import os, string, sys, shutil, math, glob, re, tarfile, logging, shlex, platform, argparse, signal
 from datetime import datetime, timedelta
 
 from subprocess import *
@@ -1819,10 +1819,16 @@ def ExecCmd_mp(job):
     job_name, cmd = job
     logger.info('Running job: {0}'.format(job_name))
     logger.debug('Cmd: {0}'.format(cmd))
-    p = Popen(cmd,shell=True,stderr=PIPE,stdout=PIPE)
-    (so,se) = p.communicate()
-    logger.debug(so)
-    logger.debug(se)
+    p = Popen(cmd,shell=True,stderr=PIPE,
+              stdout=PIPE,preexec_fn=os.setsid)
+    try:
+        (so,se) = p.communicate()
+    except KeyboardInterrupt:
+        os.killpg(p.pid, signal.SIGTERM)
+    
+    else:
+        logger.debug(so)
+        logger.debug(se)
     
 
 def getBitdepth(outtype):

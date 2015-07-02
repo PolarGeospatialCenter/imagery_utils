@@ -31,7 +31,7 @@ def main():
     parser.add_argument("--submission_type", choices=SUBMISSION_TYPES,
 			help="job submission type. Default is determined automatically (%s)"%string.join(SUBMISSION_TYPES,','))
     parser.add_argument("--processes", type=int, default=1,
-			help="number of processes to spawn for bulding subtiles (default 1). Use only on non-HPC runs.")
+			help="number of processes to spawn for orthoing individual images (default 1). Use only on non-HPC runs.")
     parser.add_argument("--qsubscript",
 		      help="qsub script to use in cluster job submission (default is qsub_ortho.sh in script root folder)")
     parser.add_argument("-l",
@@ -235,8 +235,13 @@ def main():
 		logger.info("Images submitted: %i" %i)    
 	    elif submission_type == 'VM':
 		pool = mp.Pool(processes)
-		pool.map(ExecCmd_mp,task_queue,1)
-		logger.info("Done")
+		try:
+		    pool.map(ExecCmd_mp,task_queue,1)
+		except KeyboardInterrupt:
+		    pool.terminate()
+		    logger.info("Processes terminated without file cleanup")
+		else:
+		    logger.info("Done")
 
 
     ###############################

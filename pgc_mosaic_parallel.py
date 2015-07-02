@@ -596,11 +596,17 @@ def main():
         for task in task_queue:
             job_name,cmd = task
             subprocess.call(cmd,shell=True)
+        
     elif submission_type == 'VM':
         pool = mp.Pool(processes)
-        pool.map(ExecCmd_mp,task_queue,1)
+        try:
+            pool.map(ExecCmd_mp,task_queue,1)
+        except KeyboardInterrupt:
+            pool.terminate()
+            logger.info("Processes terminated without file cleanup")
+        else:
+            logger.info("Done")
         
-    logger.info("Done")
         
     
 
