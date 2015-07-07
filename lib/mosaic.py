@@ -356,7 +356,7 @@ class ImageInfo:
                                 elif tag == "percentCloudCover":
                                     val = float(text)/100
                                 elif tag == "satelliteName":
-                                    val == "GE01"
+                                    val = "GE01"
                                 else:
                                     val = float(text)
                                     

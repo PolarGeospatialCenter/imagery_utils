@@ -333,7 +333,9 @@ def HandleTile(t,shp,dstdir,csvpath,args,exclude_list):
                         os.makedirs(dstdir)
                     
                     otxtpath = os.path.join(dstdir,"%s_%s_orig.txt" %(os.path.basename(csvpath)[:-4],t.name))
+                    mtxtpath = os.path.join(dstdir,"%s_%s_ortho.txt" %(os.path.basename(csvpath)[:-4],t.name))
                     otxt = open(otxtpath,'w')
+                    mtxt = open(mtxtpath,'w')
                     
                     for contrib in contribs:
                         
@@ -341,6 +343,13 @@ def HandleTile(t,shp,dstdir,csvpath,args,exclude_list):
                             logger.warning("Image does not exist: %s" %(contrib))
                             
                         otxt.write("%s\n" %contrib)
+                        m_fn = "{0}_u08{1}{2}.tif".format(
+                            os.path.splitext(os.path.basename(contrib))[0],
+                            args.stretch,
+                            t.epsg
+                        )
+                        
+                        mtxt.write(os.path.join(dstdir,'orthos',t.name,m_fn)+"\n")
  
                     otxt.close()
 

@@ -746,15 +746,23 @@ def GetImageStats(opt, info):
         info.rgb_bands = ""
 
         if opt.rgb is True:
-            if info.bands == 4:
+            if info.bands == 3:
+                info.rgb_bands = "-b 3 -b 2 -b 1 "
+            elif info.bands == 4:
                 info.rgb_bands = "-b 3 -b 2 -b 1 "
             elif info.bands == 8:
                 info.rgb_bands = "-b 5 -b 3 -b 2 "
+            else:
+                LogMsg("Error: cannot get rgb bands from a {0} band image".format(info.bands))
+                rc = 1
 
         if opt.bgrn is True:
             if info.bands == 8:
                 info.rgb_bands = "-b 2 -b 3 -b 5 -b 7 "
-
+            else:
+                LogMsg("Error: cannot get bgrn bands from a {0} band image".format(info.bands))
+                rc = 1
+                
 
     else:
         LogMsg("Cannot open dataset: %s" %info.localsrc)
@@ -1112,6 +1120,8 @@ def GetCalibrationFactors(info):
             bandList = [4]
         elif info.bands == 4:
             bandList = range(0,4,1)
+        elif info.bands == 3:
+            bandList = range(0,3,1)
 
     else:
         LogMsg( "Vendor or sensor not recognized: %s, %s" %(info.vendor, info.sat))

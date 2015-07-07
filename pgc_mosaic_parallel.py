@@ -513,7 +513,7 @@ def main():
     tile_arg_str = build_arg_list(args, pos_arg_keys, arg_keys_to_remove)
     
     for t in tiles:
-        logger.info("Processing tile %d of %d: %s" %(i,num_tiles,os.path.basename(t.name)))
+        logger.info("Identifying compenents of tile %d of %d: %s" %(i,num_tiles,os.path.basename(t.name)))
         
         ####    determine which images in each tile - create geom and query image geoms
         logger.debug("Running intersect with imagery")       
@@ -544,8 +544,8 @@ def main():
             if os.path.isfile(t.name) is False:
                 
                 if submission_type == 'HPC':
-                    cmd = r'qsub -N Mosaic%04i -v p1="%s %s -e %f %f %f %f -r %s %s -b %d %s %s" "%s"' %(
-                        i,
+                    cmd = r'qsub %s -N Mosaic%04i -v p1="%s %s -e %f %f %f %f -r %s %s -b %d %s %s" "%s"' %(
+                        l, i,
                         tile_builder_script,
                         tile_arg_str,
                         t.xmin,
