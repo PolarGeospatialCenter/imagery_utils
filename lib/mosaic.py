@@ -496,8 +496,8 @@ class ImageInfo:
             score = -1
         
         #### Handle ridiculously low sun el values, these images will result is spurious TOA values
-        if self.sunel < 5:
-            logger.debug("Sun elevation too low (<5 degrees): %s --> %f" %(self.srcfp,self.sunel))
+        if self.sunel < 2:
+            logger.debug("Sun elevation too low (<2 degrees): %s --> %f" %(self.srcfp,self.sunel))
             score = -1
                     
         if not score == -1:

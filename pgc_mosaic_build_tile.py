@@ -130,8 +130,11 @@ def main():
             
         c += 1
         
+        
         if not mergefile == img:
             del_images.append(mergefile)
+            
+    del_images.append(localtile1)        
     
     if status == 0:
         ####  Write to Compressed file
@@ -153,8 +156,9 @@ def main():
         if os.path.isfile(localtile2):
             logger.info("Copying output files to destination dir")
             copyall(localtile2,os.path.dirname(tile))
+            
         del_images.append(localtile2)
-        del_images.append(localtile1)
+    
     
     #### Delete temp files
     deleteTempFiles(del_images)

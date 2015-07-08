@@ -425,7 +425,8 @@ def main():
             logger.info("Processing components: %s" %os.path.basename(comp_shp))
         
             if submission_type == 'HPC':
-                cmd = r'qsub -N Cutlines -v p1="%s --cutline_step=512 %s -e %f %f %f %f %s %s" "%s"' %(
+                cmd = r'qsub %s -N Cutlines -v p1="%s --cutline_step=512 %s -e %f %f %f %f %s %s" "%s"' %(
+                    l,
                     cutline_builder_script,
                     shp_arg_str,
                     params.xmin,
@@ -472,7 +473,8 @@ def main():
         logger.info("Processing cutlines: %s" %os.path.basename(shp))
         
         if submission_type == 'HPC':
-            cmd = r'qsub -N Cutlines -v p1="%s %s -e %f %f %f %f %s %s" "%s"' %(
+            cmd = r'qsub %s -N Cutlines -v p1="%s %s -e %f %f %f %f %s %s" "%s"' %(
+                l,
                 cutline_builder_script,
                 shp_arg_str,
                 params.xmin,
@@ -511,9 +513,9 @@ def main():
     
     arg_keys_to_remove = ('l','qsubscript','processes','log','mode','extent','resolution','bands','component_shp','submission_type')
     tile_arg_str = build_arg_list(args, pos_arg_keys, arg_keys_to_remove)
-    
+    logger.debug("Identifying components of {0} subtiles".format(num_tiles))
     for t in tiles:
-        logger.info("Identifying compenents of tile %d of %d: %s" %(i,num_tiles,os.path.basename(t.name)))
+        logger.debug("Identifying components of tile %d of %d: %s" %(i,num_tiles,os.path.basename(t.name)))
         
         ####    determine which images in each tile - create geom and query image geoms
         logger.debug("Running intersect with imagery")       
