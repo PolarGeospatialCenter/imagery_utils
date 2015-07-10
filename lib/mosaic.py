@@ -414,96 +414,98 @@ class ImageInfo:
         if sum(status) != 0:
             logger.error("Cannot determine score for image {0}:\n  Sun elev\t{1}\n  Off nadir\t{2}\n  Cloudcover\t{3}\n  Sensor\t{4}".format(self.srcfn,self.sunel,self.ona,self.cloudcover,self.sensor))
             score = -1
-            
-        #### Assign panfactor if pan images are to be included in a multispectral mosaic   
-        if self.bands == 1 and params.force_pan_to_multi is True:
-            self.panfactor = 0.5
+        
         else:
-            self.panfactor = 1
-                
-        #### Test if TDI is needed, get exposure factor
-        if params.useExposure is True:
-            if self.tdi is None:
-                logger.error("Cannot get tdi for image to determine exposure settings: {0}".format(self.srcfn))
-                self.exposure_factor = None
+            
+            #### Assign panfactor if pan images are to be included in a multispectral mosaic   
+            if self.bands == 1 and params.force_pan_to_multi is True:
+                self.panfactor = 0.5
             else:
-                exfact = self.tdi * self.sunel
-                self.exposure_factor = exfact
-                
-                pan_exposure_thresholds = {
-                    "WV01":1400,
-                    "WV02":1400,
-                    "WV03":1400,
-                    "QB02":500,
-                    #"GE01":,
-                }
-                
-                multi_exposure_thresholds = {
-                    "WV02":400,
-                    "WV03":400,
-                    "GE01":170,
-                    "QB02":25,
-                }
-                
-                #### Remove images with high exposure settings (tdi_pan (or tdi_grn) * sunel)
-                if params.bands == 1:
-                    if self.sensor in pan_exposure_thresholds:
-                        if exfact > pan_exposure_thresholds[self.sensor]:
-                            logger.debug("Image overexposed: %s --> %i" %(self.srcfp,exfact))
-                            score = -1
-                
-                else:
-                    if self.sensor in multi_exposure_thresholds:
-                        if exfact > multi_exposure_thresholds[self.sensor]:
-                            logger.debug("Image overexposed: %s --> %i" %(self.srcfp,exfact))
-                            score = -1
-        
-        #### Test if acqdate if needed, get date difference
-        if params.m != 0:
-            if self.acqdate is None:
-                logger.error("Cannot get acqdate for image to determine date-based score: {0}".format(self.srcfn))
-                self.date_diff = -9999
-                
-            else:
-                #### Find nearest year for target day
-                tdeltas = []
-                for y in range(self.acqdate.year-1,self.acqdate.year+2):
-                    tdeltas.append(abs((datetime(y,params.m,params.d) - cd).days))
-                
-                self.date_diff = min(tdeltas)
-        
-        
-            #### Assign weights
-            ccwt = 30
-            sunelwt = 10
-            onawt = 5
-            datediffwt = 55
-            
-        else:
-            self.date_diff = -9999
-            ccwt = 48
-            sunelwt = 28
-            onawt = 24
-            datediffwt = 0
-            
-            
-        #### Handle nonesense or nodata cloud cover values
-        if self.cloudcover < 0 or self.cloudcover > 1:
-            self.cloudcover = 0.5
-        
-        if self.cloudcover > 0.5:
-            logger.debug("Image too cloudy (>50 percent): %s --> %f" %(self.srcfp,self.cloudcover))
-            score = -1
-        
-        #### Handle ridiculously low sun el values, these images will result is spurious TOA values
-        if self.sunel < 2:
-            logger.debug("Sun elevation too low (<2 degrees): %s --> %f" %(self.srcfp,self.sunel))
-            score = -1
+                self.panfactor = 1
                     
-        if not score == -1:
-            rawscore = ccwt * (1-self.cloudcover) + sunelwt * (self.sunel/90) + onawt * ((90-self.ona)/90.0) + datediffwt * ((183 - self.date_diff)/183.0)
-            score = rawscore * self.panfactor  
-    
+            #### Test if TDI is needed, get exposure factor
+            if params.useExposure is True:
+                if self.tdi is None:
+                    logger.error("Cannot get tdi for image to determine exposure settings: {0}".format(self.srcfn))
+                    self.exposure_factor = None
+                else:
+                    exfact = self.tdi * self.sunel
+                    self.exposure_factor = exfact
+                    
+                    pan_exposure_thresholds = {
+                        "WV01":1400,
+                        "WV02":1400,
+                        "WV03":1400,
+                        "QB02":500,
+                        #"GE01":,
+                    }
+                    
+                    multi_exposure_thresholds = {
+                        "WV02":400,
+                        "WV03":400,
+                        "GE01":170,
+                        "QB02":25,
+                    }
+                    
+                    #### Remove images with high exposure settings (tdi_pan (or tdi_grn) * sunel)
+                    if params.bands == 1:
+                        if self.sensor in pan_exposure_thresholds:
+                            if exfact > pan_exposure_thresholds[self.sensor]:
+                                logger.debug("Image overexposed: %s --> %i" %(self.srcfp,exfact))
+                                score = -1
+                    
+                    else:
+                        if self.sensor in multi_exposure_thresholds:
+                            if exfact > multi_exposure_thresholds[self.sensor]:
+                                logger.debug("Image overexposed: %s --> %i" %(self.srcfp,exfact))
+                                score = -1
+            
+            #### Test if acqdate if needed, get date difference
+            if params.m != 0:
+                if self.acqdate is None:
+                    logger.error("Cannot get acqdate for image to determine date-based score: {0}".format(self.srcfn))
+                    self.date_diff = -9999
+                    
+                else:
+                    #### Find nearest year for target day
+                    tdeltas = []
+                    for y in range(self.acqdate.year-1,self.acqdate.year+2):
+                        tdeltas.append(abs((datetime(y,params.m,params.d) - cd).days))
+                    
+                    self.date_diff = min(tdeltas)
+            
+            
+                #### Assign weights
+                ccwt = 30
+                sunelwt = 10
+                onawt = 5
+                datediffwt = 55
+                
+            else:
+                self.date_diff = -9999
+                ccwt = 48
+                sunelwt = 28
+                onawt = 24
+                datediffwt = 0
+                
+                
+            #### Handle nonesense or nodata cloud cover values
+            if self.cloudcover < 0 or self.cloudcover > 1:
+                self.cloudcover = 0.5
+            
+            if self.cloudcover > 0.5:
+                logger.debug("Image too cloudy (>50 percent): %s --> %f" %(self.srcfp,self.cloudcover))
+                score = -1
+            
+            #### Handle ridiculously low sun el values, these images will result is spurious TOA values
+            if self.sunel < 2:
+                logger.debug("Sun elevation too low (<2 degrees): %s --> %f" %(self.srcfp,self.sunel))
+                score = -1
+                        
+            if not score == -1:
+                rawscore = ccwt * (1-self.cloudcover) + sunelwt * (self.sunel/90) + onawt * ((90-self.ona)/90.0) + datediffwt * ((183 - self.date_diff)/183.0)
+                score = rawscore * self.panfactor  
+        
         self.score = score
         return self.score
     

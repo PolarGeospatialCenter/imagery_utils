@@ -89,19 +89,18 @@ def main():
 	    parser.error("DEM does not exist: %s" %opt.dem)
     
     #### Set Up Logging Handlers
-	lso = logging.StreamHandler()
-	lso.setLevel(logging.INFO)
-	formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s','%m-%d-%Y %H:%M:%S')
-	lso.setFormatter(formatter)
-	logger.addHandler(lso)
-    
+    lso = logging.StreamHandler()
+    lso.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s','%m-%d-%Y %H:%M:%S')
+    lso.setFormatter(formatter)
+    logger.addHandler(lso)
+
     
     ###############################
     ####  Submission logic
     ################################
 
     if srctype in ['dir','textfile']:
-	
 	
 	    
 	####  Determine submission type based on presence of pbsnodes cmd
@@ -172,7 +171,7 @@ def main():
 	    for line in t.readlines():
 		if os.path.isfile(line.rstrip()):
 		    image_list.append(line.rstrip())
-		else:
+		elif not line == '\n':
 		    LogMsg('Src image does not exist: %s' %line.rstrip())
 	    t.close()
 

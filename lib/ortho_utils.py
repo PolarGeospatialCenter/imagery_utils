@@ -452,6 +452,10 @@ def calcStats(opt,info):
         if len(CFlist) == 0:
             LogMsg("Cannot get image calibration factors from metadata")
             return 1
+        
+        if len(CFlist) < info.bands:
+            LogMsg("Metadata image calibration factors have fewer bands than the image")
+            return 1
     
     wds = gdal.Open(info.warpfile,gdalconst.GA_ReadOnly)
     if wds is not None:
