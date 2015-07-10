@@ -36,10 +36,16 @@ PGC_DG_FILE = re.compile(r"""
                                 (?P<onum>\d{12}_\d{2})_     # DG Order number
                                 (?P<pnum>P\d{3})            # Part number
                             )
-                            (?P<tail>[a-z0-9_-]+(?=\.))?    # Descriptor (optional)
-                         )
+                            )
+                         ?(?P<tail>[a-z0-9_-]+(?=\.))?      # Descriptor (optional)
                          (?P<ext>\.[a-z0-9][a-z0-9.]*)      # File name extension
                          """, re.I | re.X)
+
+DG_FILE = re.compile(r"""
+                        (?P<oname>\d{2}[a-z]{3}\d{8}-[a-z0-9_]{4,9}-\d{12}_\d{2}_P\d{3})
+                        """, re.I | re.X)
+
+
 PGC_IK_FILE = re.compile(r"""
                          (?P<pgcpfx>                        # PGC prefix
                             (?P<sensor>[a-z]{2}\d{2})_      # Sensor code
@@ -185,7 +191,6 @@ def processImage(srcfp,dstfp,opt):
         logger.error("--dem and --ortho_height options are mutually exclusive.  Please choose only one.")
         err = 1
         
-    
     #### Check if image is level 2A and tiled, raise error
     p = re.compile("-(?P<prod>\w{4})?(_(?P<tile>\w+))?-\w+?(?P<ext>\.\w+)")
     m = p.search(info.srcfn)
@@ -201,19 +206,6 @@ def processImage(srcfp,dstfp,opt):
             logger.error("Cannot process 2A tiled Geotiffs")
             err = 1
     
-    #### Find metadata file
-    if not err == 1:
-        metafile = GetDGMetadataPath(info.srcfp)
-        if metafile is None:
-            metafile = GetIKMetadataPath(info.srcfp)
-        if metafile is None:
-            metafile = GetGEMetadataPath(info.srcfp)
-        if metafile is None:
-            logger.error("Cannot find metadata for image: {0}".format(info.srcfp))
-            err = 1
-        else:
-            info.metapath = metafile
-
     if not err == 1:
         #### Check If Image is IKONOS msi that does not exist, if so, stack to dstdir, else, copy srcfn to dstdir
         if "IK01" in info.srcfn and "msi" in info.srcfn and not os.path.isfile(info.srcfp):
@@ -241,6 +233,19 @@ def processImage(srcfp,dstfp,opt):
             else:
                 LogMsg("Source images does not exist: %s" %info.srcfp)
                 err = 1
+                
+    #### Find metadata file
+    if not err == 1:
+        metafile = GetDGMetadataPath(info.localsrc)
+        if metafile is None:
+            metafile = GetIKMetadataPath(info.localsrc)
+        if metafile is None:
+            metafile = GetGEMetadataPath(info.localsrc)
+        if metafile is None:
+            logger.error("Cannot find metadata for image: {0}".format(info.srcfp))
+            err = 1
+        else:
+            info.metapath = metafile
 
     #### Get Image Stats
     if not err == 1:
@@ -780,6 +785,10 @@ def GetDGMetadataPath(srcfp):
     Returns the filepath of the XML, if it can be found. Returns
     None if no valid filepath could be found.
     """
+    
+    filename = os.path.basename(srcfp)
+    print filename
+
     if os.path.isfile(os.path.splitext(srcfp)[0]+'.xml'):
         metapath = os.path.splitext(srcfp)[0]+'.xml'
     elif os.path.isfile(os.path.splitext(srcfp)[0]+'.XML'):
@@ -787,7 +796,6 @@ def GetDGMetadataPath(srcfp):
     else:
         # Tiled DG images may have a metadata file at the strip level
         metapath = None
-        filename = os.path.basename(srcfp)
         match = re.match(PGC_DG_FILE, filename)
         if match:
             try:
@@ -808,10 +816,39 @@ def GetDGMetadataPath(srcfp):
             # the metapath.
             except NameError:
                 metapath = None
+                
+                
     if metapath and os.path.isfile(metapath):
         return metapath
+        
+    #### try looking in the tar file    
     else:
-        return None
+        tarpath = os.path.splitext(srcfp)[0] + '.tar'
+        if os.path.isfile(tarpath):
+            match = re.search(DG_FILE, filename)
+            if match:
+                metaname = match.group('oname')
+                
+                try:
+                    tar = tarfile.open(tarpath, 'r')
+                    tarlist = tar.getnames()
+                    for t in tarlist:
+                        if metaname.lower() in t.lower() and os.path.splitext(t)[1].lower() == ".xml":
+                            tf = tar.extractfile(t)
+                            metapath = os.path.splitext(srcfp)[0]+os.path.splitext(t)[1].lower()
+                            print metapath
+                            fpfh = open(metapath,"w")
+                            tfstr = tf.read()
+                            fpfh.write(tfstr)
+                            fpfh.close()
+                            tf.close()
+                except Exception,e:
+                    logger.error("Cannot open Tar file: %s" %tarpath)
+
+        if metapath and os.path.isfile(metapath):
+            return metapath
+        else:
+            return None
 
 
 def GetIKMetadataPath(srcfp):

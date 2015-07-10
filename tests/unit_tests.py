@@ -172,6 +172,8 @@ class TestCollectFiles(unittest.TestCase):
 		    if metafile is None:
 			metafile = ortho_utils.GetGEMetadataPath(srcfp)
 		    self.assertIsNotNone(metafile)
+		    
+		    
 			
     
 if __name__ == '__main__':
