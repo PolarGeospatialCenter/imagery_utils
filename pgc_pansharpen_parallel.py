@@ -155,8 +155,9 @@ def main():
 
         #### Loop over images
         i = 0
+	j = 0
         for image in image_list:
-
+	    j+=1
             #print  image
             srcdir,srcname = os.path.split(image)
 
@@ -168,35 +169,31 @@ def main():
                     sensor,res = dRegExs[regex]
                     print "Image: %s, Sensor: %s, Res: %f" %(srcname,sensor,res)
 
-            if sensor is None:
-                print "Image did not match any panchromatic image pattern: %s" %srcname
- 
-            else:
+            if sensor is not None:
 
                 mul_name = get_multispectral_name(sensor,srcname)
                 mulp = os.path.join(srcdir,mul_name)
                 bittype = getBitdepth(opt.outtype)
 
-                if opt.dem is not None:
-                    dem_str = "ortho"
 
-                else:
-                    dem_str = ""
-
-                panshp = os.path.join(dstdir,"%s%s_%s%s%s_pansh.tif"%(dem_str,os.path.splitext(srcname)[0],bittype,opt.stretch,opt.epsg))
+                panshp = os.path.join(dstdir,"%s_%s%s%s_pansh.tif"%(os.path.splitext(srcname)[0],bittype,opt.stretch,opt.epsg))
 
                 if os.path.isfile(mulp):
                     if not os.path.isfile(panshp):
 
                         cmd = r'qsub %s -N Pansh%04i -v p1="%s %s %s %s" "%s"' %(l,i,scriptpath,arg_str,image,dstdir,qsubpath)
-                        print i, cmd
+                        
                         if not opt.dryrun:
-                            p = Popen(cmd,shell=True)
+                            print i, cmd
+			    p = Popen(cmd,shell=True)
                             p.wait()
                         i+=1
 
                 else:
-                    print "Error: Multispectral image not found: %s" %(mulp)
+                    print "Error: Multispectral image not found: %s" %(os.path.basename(mulp))
+		    
+	if j<1:
+	    print "No panchromatic images found matching name patterns"
 
 
     ###############################
@@ -243,23 +240,20 @@ def main():
 
                 if opt.dem is not None:
                     dem_arg = '-d "%s" ' %opt.dem
-                    dem_str = "ortho"
-
                 else:
                     dem_arg = ""
-                    dem_str = ""
 
                 bittype = getBitdepth(opt.outtype)
 
                 p = os.path.splitext(srcname)[0]
                 m = os.path.splitext(mul_name)[0]
-                panolp = os.path.join(wd,"%s%s_%s%s%s.tif"%(dem_str,p,bittype,opt.stretch,opt.epsg))
-                mulolp = os.path.join(wd,"%s%s_%s%s%s.tif"%(dem_str,m,bittype,opt.stretch,opt.epsg))
-                panop = os.path.join(dstdir,"%s%s_%s%s%s.tif"%(dem_str,p,bittype,opt.stretch,opt.epsg))
-                mulop = os.path.join(dstdir,"%s%s_%s%s%s.tif"%(dem_str,m,bittype,opt.stretch,opt.epsg))
-                panshtp = os.path.join(wd,"%s%s_%s%s%s_pansh_temp.tif"%(dem_str,p,bittype,opt.stretch,opt.epsg))
-                panshlp = os.path.join(wd,"%s%s_%s%s%s_pansh.tif"%(dem_str,p,bittype,opt.stretch,opt.epsg))
-                panshp = os.path.join(dstdir,"%s%s_%s%s%s_pansh.tif"%(dem_str,p,bittype,opt.stretch,opt.epsg))
+                panolp = os.path.join(wd,"%s_%s%s%s.tif"%(p,bittype,opt.stretch,opt.epsg))
+                mulolp = os.path.join(wd,"%s_%s%s%s.tif"%(m,bittype,opt.stretch,opt.epsg))
+                panop = os.path.join(dstdir,"%s_%s%s%s.tif"%(p,bittype,opt.stretch,opt.epsg))
+                mulop = os.path.join(dstdir,"%s_%s%s%s.tif"%(m,bittype,opt.stretch,opt.epsg))
+                panshtp = os.path.join(wd,"%s_%s%s%s_pansh_temp.tif"%(p,bittype,opt.stretch,opt.epsg))
+                panshlp = os.path.join(wd,"%s_%s%s%s_pansh.tif"%(p,bittype,opt.stretch,opt.epsg))
+                panshp = os.path.join(dstdir,"%s_%s%s%s_pansh.tif"%(p,bittype,opt.stretch,opt.epsg))
 
                 #### Check if pansh is already present
                 if not os.path.isfile(panshp) and not opt.dryrun:

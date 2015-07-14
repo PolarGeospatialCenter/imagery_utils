@@ -157,24 +157,33 @@ class TestMetadata(unittest.TestCase):
 		    
 class TestCollectFiles(unittest.TestCase):
     
+    
+    
     def test_gather_metadata_file(self):
-
+	
+	rm_files = [
+		'01JAN08QB020800008JAN01102125-P1BS-005590467020_01_P001_________AAE_0AAAAABAABA0.xml'
+	    ]
+	
 	for root, dirs, files in os.walk(test_dir):
 	    for f in files:
 		if f.lower().endswith(".ntf") or f.lower().endswith(".tif"):
-		    #print f
+		    print f
 		    #### Find metadata file
 		    srcfp = os.path.join(root,f)
 		    
 		    metafile = ortho_utils.GetDGMetadataPath(srcfp)
+		    if metafile is None:
+			metafile = ortho_utils.ExtractDGMetadataFile(srcfp,root)
 		    if metafile is None:
 			metafile = ortho_utils.GetIKMetadataPath(srcfp)
 		    if metafile is None:
 			metafile = ortho_utils.GetGEMetadataPath(srcfp)
 		    self.assertIsNotNone(metafile)
 		    
-		    
-			
+		    if metafile and os.path.basename(metafile) in rm_files:
+			os.remove(metafile)
+    
     
 if __name__ == '__main__':
     

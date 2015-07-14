@@ -206,8 +206,23 @@ def processImage(srcfp,dstfp,opt):
             logger.error("Cannot process 2A tiled Geotiffs")
             err = 1
     
+    #### Find metadata file
     if not err == 1:
-        #### Check If Image is IKONOS msi that does not exist, if so, stack to dstdir, else, copy srcfn to dstdir
+        metafile = GetDGMetadataPath(info.srcfp)
+        if metafile is None:
+            metafile = ExtractDGMetadataFile(info.srcfp,wd)
+        if metafile is None:
+            metafile = GetIKMetadataPath(info.srcfp)
+        if metafile is None:
+            metafile = GetGEMetadataPath(info.srcfp)
+        if metafile is None:
+            logger.error("Cannot find metadata for image: {0}".format(info.srcfp))
+            err = 1
+        else:
+            info.metapath = metafile
+            
+    #### Check If Image is IKONOS msi that does not exist, if so, stack to dstdir, else, copy srcfn to dstdir        
+    if not err == 1:
         if "IK01" in info.srcfn and "msi" in info.srcfn and not os.path.isfile(info.srcfp):
             LogMsg("Converting IKONOS band images to composite image")
             members = [os.path.join(info.srcdir,info.srcfn.replace("msi",b)) for b in ikMsiBands]
@@ -234,19 +249,7 @@ def processImage(srcfp,dstfp,opt):
                 LogMsg("Source images does not exist: %s" %info.srcfp)
                 err = 1
                 
-    #### Find metadata file
-    if not err == 1:
-        metafile = GetDGMetadataPath(info.localsrc)
-        if metafile is None:
-            metafile = GetIKMetadataPath(info.localsrc)
-        if metafile is None:
-            metafile = GetGEMetadataPath(info.localsrc)
-        if metafile is None:
-            logger.error("Cannot find metadata for image: {0}".format(info.srcfp))
-            err = 1
-        else:
-            info.metapath = metafile
-
+    
     #### Get Image Stats
     if not err == 1:
         info, rc = GetImageStats(opt,info)
@@ -755,18 +758,23 @@ def GetImageStats(opt, info):
         info.rgb_bands = ""
 
         if opt.rgb is True:
-            if info.bands == 3:
+            if info.bands == 1:
+                pass
+            elif info.bands == 3:
                 info.rgb_bands = "-b 3 -b 2 -b 1 "
             elif info.bands == 4:
                 info.rgb_bands = "-b 3 -b 2 -b 1 "
             elif info.bands == 8:
                 info.rgb_bands = "-b 5 -b 3 -b 2 "
+            
             else:
                 LogMsg("Error: cannot get rgb bands from a {0} band image".format(info.bands))
                 rc = 1
 
         if opt.bgrn is True:
-            if info.bands == 8:
+            if info.bands == 1:
+                pass
+            elif info.bands == 8:
                 info.rgb_bands = "-b 2 -b 3 -b 5 -b 7 "
             else:
                 LogMsg("Error: cannot get bgrn bands from a {0} band image".format(info.bands))
@@ -787,7 +795,6 @@ def GetDGMetadataPath(srcfp):
     """
     
     filename = os.path.basename(srcfp)
-    print filename
 
     if os.path.isfile(os.path.splitext(srcfp)[0]+'.xml'):
         metapath = os.path.splitext(srcfp)[0]+'.xml'
@@ -820,35 +827,44 @@ def GetDGMetadataPath(srcfp):
                 
     if metapath and os.path.isfile(metapath):
         return metapath
-        
-    #### try looking in the tar file    
     else:
-        tarpath = os.path.splitext(srcfp)[0] + '.tar'
-        if os.path.isfile(tarpath):
-            match = re.search(DG_FILE, filename)
-            if match:
-                metaname = match.group('oname')
-                
-                try:
-                    tar = tarfile.open(tarpath, 'r')
-                    tarlist = tar.getnames()
-                    for t in tarlist:
-                        if metaname.lower() in t.lower() and os.path.splitext(t)[1].lower() == ".xml":
-                            tf = tar.extractfile(t)
-                            metapath = os.path.splitext(srcfp)[0]+os.path.splitext(t)[1].lower()
-                            print metapath
-                            fpfh = open(metapath,"w")
-                            tfstr = tf.read()
-                            fpfh.write(tfstr)
-                            fpfh.close()
-                            tf.close()
-                except Exception,e:
-                    logger.error("Cannot open Tar file: %s" %tarpath)
+        return None
+        
+   
+def ExtractDGMetadataFile(srcfp, wd):
+    """
+    Searches the .tar for a valid XML. If found,
+    extracts the metadata file. Returns
+    None if no valid metadata could be found.
+    """
+    
+    metapath = None
+    filename = os.path.basename(srcfp)
+    tarpath = os.path.splitext(srcfp)[0] + '.tar'
+    if os.path.isfile(tarpath):
+        match = re.search(DG_FILE, filename)
+        if match:
+            metaname = match.group('oname')
+            
+            try:
+                tar = tarfile.open(tarpath, 'r')
+                tarlist = tar.getnames()
+                for t in tarlist:
+                    if metaname.lower() in t.lower() and os.path.splitext(t)[1].lower() == ".xml":
+                        tf = tar.extractfile(t)
+                        metapath = os.path.join(wd, os.path.splitext(filename)[0]+os.path.splitext(t)[1].lower())
+                        fpfh = open(metapath,"w")
+                        tfstr = tf.read()
+                        fpfh.write(tfstr)
+                        fpfh.close()
+                        tf.close()
+            except Exception,e:
+                logger.error("Cannot open Tar file: %s" %tarpath)
 
-        if metapath and os.path.isfile(metapath):
-            return metapath
-        else:
-            return None
+    if metapath and os.path.isfile(metapath):
+        return metapath
+    else:
+        return None
 
 
 def GetIKMetadataPath(srcfp):
