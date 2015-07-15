@@ -121,7 +121,7 @@ def buildParentArgumentParser():
                       help="the DEM to use for orthorectification (elevation values should be relative to the wgs84 ellipoid")
     parser.add_argument("-t", "--outtype", choices=outtypes, default="Byte",
                       help="output data type (default=Byte)")
-    parser.add_argument("-r", "--resolution",
+    parser.add_argument("-r", "--resolution", type=float,
                       help="output pixel resolution in units of the projection")
     parser.add_argument("-c", "--stretch", choices=stretches, default="rf",
                       help="stretch type [ns: nostretch, rf: reflectance (default), mr: modified reflectance, rd: absolute radiance]")
