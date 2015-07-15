@@ -636,15 +636,16 @@ def FindImages(inpath,bTextfile,exclude_list):
     
     #print len(exclude_list)
     if len(exclude_list) > 0:
-        p = re.compile("(?P<sceneid>(?:QB02|WV01|WV02|GE01|IK01)_[\w_-]+)_u\d{2}\w{2}\d+.tif")
         
         image_list2 = []
         for image in image_list:
-            m = p.search(os.path.basename(image))
-            if not m:
-                logger.debug("Cannot get scene ID from image name: %s" %os.path.basename(image))
-            elif m.group("sceneid") in exclude_list:
-                logger.debug("Scene ID is in exclude_list: %s" %image)
+            include=True
+            for pattern in exclude_list:
+                if pattern in image:
+                    include=False
+            
+            if include==False:
+                logger.debug("Scene ID is matches pattern in exclude_list: %s" %image)
             else:
                 image_list2.append(image)
     

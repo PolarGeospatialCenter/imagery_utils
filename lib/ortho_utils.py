@@ -234,6 +234,9 @@ def processImage(srcfp,dstfp,opt):
                 rc = stackIkBands(info.localsrc, members)
                 #if not os.path.isfile(os.path.join(wd,os.path.basename(info.metapath))):
                 #    shutil.copy(info.metapath, os.path.join(wd,os.path.basename(info.metapath)))
+                if rc == 1:
+                    LogMsg("Error building merged Ikonos image: %s" %info.srcfp)
+                    err = 1
 
         else:
             if os.path.isfile(info.srcfp):
@@ -329,7 +332,7 @@ def stackIkBands(dstfp, members):
     srcfp = members[0]
     srcdir,srcfn = os.path.split(srcfp)
     dstdir,dstfn = os.path.split(dstfp)
-    vrt = os.path.splitext(srcfp)[0]+ "_merge.vrt"
+    vrt = os.path.splitext(dstfp)[0]+ "_merge.vrt"
 
     #### Gather metadata from original blue image and save as strings for merge command
     LogMsg("Stacking IKONOS MSI bands")
@@ -647,6 +650,7 @@ def GetImageStats(opt, info):
             ysize = ds.RasterYSize
             proj = ds.GetProjectionRef()
             gtf = ds.GetGeoTransform()
+            print gtf
 
 
             ulx = gtf[0] + 0 * gtf[1] + 0 * gtf[2]

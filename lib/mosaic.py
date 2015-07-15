@@ -71,7 +71,7 @@ def buildMosaicParentArgumentParser():
     parser.add_argument("--use_exposure", action="store_true", default=False,
                         help="use exposure settings in metadata to inform score")
     parser.add_argument("--exclude",
-                        help="file of SCENE_IDs to exclude")
+                        help="file of file name patterns (text only, no wildcards or regexs) to exclude")
 
     return parser
 
@@ -470,7 +470,7 @@ class ImageInfo:
                     #### Find nearest year for target day
                     tdeltas = []
                     for y in range(self.acqdate.year-1,self.acqdate.year+2):
-                        tdeltas.append(abs((datetime(y,params.m,params.d) - cd).days))
+                        tdeltas.append(abs((datetime(y,params.m,params.d) - self.acqdate).days))
                     
                     self.date_diff = min(tdeltas)
             
