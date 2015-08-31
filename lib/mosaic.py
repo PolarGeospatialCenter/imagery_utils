@@ -637,48 +637,50 @@ def GetExactTrimmedGeom(image, step=2, tolerance=1):
             except AttributeError, e:
                 logger.error("Error reading image block: {}".format(e))
             
-            i = 0
-            
-            for nz in lines_flatnonzero:
+            else:
                 
-                nzmin = nz[0] if nz.size > 0 else 0
-                nzmax = nz[-1] if nz.size > 0 else 0
+                i = 0
                 
-                if nz.size > 0:
-                    pixelst.append((nzmax+1,i))
-                    pixelsb.append((nzmin,i))           
-                i += step
+                for nz in lines_flatnonzero:
+                    
+                    nzmin = nz[0] if nz.size > 0 else 0
+                    nzmax = nz[-1] if nz.size > 0 else 0
+                    
+                    if nz.size > 0:
+                        pixelst.append((nzmax+1,i))
+                        pixelsb.append((nzmin,i))           
+                    i += step
+                    
+                pixelsb.reverse()
+                pixels = pixelst + pixelsb
                 
-            pixelsb.reverse()
-            pixels = pixelst + pixelsb
-            
-            #print len(pixels)
-            
-            for px in pixels:
-                x,y = pl2xy(gtf,inband,px[0],px[1])
-                xs.append(x)
-                ys.append(y)
-                pts.append((x,y))
-                #print px[0],px[1],x,y
-            
-            #### create geometry
-            poly_vts = []
-            for pt in pts:
-                poly_vts.append("%.16f %.16f" %(pt[0],pt[1]))
-            if len(pts) > 0:
-                poly_vts.append("%.16f %.16f" %(pts[0][0],pts[0][1]))
-            
-            if len(poly_vts) > 0:
-                poly_wkt = 'POLYGON (( %s ))' %(string.join(poly_vts,", "))
-                #print poly_wkt
+                #print len(pixels)
                 
-                geom = ogr.CreateGeometryFromWkt(poly_wkt)
-                #print geom
-                #### Simplify geom
-                #logger.debug("Simplification tolerance: %.10f" %tolerance)
-                if geom is not None:
-                    geom2  = geom.Simplify(tolerance)
-            
+                for px in pixels:
+                    x,y = pl2xy(gtf,inband,px[0],px[1])
+                    xs.append(x)
+                    ys.append(y)
+                    pts.append((x,y))
+                    #print px[0],px[1],x,y
+                
+                #### create geometry
+                poly_vts = []
+                for pt in pts:
+                    poly_vts.append("%.16f %.16f" %(pt[0],pt[1]))
+                if len(pts) > 0:
+                    poly_vts.append("%.16f %.16f" %(pts[0][0],pts[0][1]))
+                
+                if len(poly_vts) > 0:
+                    poly_wkt = 'POLYGON (( %s ))' %(string.join(poly_vts,", "))
+                    #print poly_wkt
+                    
+                    geom = ogr.CreateGeometryFromWkt(poly_wkt)
+                    #print geom
+                    #### Simplify geom
+                    #logger.debug("Simplification tolerance: %.10f" %tolerance)
+                    if geom is not None:
+                        geom2  = geom.Simplify(tolerance)
+                
             
         ds = None
 
