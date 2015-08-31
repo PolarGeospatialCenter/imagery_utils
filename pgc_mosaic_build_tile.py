@@ -12,6 +12,8 @@ import gdal, ogr,osr, gdalconst
 logger = logging.getLogger("logger")
 logger.setLevel(logging.DEBUG)
 
+gdal.SetConfigOption('GDAL_PAM_ENABLED','NO')
+
 
     
 def main():

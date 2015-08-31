@@ -7,6 +7,8 @@ from xml.etree import cElementTree as ET
 from lib.mosaic import *
 import gdal, ogr,osr,gdalconst
 
+gdal.SetConfigOption('GDAL_PAM_ENABLED','NO')
+
 logger = logging.getLogger("logger")
 logger.setLevel(logging.DEBUG)
 

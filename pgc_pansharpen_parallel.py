@@ -6,6 +6,7 @@ from lib.ortho_utils import *
 
 import gdal, ogr,osr, gdalconst
 
+gdal.SetConfigOption('GDAL_PAM_ENABLED','NO')
 
 #### Reg Exs
 

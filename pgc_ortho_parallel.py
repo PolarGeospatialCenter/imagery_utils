@@ -15,6 +15,8 @@ logger.setLevel(logging.DEBUG)
 
 SUBMISSION_TYPES = ['HPC','VM']
 
+gdal.SetConfigOption('GDAL_PAM_ENABLED','NO')
+
 def main():
 
     #########################################################

@@ -6,10 +6,13 @@ from xml.etree import cElementTree as ET
 
 import gdal, ogr,osr, gdalconst
 import numpy
+from numpy import flatnonzero
 
 logger = logging.getLogger("logger")
 logger.setLevel(logging.DEBUG)
 
+gdal.SetConfigOption('GDAL_PAM_ENABLED','NO')
+gdal.UseExceptions()
 
 MODES = ["ALL","MOSAIC","SHP","TEST"]
 EXTS = [".tif"]
@@ -622,10 +625,18 @@ def GetExactTrimmedGeom(image, step=2, tolerance=1):
             lines = xrange(0, inband.YSize, step)
             
             xsize = inband.XSize
-            npflatnonzero = numpy.flatnonzero
-            bandReadAsArray = inband.ReadAsArray
             
-            lines_flatnonzero = [npflatnonzero(bandReadAsArray(0,l,xsize,1) != nd) for l in lines]
+            try:
+                #lines_flatnonzero = [flatnonzero(inband.ReadAsArray(0,l,xsize,1) != nd) for l in lines]
+                lines_flatnonzero = []
+                for l in lines:
+                    data = inband.ReadAsArray(0,l,xsize,1)
+                    print type(data)
+                    lines_flatnonzero.append(flatnonzero(data != nd))
+                    
+            except AttributeError, e:
+                
+            
             i = 0
             
             for nz in lines_flatnonzero:

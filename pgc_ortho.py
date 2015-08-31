@@ -13,6 +13,8 @@ from lib import ortho_utils as ortho_utils
 logger = logging.getLogger("logger")
 logger.setLevel(logging.DEBUG)
 
+gdal.SetConfigOption('GDAL_PAM_ENABLED','NO')
+
 #### Initialize Return Code Dictionary
 rc_dict = {}
 

@@ -6,6 +6,7 @@ import gdal, ogr,osr, gdalconst
 from lib.mosaic import *
 from lib import ortho_utils
 
+gdal.SetConfigOption('GDAL_PAM_ENABLED','NO')
 
 ### Create Logger
 logger = logging.getLogger("logger")
