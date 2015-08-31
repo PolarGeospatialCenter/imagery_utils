@@ -631,7 +631,7 @@ def GetExactTrimmedGeom(image, step=2, tolerance=1):
                 lines_flatnonzero = []
                 for l in lines:
                     data = inband.ReadAsArray(0,l,xsize,1)
-                    print type(data)
+                    #print type(data)
                     lines_flatnonzero.append(flatnonzero(data != nd))
                     
             except AttributeError, e:
