@@ -627,15 +627,10 @@ def GetExactTrimmedGeom(image, step=2, tolerance=1):
             xsize = inband.XSize
             
             try:
-                #lines_flatnonzero = [flatnonzero(inband.ReadAsArray(0,l,xsize,1) != nd) for l in lines]
-                lines_flatnonzero = []
-                for l in lines:
-                    data = inband.ReadAsArray(0,l,xsize,1)
-                    #print type(data)
-                    lines_flatnonzero.append(flatnonzero(data != nd))
+                lines_flatnonzero = [flatnonzero(inband.ReadAsArray(0,l,xsize,1) != nd) for l in lines]
                     
             except AttributeError, e:
-                logger.error("Error reading image block: {}. type: {}".format(e,type(data)))
+                logger.error("Error reading image block.  Check image for corrupt data.")
             
             else:
                 
