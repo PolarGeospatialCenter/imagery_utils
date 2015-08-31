@@ -635,7 +635,7 @@ def GetExactTrimmedGeom(image, step=2, tolerance=1):
                     lines_flatnonzero.append(flatnonzero(data != nd))
                     
             except AttributeError, e:
-                logger.error("Error reading image block: {}. type: {}".format(e,type(data))
+                logger.error("Error reading image block: {}. type: {}".format(e,type(data)))
             
             else:
                 
