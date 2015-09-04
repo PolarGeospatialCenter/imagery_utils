@@ -133,7 +133,7 @@ def buildParentArgumentParser():
                       help="output multispectral images as 3 band RGB")
     parser.add_argument("--bgrn", action="store_true", default=False,
                       help="output multispectral images as 4 band BGRN (reduce 8 band to 4)")
-    parser.add_argument("-s", "--save-temps", action="store_true", default=False,
+    parser.add_argument("-s", "--save_temps", action="store_true", default=False,
                       help="save temp files")
     parser.add_argument("--wd",
                       help="local working directory for cluster jobs (default is dst dir)")

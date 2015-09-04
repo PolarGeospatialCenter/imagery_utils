@@ -13,7 +13,7 @@ from lib.ortho_utils import *
 logger = logging.getLogger("logger")
 logger.setLevel(logging.DEBUG)
 
-SUBMISSION_TYPES = ['HPC','VM']
+SUBMISSION_TYPES = ['HPC','VM','HPC_JOB']
 
 gdal.SetConfigOption('GDAL_PAM_ENABLED','NO')
 
@@ -102,9 +102,8 @@ def main():
     ####  Submission logic
     ################################
 
-    if srctype in ['dir','textfile']:
+    if opt.submission_type <> 'HPC_JOB':
 	
-	    
 	####  Determine submission type based on presence of pbsnodes cmd
 	try:
 	    cmd = "pbsnodes"
@@ -149,7 +148,7 @@ def main():
 
 	args_dict = vars(opt)
 	arg_list = []
-	arg_keys_to_remove = ('l','qsubscript','dryrun')
+	arg_keys_to_remove = ('l','qsubscript','dryrun','submission_type')
 
 	## Add optional args to arg_list
 	for k,v in args_dict.iteritems():
@@ -176,7 +175,9 @@ def main():
 		elif not line == '\n':
 		    LogMsg('Src image does not exist: %s' %line.rstrip())
 	    t.close()
-
+	else:
+	    image_list = [src]
+	
 
 	#### Group Ikonos
 	image_list2 = []
@@ -215,6 +216,7 @@ def main():
 	    if done is False:
 
 		if submission_type == 'HPC':
+		    arg_str = arg_str + " --submission_type=HPC_JOB"
 		    cmd = r'qsub %s -N Ortho%04i -v p1="%s %s %s %s" "%s"' %(l,i,scriptpath,arg_str,srcfp,dstdir,qsubpath)
 
 		elif submission_type == 'VM':
@@ -252,7 +254,7 @@ def main():
     ####  Execution logic
     ################################
 
-    elif srctype == 'image':
+    elif srctype == 'image' and opt.submission_type == 'HPC_JOB':
 	srcdir, srcfn = os.path.split(src)
 
 	#### Derive dstfp
@@ -276,7 +278,9 @@ def main():
 
 	if done is False:
 	    rc = processImage(src,dstfp,opt)
-
+    
+    else:
+	logger.error("Submission type HPC_JOB is only compatible with specifying an image as input source")
 
 
 if __name__ == "__main__":
