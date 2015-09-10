@@ -385,8 +385,8 @@ class ImageInfo:
                         val = vallist[0]
                         dAttribs[dTags[tag]] = val
                         
-                    elif len(taglist) <> 0:
-                        logger.debug("Unexpected number of %s values, %s" %(tag,metapath))
+                    else:
+                        logger.debug("Unexpected number of {} values ({}), {}".format(tag,len(taglist),metapath))
                 
                 self.sunel = dAttribs["sunel"]
                 self.ona = dAttribs["ona"]
@@ -394,7 +394,10 @@ class ImageInfo:
                 self.sensor = dAttribs["sensor"]
                 self.catid = dAttribs["catid"]
                 self.tdi = dAttribs["tdi"]
-                self.acqdate = datetime.strptime(dAttribs["date"],"%Y-%m-%dT%H:%M:%S.%fZ")
+                
+                if dAttribs["date"]:
+                    self.acqdate = datetime.strptime(dAttribs["date"],"%Y-%m-%dT%H:%M:%S.%fZ")
+                    
                 
 
     def getScore(self,params):
