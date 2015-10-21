@@ -72,6 +72,8 @@ def buildMosaicParentArgumentParser():
                         help="use exposure settings in metadata to inform score")
     parser.add_argument("--exclude",
                         help="file of file name patterns (text only, no wildcards or regexs) to exclude")
+    parser.add_argument("--max_cc", type=float,
+    			help="maximum fractional cloud cover (0.0-1.0, default 0.5)")
 
     return parser
 
@@ -491,10 +493,10 @@ class ImageInfo:
                 
             #### Handle nonesense or nodata cloud cover values
             if self.cloudcover < 0 or self.cloudcover > 1:
-                self.cloudcover = 0.5
+                self.cloudcover = params.max_cc
             
-            if self.cloudcover > 0.5:
-                logger.debug("Image too cloudy (>50 percent): %s --> %f" %(self.srcfp,self.cloudcover))
+            if self.cloudcover > params.max_cc:
+                logger.debug("Image too cloudy (>%s): %s --> %f" %(params.max_cc,self.srcfp,self.cloudcover))
                 score = -1
             
             #### Handle ridiculously low sun el values, these images will result is spurious TOA values
@@ -589,6 +591,11 @@ def getMosaicParameters(iinfo,options):
     else:
         params.xtilesize = None
         params.ytilesize = None
+        
+    if options.max_cc is not None:
+    	params.max_cc = options.max_cc
+    else:
+    	params.max_cc = 0.5
     
     params.force_pan_to_multi = True if params.bands > 1 and options.force_pan_to_multi else False # determine if force pan to multi is applicable and true
     
