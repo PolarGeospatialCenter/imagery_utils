@@ -57,9 +57,9 @@ def main():
     #### Set Up Arguments
     parent_parser, pos_arg_keys = buildParentArgumentParser()
     parser = argparse.ArgumentParser(
-	parents=[parent_parser],
-	description="Run/Submit batch pansharpening in parallel"
-	)
+        parents=[parent_parser],
+        description="Run/Submit batch pansharpening in parallel"
+        )
 
     parser.add_argument("-l", help="PBS resources requested (mimicks qsub syntax)")
     parser.add_argument("--qsubscript",
@@ -101,7 +101,7 @@ def main():
     try:
         spatial_ref = SpatialRef(opt.epsg)
     except RuntimeError, e:
-	parser.error(e)
+        parser.error(e)
 
     #### Set Up Logging Handlers
     lso = logging.StreamHandler()
@@ -156,9 +156,9 @@ def main():
 
         #### Loop over images
         i = 0
-	j = 0
+        j = 0
         for image in image_list:
-	    j+=1
+            j+=1
             #print  image
             srcdir,srcname = os.path.split(image)
 
@@ -168,6 +168,8 @@ def main():
                 match = regex.match(srcname)
                 if match is not None:
                     sensor,res = dRegExs[regex]
+                    if opt.resolution:
+                        res = opt.resolution
                     print "Image: %s, Sensor: %s, Res: %f" %(srcname,sensor,res)
 
             if sensor is not None:
@@ -186,15 +188,15 @@ def main():
                         
                         if not opt.dryrun:
                             print i, cmd
-			    p = Popen(cmd,shell=True)
+                            p = Popen(cmd,shell=True)
                             p.wait()
                         i+=1
 
                 else:
                     print "Error: Multispectral image not found: %s" %(os.path.basename(mulp))
-		    
-	if j<1:
-	    print "No panchromatic images found matching name patterns"
+                    
+        if j<1:
+            print "No panchromatic images found matching name patterns"
 
 
     ###############################
@@ -225,6 +227,8 @@ def main():
             match = regex.search(srcname)
             if match is not None:
                 sensor,res = dRegExs[regex]
+                if opt.resolution:
+                    res = opt.resolution
                 print "Sensor: %s, Res: %f" %(sensor,res)
 
         if sensor is None:

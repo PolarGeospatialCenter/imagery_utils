@@ -178,7 +178,7 @@ def main():
 
     
     #### Get Images
-    logger.info("Reading input images, checking that they conform, and calculating data geometry")
+    #logger.info("Reading input images")
     xs = []
     ys = []
     

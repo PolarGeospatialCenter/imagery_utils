@@ -1,7 +1,7 @@
 import os, string, sys, shutil, glob, re, tarfile, logging, argparse, signal
 from datetime import *
 from subprocess import *
-from math import *
+import math
 from xml.etree import cElementTree as ET
 
 import gdal, ogr,osr, gdalconst
@@ -15,7 +15,7 @@ gdal.SetConfigOption('GDAL_PAM_ENABLED','NO')
 gdal.UseExceptions()
 
 MODES = ["ALL","MOSAIC","SHP","TEST"]
-EXTS = [".tif"]
+EXTS = [".tif",".ntf"]
 GTIFF_COMPRESSIONS = ["jpeg95","lzw"]
 
 #class Attribs:
@@ -380,12 +380,16 @@ class ImageInfo:
                             dAttribs['tdi'] = vallist[3]
                         else:
                             logger.debug("Unexpected number of TDI values and band count ( TDI: expected 1, 4, 5, or 8 - found %d ; Band cound, expected 1, 4, or 8 - found %d) %s" %(len(vallist), self.bands, metapath))
-                            
+                    
+                    elif dTags[tag] == 'satid' and len(taglist) > 1:
+                        val = vallist[0]
+                        dAttribs[dTags[tag]] = val
+                    
                     elif len(taglist) == 1:
                         val = vallist[0]
                         dAttribs[dTags[tag]] = val
                         
-                    else:
+                    elif len(taglist) > 1:
                         logger.debug("Unexpected number of {} values ({}), {}".format(tag,len(taglist),metapath))
                 
                 self.sunel = dAttribs["sunel"]
@@ -514,7 +518,130 @@ class ImageInfo:
         
         self.score = score
         return self.score
-    
+
+
+class DemInfo:
+    def __init__(self,src,frmt,srs=None):
+        
+        self.frmt = frmt  #image format (IMAGE,RECORD)
+        
+        if frmt == 'IMAGE':
+            self.get_attributes_from_file(src)
+        elif frmt == 'RECORD':
+            self.get_attributes_from_record(src,srs)
+        else:
+            logger.error("Image format must be RECORD or IMAGE")
+        
+    #self.pairname = None
+    #self.proj = None
+    #self.geom = None
+    #self.sensor = None
+    #self.acqdate = None
+    #"cc":None,
+    #"sunel":None,
+    #"date":None,
+        
+    def get_attributes_from_record(self, feat, srs):
+                
+        self.proj = srs.ExportToWkt()
+        
+        i = feat.GetFieldIndex("AVSUNELEV")
+        if i != -1:
+            self.sunel = feat.GetFieldAsDouble(i)
+        i = feat.GetFieldIndex("CLOUDCOVER")
+        if i != -1:
+            self.cloudcover = feat.GetFieldAsDouble(i)/100.0
+        i = feat.GetFieldIndex("PLATFORM")
+        if i != -1:
+            self.sensor = feat.GetFieldAsString(i)
+        i = feat.GetFieldIndex("PAIRNAME")
+        if i != -1:
+            self.pairname = feat.GetFieldAsString(i)
+        i = feat.GetFieldIndex("CATALOGID")
+        if i != -1:
+            self.catid = feat.GetFieldAsString(i)
+        i = feat.GetFieldIndex("STEREOPAIR")
+        if i != -1:
+            self.catid2 = feat.GetFieldAsString(i)
+        
+        i = feat.GetFieldIndex("ACQDATE")
+        if i != -1:
+            date_str = feat.GetFieldAsString(i)
+            self.acqdate = datetime.strptime(date_str[:19],"%Y-%m-%d")
+        
+        geom = feat.GetGeometryRef()
+        self.geom = geom.Clone()
+        
+
+    def getScore(self, target_date=None):
+        
+        score = 0
+       
+        required_attribs = [
+            self.sunel,
+            self.cloudcover,
+            self.sensor,
+        ]
+        
+        #### Test if all required values were found in metadata search
+        status = [val is None for val in required_attribs]
+        
+        if sum(status) != 0:
+            logger.error("Cannot determine score for image {0}:\n  Sun elev\t{1}\n  Cloudcover\t{2}\n  Sensor\t{3}".format(self.pairname,self.sunel,self.cloudcover,self.sensor))
+            score = -1
+            
+        elif self.sensor == 'QB02':
+            score = -1
+        
+        else:
+            
+            #### Test if acqdate if needed, get date difference
+            if target_date:
+                if self.acqdate is None:
+                    logger.error("Cannot get acqdate for image to determine date-based score: {0}".format(self.srcfn))
+                    self.date_diff = -9999
+                    
+                else:
+                    #### Find nearest year for target day
+                    tdeltas = []
+                    target_month, target_day = target_date[0]
+                    for y in range(self.acqdate.year-1,self.acqdate.year+2):
+                        tdeltas.append(abs((datetime(y,target_month,target_day) - self.acqdate).days))
+                    
+                    self.date_diff = min(tdeltas)
+            
+            
+                #### Assign weights
+                ccwt = 75
+                sunelwt = 5
+                datediffwt = 20
+                
+            else:
+                ccwt = 90
+                sunelwt = 10
+                datediffwt = 0
+                self.date_diff = -9999
+                
+                
+            #### Handle nonesense or nodata cloud cover values
+            if self.cloudcover < 0 or self.cloudcover > 1:
+                self.cloudcover = 0.5
+            
+            if self.cloudcover > 0.2:
+                logger.debug("Stereopair too cloudy (>20 percent): %s --> %f" %(self.pairname,self.cloudcover))
+                score = -1
+            
+            #### Handle ridiculously low sun el values
+            if self.sunel < 1:
+                logger.debug("Sun elevation too low (<1 degrees): %s --> %f" %(self.pairname,self.sunel))
+                score = -1
+                        
+            if not score == -1:
+                score = ccwt * (1-self.cloudcover) + sunelwt * (self.sunel/90) + datediffwt * ((183 - self.date_diff)/183.0)
+        
+        self.score = score
+        return self.score
+
         
 class MosaicParams:
     pass

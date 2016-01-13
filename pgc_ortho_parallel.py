@@ -89,7 +89,7 @@ def main():
     if opt.dem:
 	if not os.path.isfile(opt.dem):
 	    parser.error("DEM does not exist: %s" %opt.dem)
-    
+
     #### Set Up Logging Handlers
     lso = logging.StreamHandler()
     lso.setLevel(logging.INFO)
@@ -97,13 +97,13 @@ def main():
     lso.setFormatter(formatter)
     logger.addHandler(lso)
 
-    
+
     ###############################
     ####  Submission logic
     ################################
 
     if opt.submission_type <> 'HPC_JOB':
-	
+
 	####  Determine submission type based on presence of pbsnodes cmd
 	try:
 	    cmd = "pbsnodes"
@@ -113,34 +113,34 @@ def main():
 	    is_hpc = False
 	else:
 	    is_hpc = True
-    
+
 	if opt.submission_type is None:
 	    submission_type = "HPC" if is_hpc else "VM"
 	elif opt.submission_type == "HPC" and is_hpc is False:
 	    parser.error("Submission type HPC is not available on this system")
 	else:
 	    submission_type = opt.submission_type
-    
+
 	logger.info("Submission type: {0}".format(submission_type))
 	task_queue = []
-    
+
 	if opt.processes and not submission_type == 'VM':
 	    logger.warning("--processes option will not be used becasue submission type is not VM")
-    
+
 	if submission_type == 'VM':
 	    processes = 1
 	    if opt.processes:
 		if mp.cpu_count() < opt.processes:
 		    logger.warning("Specified number of processes ({0}) is higher than the system cpu count ({1}), using default".format(opt.proceses,mp.count_cpu()))
-    
+
 		elif opt.processes < 1:
 		    logger.warning("Specified number of processes ({0}) must be greater than 0, using default".format(opt.proceses,mp.count_cpu()))
-    
+
 		else:
 		    processes = opt.processes
-    
+
 	    logger.info("Number of child processes to spawn: {0}".format(processes))
-	
+
 
 	#### Get args ready to pass through
 	#### Get -l args and make a var
@@ -161,7 +161,7 @@ def main():
 		else:
 		    arg_list.append("--%s %s" %(k,str(v)))
 
-	arg_str = " ".join(arg_list)
+	arg_str_base = " ".join(arg_list)
 
 
 	if srctype == 'dir':
@@ -177,7 +177,7 @@ def main():
 	    t.close()
 	else:
 	    image_list = [src]
-	
+
 
 	#### Group Ikonos
 	image_list2 = []
@@ -216,10 +216,11 @@ def main():
 	    if done is False:
 
 		if submission_type == 'HPC':
-		    arg_str = arg_str + " --submission_type=HPC_JOB"
+		    arg_str = arg_str_base + " --submission_type=HPC_JOB"
 		    cmd = r'qsub %s -N Ortho%04i -v p1="%s %s %s %s" "%s"' %(l,i,scriptpath,arg_str,srcfp,dstdir,qsubpath)
 
 		elif submission_type == 'VM':
+		    arg_str = arg_str_base
 		    cmd = r'python %s %s %s %s' %(scriptpath,arg_str,srcfp,dstdir)
 
 		else:
@@ -238,7 +239,7 @@ def main():
 		for task in task_queue:
 		    job_name,cmd = task
 		    subprocess.call(cmd,shell=True)
-		logger.info("Images submitted: %i" %i)    
+		logger.info("Images submitted: %i" %i)
 	    elif submission_type == 'VM':
 		pool = mp.Pool(processes)
 		try:
@@ -265,7 +266,7 @@ def main():
 	    spatial_ref.epsg,
 	    formats[opt.format]
 	    ))
-	
+
 	#### Set Up Logging Handlers
 	logfile = os.path.splitext(dstfp)[0]+".log"
 	lfh = logging.FileHandler(logfile)
@@ -278,11 +279,10 @@ def main():
 
 	if done is False:
 	    rc = processImage(src,dstfp,opt)
-    
+
     else:
 	logger.error("Submission type HPC_JOB is only compatible with specifying an image as input source")
 
 
 if __name__ == "__main__":
     main()
-

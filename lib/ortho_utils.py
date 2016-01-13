@@ -187,12 +187,12 @@ def processImage(srcfp,dstfp,opt):
 	err = 1
     else:
 	opt.spatial_ref = spatial_ref
-        
+
     #### Verify that dem and ortho_height are not both specified
     if opt.dem is not None and opt.ortho_height is not None:
         logger.error("--dem and --ortho_height options are mutually exclusive.  Please choose only one.")
         err = 1
-        
+
     #### Check if image is level 2A and tiled, raise error
     p = re.compile("-(?P<prod>\w{4})?(_(?P<tile>\w+))?-\w+?(?P<ext>\.\w+)")
     m = p.search(info.srcfn)
@@ -204,10 +204,10 @@ def processImage(srcfp,dstfp,opt):
         if gd['prod'][1] == '3':
             logger.error("Cannot process 3* products")
             err = 1
-        if gd['prod'][1:3] == '2A' and gd['tile'] is not None and gd['ext'] == '.tif':
+        if (gd['prod'][1:3] == '2A' and gd['tile'] is not None and gd['ext'] == '.tif') and not opt.skip_warp:
             logger.error("Cannot process 2A tiled Geotiffs")
             err = 1
-    
+
     #### Find metadata file
     if not err == 1:
         metafile = GetDGMetadataPath(info.srcfp)
@@ -222,8 +222,8 @@ def processImage(srcfp,dstfp,opt):
             err = 1
         else:
             info.metapath = metafile
-            
-    #### Check If Image is IKONOS msi that does not exist, if so, stack to dstdir, else, copy srcfn to dstdir        
+
+    #### Check If Image is IKONOS msi that does not exist, if so, stack to dstdir, else, copy srcfn to dstdir
     if not err == 1:
         if "IK01" in info.srcfn and "msi" in info.srcfn and not os.path.isfile(info.srcfp):
             LogMsg("Converting IKONOS band images to composite image")
@@ -249,12 +249,12 @@ def processImage(srcfp,dstfp,opt):
                     fpo = os.path.join(wd,os.path.basename(fpi))
                     if not os.path.isfile(fpo):
                         shutil.copy2(fpi,fpo)
-               
+
             else:
                 LogMsg("Source images does not exist: %s" %info.srcfp)
                 err = 1
-                
-    
+
+
     #### Get Image Stats
     if not err == 1:
         info, rc = GetImageStats(opt,info)
@@ -268,7 +268,7 @@ def processImage(srcfp,dstfp,opt):
             overlap = overlap_check(info.geometry_wkt,opt.spatial_ref,opt.dem)
             if overlap is False:
                 err = 1
-    
+
     #### Warp Image
     if not err == 1 and not os.path.isfile(info.warpfile):
         rc = WarpImage(opt,info)
@@ -282,14 +282,14 @@ def processImage(srcfp,dstfp,opt):
         if rc == 1:
             err = 1
             LogMsg("ERROR in image calculation")
-    
+
     ####  Write Output Metadata
     if not err == 1:
         rc = WriteOutputMetadata(opt,info)
         if rc == 1:
             err = 1
             LogMsg("ERROR in writing metadata file")
-    
+
     #### Copy image to final location if working dir is used
     if opt.wd is not None:
         if not err == 1:
@@ -311,10 +311,10 @@ def processImage(srcfp,dstfp,opt):
         LogMsg("Processing failed: %s" %info.srcfn)
         if not opt.save_temps:
             deleteTempFiles([dstfp,info.rawvrt,info.warpfile,info.vrtfile,info.localsrc])
-    
+
     elif not opt.save_temps:
         deleteTempFiles([info.rawvrt,info.warpfile,info.vrtfile,info.localsrc])
-        
+
     #### Calculate Total Time
     endtime = datetime.today()
     td = (endtime-starttime)
@@ -465,11 +465,11 @@ def calcStats(opt,info):
         if len(CFlist) == 0:
             LogMsg("Cannot get image calibration factors from metadata")
             return 1
-        
+
         if len(CFlist) < info.bands:
             LogMsg("Metadata image calibration factors have fewer bands than the image")
             return 1
-    
+
     wds = gdal.Open(info.warpfile,gdalconst.GA_ReadOnly)
     if wds is not None:
 
@@ -663,7 +663,7 @@ def GetImageStats(opt, info):
             lly = gtf[3] + 0 * gtf[4] + ysize * gtf[5]
             lrx = gtf[0] + xsize * gtf[1] + ysize* gtf[2]
             lry = gtf[3] + xsize * gtf[4] + ysize * gtf[5]
-            
+
             #print xsize, ysize
             #print gtf
             #print proj
@@ -772,7 +772,7 @@ def GetImageStats(opt, info):
                 info.rgb_bands = "-b 3 -b 2 -b 1 "
             elif info.bands == 8:
                 info.rgb_bands = "-b 5 -b 3 -b 2 "
-            
+
             else:
                 LogMsg("Error: cannot get rgb bands from a {0} band image".format(info.bands))
                 rc = 1
@@ -785,7 +785,7 @@ def GetImageStats(opt, info):
             else:
                 LogMsg("Error: cannot get bgrn bands from a {0} band image".format(info.bands))
                 rc = 1
-                
+
 
     else:
         LogMsg("Cannot open dataset: %s" %info.localsrc)
@@ -799,7 +799,7 @@ def GetDGMetadataPath(srcfp):
     Returns the filepath of the XML, if it can be found. Returns
     None if no valid filepath could be found.
     """
-    
+
     filename = os.path.basename(srcfp)
 
     if os.path.isfile(os.path.splitext(srcfp)[0]+'.xml'):
@@ -829,21 +829,21 @@ def GetDGMetadataPath(srcfp):
             # the metapath.
             except NameError:
                 metapath = None
-                
-                
+
+
     if metapath and os.path.isfile(metapath):
         return metapath
     else:
         return None
-        
-   
+
+
 def ExtractDGMetadataFile(srcfp, wd):
     """
     Searches the .tar for a valid XML. If found,
     extracts the metadata file. Returns
     None if no valid metadata could be found.
     """
-    
+
     metapath = None
     filename = os.path.basename(srcfp)
     tarpath = os.path.splitext(srcfp)[0] + '.tar'
@@ -851,7 +851,7 @@ def ExtractDGMetadataFile(srcfp, wd):
         match = re.search(DG_FILE, filename)
         if match:
             metaname = match.group('oname')
-            
+
             try:
                 tar = tarfile.open(tarpath, 'r')
                 tarlist = tar.getnames()
@@ -883,14 +883,14 @@ def GetIKMetadataPath(srcfp):
     # an entire strip, and will have a different filename, which we
     # will look for if we need to.
     metapath = os.path.splitext(srcfp)[0]+'.txt'
-    
+
     if not os.path.isfile(metapath):
         for b in ikMsiBands:
             mp = metapath.replace(b,'rgb')
             if os.path.isfile(mp):
                 metapath = mp
                 break
-            
+
     if not os.path.isfile(metapath):
         source_filename = os.path.basename(srcfp)
         match = re.match(PGC_IK_FILE, source_filename)
@@ -913,8 +913,8 @@ def GetIKMetadataPath(srcfp):
         return metapath
     else:
         return None
-    
-    
+
+
 def GetGEMetadataPath(srcfp):
     """
     Same as GetDGMetadataPath, but for GE01.
@@ -941,7 +941,7 @@ def WriteOutputMetadata(opt,info):
     ####  If DG
     if info.vendor == 'DigitalGlobe':
         metapath = info.metapath
-        
+
         try:
             metad = ET.parse(metapath)
         except ET.ParseError:
@@ -952,7 +952,7 @@ def WriteOutputMetadata(opt,info):
 
     ####  If GE
     elif info.vendor == 'GeoEye' and info.sat == "GE01":
-        
+
         metad = getGEMetadataAsXml(info.metapath)
         imd = ET.Element("IMD")
         include_tags = ["sensorInfo","inputImageInfo","correctionParams","bandSpecificInformation"]
@@ -967,7 +967,7 @@ def WriteOutputMetadata(opt,info):
             elems = metad.findall(tag)
             imd.extend(elems)
 
-        
+
     elif info.sat in ['IK01']:
         imd = None
         # TODO: write code for IK metadata
@@ -976,13 +976,14 @@ def WriteOutputMetadata(opt,info):
     dMD = {}
     tm = datetime.today()
     dMD["PROCESS_DATE"] = tm.strftime("%d-%b-%Y %H:%M:%S")
-    if opt.dem:
-        dMD["ORTHO_DEM"] = os.path.basename(opt.dem)
-    elif opt.ortho_height is not None:
-        dMD["ORTHO_HEIGHT"] = str(opt.ortho_height)
-    else:
-        h = get_rpc_height(info)
-        dMD["ORTHO_HEIGHT"] = str(h)
+    if not opt.skip_warp:
+        if opt.dem:
+            dMD["ORTHO_DEM"] = os.path.basename(opt.dem)
+        elif opt.ortho_height is not None:
+            dMD["ORTHO_HEIGHT"] = str(opt.ortho_height)
+        else:
+            h = get_rpc_height(info)
+            dMD["ORTHO_HEIGHT"] = str(h)
     dMD["RESAMPLEMETHOD"] = opt.resample
     dMD["STRETCH"] = opt.stretch
     dMD["BITDEPTH"] = opt.outtype
@@ -1029,22 +1030,22 @@ def WarpImage(opt,info):
     if not os.path.isfile(info.warpfile):
 
         LogMsg("Warping Image")
-        
+
         if not opt.skip_warp:
-        
+
             #### If Image is TIF, extract RPB
             if os.path.splitext(info.localsrc)[1].lower() == ".tif":
                 if info.vendor == "DigitalGlobe":
                     rpb_p = os.path.splitext(info.localsrc)[0] + ".RPB"
-    
+
                 elif info.vendor == "GeoEye" and info.sat == "GE01":
                     rpb_p = os.path.splitext(info.localsrc)[0] + "_rpc.txt"
-    
+
                 else:
                     rpb_p = None
                     logger.error("Cannot extract rpc's for Ikonos. Image cannot be terrain corrected with a DEM or avg elevation.")
                     rc = 1
-    
+
                 if rpb_p:
                     if not os.path.isfile(rpb_p):
                         err = ExtractRPB(info.localsrc,rpb_p)
@@ -1053,14 +1054,14 @@ def WarpImage(opt,info):
                     if not os.path.isfile(rpb_p):
                         logger.error("No RPC information found. Image cannot be terrain corrected with a DEM or avg elevation.")
                         rc = 1
-                        
-                        
+
+
         #### convert to VRT and modify 4th band
         cmd = 'gdal_translate -of VRT "{0}" "{1}"'.format(info.localsrc,info.rawvrt)
         (err,so,se) = ExecCmd(cmd)
         if err == 1:
             rc = 1
-        
+
         if os.path.isfile(info.rawvrt) and info.bands > 3:
             vds = gdal.Open(info.rawvrt,gdalconst.GA_Update)
             if vds.GetRasterBand(4).GetColorInterpretation() == 6:
@@ -1068,8 +1069,8 @@ def WarpImage(opt,info):
             vds = None
 
         nodata_list = ["0"] * info.bands
-        
-        
+
+
         if not opt.skip_warp:
 
             if rc <> 1:
@@ -1077,19 +1078,19 @@ def WarpImage(opt,info):
                 if opt.dem != None:
                     LogMsg('DEM: %s' %(os.path.basename(opt.dem)))
                     to = "RPC_DEM=%s" %opt.dem
-    
+
                 elif opt.ortho_height is not None:
                     LogMsg("Elevation: {0} meters".format(opt.ortho_height))
                     to = "RPC_HEIGHT=%f" %opt.ortho_height
-                    
+
                 else:
                     #### Get Constant Elevation From XML
                     h = get_rpc_height(info)
                     LogMsg("Average elevation: %f meters" %(h))
                     to = "RPC_HEIGHT=%f" %h
                     ds = None
-                    
-                
+
+
                 #### GDALWARP Command
                 cmd = 'gdalwarp %s -srcnodata "%s" -of GTiff -ot UInt16 %s%s%s-co "TILED=YES" -co "BIGTIFF=IF_SAFER" -t_srs "%s" -r %s -et 0.01 -rpc -to "%s" "%s" "%s"' %(
                     config_options,
@@ -1102,14 +1103,14 @@ def WarpImage(opt,info):
                     to,
                     info.rawvrt,
                     info.warpfile
-                    )           
-                
+                    )
+
                 (err,so,se) = ExecCmd(cmd)
                 #print err
                 if err == 1:
                     rc = 1
-                
-                
+
+
         else:
             #### GDALWARP Command
             cmd = 'gdalwarp %s -srcnodata "%s" -of GTiff -ot UInt16 %s-co "TILED=YES" -co "BIGTIFF=IF_SAFER" -t_srs "%s" -r %s "%s" "%s"' %(
@@ -1120,13 +1121,13 @@ def WarpImage(opt,info):
                 opt.resample,
                 info.rawvrt,
                 info.warpfile
-                )           
-            
+                )
+
             (err,so,se) = ExecCmd(cmd)
             #print err
             if err == 1:
                 rc = 1
-                
+
         return rc
 
 
@@ -1320,7 +1321,7 @@ def getDGXmlData(xmlpath,stretch):
     else:
 
         if len(xmldoc.getElementsByTagName('IMD')) >=1:
-    
+
             nodeIMD = xmldoc.getElementsByTagName('IMD')[0]
             EsunDict = {  # Spectral Irradiance in W/m2/um
                 'QB02_BAND_P':1381.79,
@@ -1328,9 +1329,9 @@ def getDGXmlData(xmlpath,stretch):
                 'QB02_BAND_G':1843.08,
                 'QB02_BAND_R':1574.77,
                 'QB02_BAND_N':1113.71,
-                
+
                 'WV01_BAND_P':1487.54715,
-                
+
                 'WV02_BAND_P':1580.8140,
                 'WV02_BAND_C':1758.2229,
                 'WV02_BAND_B':1974.2416,
@@ -1340,7 +1341,7 @@ def getDGXmlData(xmlpath,stretch):
                 'WV02_BAND_RE':1342.0695,
                 'WV02_BAND_N':1069.7302,
                 'WV02_BAND_N2':861.2866,
-    
+
                 'WV03_BAND_P':1588.54256,
                 'WV03_BAND_C':1803.910899,
                 'WV03_BAND_B':1982.448496,
@@ -1358,65 +1359,65 @@ def getDGXmlData(xmlpath,stretch):
                 'WV03_BAND_S6':74.81263622,
                 'WV03_BAND_S7':69.01250464,
                 'WV03_BAND_S8':59.79459729,
-    
+
                 'GE01_BAND_P':1617,
                 'GE01_BAND_B':1960,
                 'GE01_BAND_G':1853,
                 'GE01_BAND_R':1505,
                 'GE01_BAND_N':1039,
-    
+
                 'IK01_BAND_P':1375.8,
                 'IK01_BAND_B':1930.9,
                 'IK01_BAND_G':1854.8,
                 'IK01_BAND_R':1556.5,
                 'IK01_BAND_N':1156.9
                 }
-    
+
             # get acquisition IMAGE tags
             nodeIMAGE = nodeIMD.getElementsByTagName('IMAGE')
-    
+
             sat = nodeIMAGE[0].getElementsByTagName('SATID')[0].firstChild.data
             t = nodeIMAGE[0].getElementsByTagName('FIRSTLINETIME')[0].firstChild.data
-    
+
             if len(nodeIMAGE[0].getElementsByTagName('MEANSUNEL')) >= 1:
                 sunEl = float(nodeIMAGE[0].getElementsByTagName('MEANSUNEL')[0].firstChild.data)
             elif len(nodeIMAGE[0].getElementsByTagName('SUNEL')) >= 1:
                 sunEl = float(nodeIMAGE[0].getElementsByTagName('SUNEL')[0].firstChild.data)
             else:
                 return None
-    
-            
+
+
             sunAngle = 90 - sunEl
             des = calcEarthSunDist(datetime.strptime(t,"%Y-%m-%dT%H:%M:%S.%fZ"))
-            
+
             # get BAND tags
             for band in DGbandList:
                 nodeBAND = nodeIMD.getElementsByTagName(band)
                 #print nodeBAND
                 if not len(nodeBAND) == 0:
-                    
+
                     temp = nodeBAND[0].getElementsByTagName('ABSCALFACTOR')
                     if not len(temp) == 0:
                         abscal = float(temp[0].firstChild.data)
-                        
+
                     else:
                         return None
-                        
+
                     temp = nodeBAND[0].getElementsByTagName('EFFECTIVEBANDWIDTH')
                     if not len(temp) == 0:
                         effbandw = float(temp[0].firstChild.data)
                     else:
                         return None
-                    
+
                     abscalfact_dict[band] = (abscal,effbandw)
-            
+
             #### Determine if unit shift factor should be applied
-            
-            ## 1) If BAND_B abscalfact < 0.004, then units are in W/cm2/nm and should be multiplied 
+
+            ## 1) If BAND_B abscalfact < 0.004, then units are in W/cm2/nm and should be multiplied
             ##  by 10 in order to get units of W/m2/um
-            ## 1) If BAND_P abscalfact < 0.01, then units are in W/cm2/nm and should be multiplied 
+            ## 1) If BAND_P abscalfact < 0.01, then units are in W/cm2/nm and should be multiplied
             ##  by 10 in order to get units of W/m2/um
-            
+
             units_factor = 1
             if sat == 'GE01':
                 if 'BAND_B' in abscalfact_dict:
@@ -1425,7 +1426,7 @@ def getDGXmlData(xmlpath,stretch):
                 if 'BAND_P' in abscalfact_dict:
                     if abscalfact_dict['BAND_P'][0] < 0.01:
                         units_factor = 10
-            
+
             for band in abscalfact_dict:
                 satband = sat+'_'+band
                 if satband not in EsunDict:
@@ -1433,16 +1434,16 @@ def getDGXmlData(xmlpath,stretch):
                     return None
                 else:
                     Esun = EsunDict[satband]
-                
+
                 abscal,effbandw = abscalfact_dict[band]
-                
+
                 #print abscal,des,Esun,math.cos(math.radians(sunAngle)),effbandw
-                
+
                 radfact = units_factor * (abscal/effbandw)
                 reflfact = units_factor * ((abscal * des**2 * math.pi) / (Esun * math.cos(math.radians(sunAngle)) * effbandw))
-                
-                LogMsg("{0}: absCalFact {1}, Earth-Sun distance {2}, Esun {3}, sun angle {4}, sun elev {5}, effBandwidth {6}, units factor {9}, reflectance factor {7}, radience factor {8}".format(satband, abscal, des, Esun, sunAngle, sunEl, effbandw, reflfact, radfact, units_factor))
-                
+
+                LogMsg("{0}: \n\tabsCalFactor {1}\n\teffectiveBandwidth {2}\n\tEarth-Sun distance {3}\n\tEsun {4}\n\tSun angle {5}\n\tSun elev {6}\n\tUnits factor {9}\n\tReflectance correction {7}\n\tRadiance correction {8}".format(satband, abscal, effbandw, des, Esun, sunAngle, sunEl, reflfact, radfact, units_factor))
+
                 if stretch == "rd":
                     calibDict[band] = radfact
                 else:
@@ -1478,13 +1479,13 @@ def GetIKcalibDict(metafile,stretch):
 
         bw = bwList[band]
         Esun = EsunDict[band]
-        
+
         #print sunAngle, des, gain, Esun
         radfact = 10000.0 / (calCoef * bw )
         reflfact = (10000.0 * des**2 * math.pi) / (calCoef * bw * Esun * math.cos(math.radians(sunAngle)))
-        
+
         LogMsg("{0}: calibration coef {1}, Earth-Sun distance {2}, Esun {3}, sun angle {4}, bandwidth {5}, reflectance factor {6}, radience factor {7}".format(band, calCoef, des, Esun, sunAngle, bw, reflfact, radfact))
-        
+
         if stretch == "rd":
             calibDict[band] = radfact
         else:
@@ -1551,7 +1552,7 @@ def getIKMetadata(fp_mode, metafile):
             if node.attrib["id"] == siid:
                 siid_node = node
                 break
-        
+
         if siid_node is None:
             LogMsg( "Could not locate SIID: %s in metadata %s" % (siid, metafile))
             return None
@@ -1565,7 +1566,7 @@ def getIKMetadata(fp_mode, metafile):
             else:
                 metadict[node.tag] = node.text
 
-        
+
     return metadict
 
 
@@ -1900,11 +1901,11 @@ def ExecCmd_mp(job):
         (so,se) = p.communicate()
     except KeyboardInterrupt:
         os.killpg(p.pid, signal.SIGTERM)
-    
+
     else:
         logger.debug(so)
         logger.debug(se)
-    
+
 
 def getBitdepth(outtype):
     if outtype == "Byte":
