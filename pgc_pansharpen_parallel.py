@@ -44,8 +44,10 @@ def get_multispectral_name(sensor,pan_name):
     if sensor in ["WV02","WV03","QB02"]:
         mul_name = pan_name.replace("-P","-M")
     elif sensor == "GE01":
-        mul_name = pan_name.replace("P0","M0")
-        mul_name = mul_name.replace("-P","-M")
+	if "_5V" in pan_name:
+	    mul_name = pan_name.replace("P0","M0")
+	else:
+            mul_name = pan_name.replace("-P","-M")
     elif sensor == "IK01":
         mul_name = pan_name.replace("blu","pan")
 

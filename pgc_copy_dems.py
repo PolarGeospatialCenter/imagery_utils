@@ -18,9 +18,10 @@ deliv_suffixes = (### ASP
                   '_dem.tif',
                   '_ortho.tif',
                   '_matchtag.tif',
-                  '_meta.txt'
+                  '_mdf.txt'
                   )
 
+archive_suffix = ".tar"
 
 shp_suffixes = ('.shp',
                   '.shx',
@@ -56,15 +57,18 @@ def main():
     parser.add_argument('--dryrun', action='store_true', default=False,
                         help='print action but do not alter files\n')
     
+    
     parser.add_argument('--exclude-drg', action='store_true', default=False,
                         help='exclude DRG/Ortho')
     parser.add_argument('--dems-only', action='store_true', default=False,
                         help='copy DEMs only - overrides --exclude and --include options, except --include-fltr')
     parser.add_argument('--no-dirs', action='store_true', default=False,
                         help='do not make pairname subdirs for overlaps\n')
+    parser.add_argument('--tar-only', action='store_true', default=False,
+                        help='copy only tar archive, overrides --exclude and --include options')
     
     parser.add_argument('--exclude-err', action='store_true', default=False,
-                        help='exclude intersectionErr raster')
+                        help='ASP: exclude intersectionErr raster')
     parser.add_argument('--include-pc', action='store_true', default=False,
                         help='ASP: include point cloud')
     parser.add_argument('--include-fltr', action='store_true', default=False,
@@ -76,6 +80,9 @@ def main():
     #### Parse Arguments
     args = parser.parse_args()
     src = os.path.abspath(args.src)
+
+    if args.dems_only and args.tar_only:
+        parser.error("options --tar-only and --dems-only are not not compatible")
 
     #### Validate args
     if os.path.isdir(src):
@@ -169,10 +176,15 @@ def main():
         else:
             srcpairdir = os.path.dirname(overlap)
             pairname = os.path.basename(srcpairdir)
-            if args.no_dirs is False:
-                file_dstdir = os.path.join(args.dstdir,pairname)
-            else:
+            if args.no_dirs:
                 file_dstdir = args.dstdir
+                
+            elif "SETSM" in os.path.basename(overlap):
+                file_dstdir = args.dstdir
+            
+            else:
+                file_dstdir = os.path.join(args.dstdir,pairname)
+            
             overlap_prefix = os.path.basename(overlap)[:-8]
 
             #### Copy all files with overlap prefix and Copy pair shp
@@ -230,19 +242,24 @@ def check_file_inclusion(f,pairname,overlap_prefix,args):
             if f.endswith('-IntersectionErr.tif'):
                 move_file = False
 
+        if args.dems_only is True:
+            move_file = False
+            if f.endswith(("-DEM.tif",'-DEM.prj','.geojson','_dem.tif','_meta.txt')):
+                move_file = True
+            if f.endswith(("_fltr-DEM.tif",'_fltr-DEM.prj')):
+                if args.include_fltr:
+                    move_file = True
+                else:
+                    move_file = False
+        
+        if args.tar_only is True:
+            move_file = False
+            if f.endswith(".tar"):
+                move_file = True
+                
     #### determine if file is in pair shp
     if f.endswith(shp_suffixes) and pairname in f and not '-DEM' in f:
         move_file = True
-
-    if args.dems_only is True:
-        move_file = False
-        if f.endswith(("-DEM.tif",'-DEM.prj','.geojson','_dem.tif','_meta.txt')):
-            move_file = True
-        if f.endswith(("_fltr-DEM.tif",'_fltr-DEM.prj')):
-            if args.include_fltr:
-                move_file = True
-            else:
-                move_file = False
     
     return move_file
 

@@ -22,26 +22,28 @@ def main():
     
     parser.add_argument("index", help="DG stereo index shapefile")
     parser.add_argument("aoi", help="aoi shapefile")
-    parser.add_argument("aoi_fld", help="aoi shapefile feature ID field (used for output file name)")
+    parser.add_argument("aoifield", help="aoi shapefile feature ID field (used for output file name)")
     parser.add_argument("dstdir", help="textfile output directory")
     #pos_arg_keys = ["index","tile_csv","dstdir"]
     
     parser.add_argument("--log",
                       help="output log file (default is queryStereoFP.log in the output folder)")
-    parser.add_argument("--target_aoi_id",
+    parser.add_argument("--target-aoi-id",
                       help="target feature ID value in AOI shapefile (multiple IDs should be comma-separated)")
     parser.add_argument("--overwrite", action="store_true", default=False,
                       help="overwrite any existing files")
-    parser.add_argument("--build_shp", action='store_true', default=False,
+    parser.add_argument("--build-shp", action='store_true', default=False,
                       help="build shapefile of intersecting stereopairs")
-    parser.add_argument("--join_mfp",
+    parser.add_argument("--join-mfp",
                       help="join to the mfp (path required) and export matching imagery")
     parser.add_argument("--tday",
                         help="month and day of the year to use as target for image suitability ranking -- 04-05")
     parser.add_argument("--exclude",
                         help="file of pairname patterns (text only, no wildcards or regexs) to exclude")
-    parser.add_argument("--remove_duplicates", action='store_true', default=False,
+    parser.add_argument("--remove-duplicates", action='store_true', default=False,
                         help="remove duplication of pairs that occur in multiple AOI features, pair in lowest lexical feature ID is kept")
+    parser.add_argument("--no-filter", action='store_true', default=False,
+                        help="do not filter out non-contributing DEMs")
     
     
     
@@ -135,11 +137,11 @@ def main():
         
         while feat:
            
-            i = feat.GetFieldIndex(args.aoi_fld)
+            i = feat.GetFieldIndex(args.aoifield)
             if i != -1:
                 feature_id = feat.GetFieldAsString(i)
             else:
-                logger.error("{} field not found in AOI shp".format(args.aoi_fld))
+                logger.error("{} field not found in AOI shp".format(args.aoifield))
                 break
             
             geom = feat.GetGeometryRef().Clone()
@@ -253,8 +255,8 @@ def HandleTile(feature_id, feature_geom, stereo_index_path, dstdir, dstfn, aoi_s
             logger.info("Number of intersects in aoi_feature %s: %i" %(feature_id,len(demInfo_list1)))
             
             if len(demInfo_list1) > 0:
-                    
-                #### Sort by quality
+                
+                #### Get score for image
                 logger.debug("Sorting stereopairs by quality")
                 demInfo_list2 = []
                 for demInfo in demInfo_list1:
@@ -262,46 +264,50 @@ def HandleTile(feature_id, feature_geom, stereo_index_path, dstdir, dstfn, aoi_s
                     demInfo.getScore(target_date)
                     if demInfo.score > 0:
                         demInfo_list2.append(demInfo)
+            
+                if not args.no_filter:    
                 
-                ####  Overlay geoms and remove non-contributors
-                logger.debug("Overlaying images to determine contributors")
-                contribs = []
-                
-                feature_geom1 = feature_geom.Clone()
-                feature_geom2 = feature_geom.Clone()
-                
-                demInfo_list2.sort(key=lambda x: x.score, reverse=True)
-                
-                for demInfo in demInfo_list2:
-                    geom = demInfo.geom
+                    ####  Overlay geoms and remove non-contributors
+                    logger.debug("Overlaying images to determine contributors")
+                    contribs = []
                     
+                    feature_geom1 = feature_geom.Clone()
+                    feature_geom2 = feature_geom.Clone()
                     
-                    #### If geom intersects first coverage
-                    if not feature_geom1.IsEmpty() and geom.Intersects(feature_geom1):
-                        #logger.info(feature_geom1.Area()/1000000)
-                        
-                        #### add to contribs
-                        contribs.append(demInfo)
-                        
-                        #### get remainder of pair geometry to compare to second coverage
-                        geom_remainder = geom.Difference(feature_geom1)
-                        
-                        #### subtract geom from first coverage since that area is now covered
-                        feature_geom1 = feature_geom1.Difference(geom)
-                        
-                    else:
-                        geom_remainder = geom
+                    demInfo_list2.sort(key=lambda x: x.score, reverse=True)
                     
-                    #### If remainder exists and intersects second coverage
-                    if not geom_remainder.IsEmpty() and not feature_geom2.IsEmpty() and geom_remainder.Intersects(feature_geom2):
+                    for demInfo in demInfo_list2:
+                        geom = demInfo.geom
                         
-                        #### add to contribs
-                        if not demInfo in contribs:
+                        
+                        #### If geom intersects first coverage
+                        if not feature_geom1.IsEmpty() and geom.Intersects(feature_geom1):
+                            #logger.info(feature_geom1.Area()/1000000)
+                            
+                            #### add to contribs
                             contribs.append(demInfo)
+                            
+                            #### get remainder of pair geometry to compare to second coverage
+                            geom_remainder = geom.Difference(feature_geom1)
+                            
+                            #### subtract geom from first coverage since that area is now covered
+                            feature_geom1 = feature_geom1.Difference(geom)
+                            
+                        else:
+                            geom_remainder = geom
                         
-                        #### subtract geom from first coverage since that area is now covered
-                        feature_geom2 = feature_geom2.Difference(geom_remainder)
-                
+                        #### If remainder exists and intersects second coverage
+                        if not geom_remainder.IsEmpty() and not feature_geom2.IsEmpty() and geom_remainder.Intersects(feature_geom2):
+                            
+                            #### add to contribs
+                            if not demInfo in contribs:
+                                contribs.append(demInfo)
+                            
+                            #### subtract geom from first coverage since that area is now covered
+                            feature_geom2 = feature_geom2.Difference(geom_remainder)
+                    
+                else:
+                    contribs = demInfo_list2
         
                 logger.info("Number of contributing pairs: %i" %(len(contribs)))
                 
@@ -317,7 +323,8 @@ def HandleTile(feature_id, feature_geom, stereo_index_path, dstdir, dstfn, aoi_s
                     
                 if len(contribs) > 0:
                     
-                    contribs.sort(key=lambda x: x.score)
+                    if not args.no_filter:
+                        contribs.sort(key=lambda x: x.score)
                     
                     #### Create Shp
                     if args.build_shp:
