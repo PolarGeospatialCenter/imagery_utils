@@ -75,6 +75,8 @@ def buildMosaicParentArgumentParser():
                         help="use exposure settings in metadata to inform score")
     parser.add_argument("--exclude",
                         help="file of file name patterns (text only, no wildcards or regexs) to exclude")
+    parser.add_argument("--max_cc", type=float,
+    			help="maximum fractional cloud cover (0.0-1.0, default 0.5)")
 
     return parser
 
@@ -147,6 +149,10 @@ class ImageInfo:
         self.xres = None
         self.yres = None
         self.datatype = None
+        
+        self.sataz = None
+        self.satel = None
+        self.sunaz = None
         
         i = feat.GetFieldIndex("SUN_ELEV")
         if i != -1:
@@ -249,7 +255,13 @@ class ImageInfo:
             self.geom = ogr.CreateGeometryFromWkt(poly_wkt)
             self.xs = [ulx,urx,lrx,llx]
             self.ys = [uly,ury,lry,lly]
-                
+            
+            #### get stats and store in lists
+            self.stat_dct = {}
+            for bandnum in range(1,self.bands+1):
+                band = ds.GetRasterBand(bandnum)
+                stats = band.GetStatistics(False,True)
+                self.stat_dct[band] = stats
                 
         else:
             logger.warning("Cannot open image: %s" %self.srcfp)
@@ -261,10 +273,14 @@ class ImageInfo:
             self.datatype_readable = None
             self.xres = None
             self.yres = None
+            self.stat_dct = {}
 
         ds = None
         
         #### Set unknown attribs to None for now
+        self.sataz = None
+        self.satel = None
+        self.sunaz = None
         self.sunel = None
         self.ona = None
         self.cloudcover = None
@@ -281,6 +297,9 @@ class ImageInfo:
         dAttribs = {
             "cc":None,
             "sunel":None,
+            "sunaz":None,
+            "satel":None,
+            "sataz":None,
             "ona":None,
             "date":None,
             "tdi":None,
@@ -294,6 +313,9 @@ class ImageInfo:
             "SATID":"sensor",
             "CLOUDCOVER":"cc",
             "MEANSUNEL":"sunel",
+            "MEANSUNAZ":"sunaz",
+            "MEANSATEL":"satel",
+            "MEANSATAZ":"sataz",
             "MEANOFFNADIRVIEWANGLE":"ona",
             "FIRSTLINETIME":"date",
             "TDILEVEL":"tdi",
@@ -302,10 +324,24 @@ class ImageInfo:
             "archiveId":"catid",
             "satelliteName":"sensor",
             "percentCloudCover":"cc",
+            "firstLineAzimuthAngle":"sataz",
+            "firstLineSunAzimuthAngle":"sunaz",
             "firstLineSunElevationAngle":"sunel",
-            "firstLineElevationAngle":"ona",
+            "firstLineElevationAngle":"satel",
             "firstLineAcquisitionDateTime":"date",
-            "tdiMode":"tdi"
+            "tdiMode":"tdi",
+            
+            ## IK tags
+            "Source_Image_ID":"catid",
+            "Sensor":"sensor",
+            "Percent_Component_Cloud_Cover":"cc",
+            "Nominal_Collection_Azimuth":"sataz",
+            "Nominal_Collection_Elevation":"satel",
+            "Sun_Angle_Elevation":"sunel",
+            "Sun_Angle_Azimuth":"sunaz",
+            "Acquisition_Date_Time":"date",
+            "Pachchromatic_TDI_Mode":"tdi",
+            
         }
             
         paths = (
@@ -352,14 +388,27 @@ class ImageInfo:
                     
                         if text is not None:
                             try:
-                                if tag == "firstLineElevationAngle":
-                                    val = 90 - float(text)
-                                elif tag in ["FIRSTLINETIME","firstLineAcquisitionDateTime","CATID","archiveId","SATID"]:
+                                if tag in [
+                                    "Acquisition_Date_Time",
+                                    "FIRSTLINETIME",
+                                    "firstLineAcquisitionDateTime",
+                                    
+                                    "CATID",
+                                    "archiveId",
+                                    
+                                    "SATID",
+                                ]:
                                     val = text
-                                elif tag == "percentCloudCover":
+                                elif tag in ["Source_Image_ID"]:
+                                    val = elem.attrib['id']
+                                elif tag in ["percentCloudCover", "Percent_Component_Cloud_Cover"]:
                                     val = float(text)/100
+                                elif tag in ["Sun_Angle_Azimuth","Sun_Angle_Elevation","Nominal_Collection_Azimuth","Nominal_Collection_Elevation"]:
+                                    val = text.strip(" degrees")
                                 elif tag == "satelliteName":
                                     val = "GE01"
+                                elif tag == "Sensor":
+                                    val = "IK01"
                                 else:
                                     val = float(text)
                                     
@@ -392,15 +441,27 @@ class ImageInfo:
                     elif len(taglist) > 1:
                         logger.debug("Unexpected number of {} values ({}), {}".format(tag,len(taglist),metapath))
                 
-                self.sunel = dAttribs["sunel"]
-                self.ona = dAttribs["ona"]
+                self.sataz = float(dAttribs["sataz"])
+                self.satel = float(dAttribs["satel"])
+                self.sunaz = float(dAttribs["sunaz"])               
+                self.sunel = float(dAttribs["sunel"])
+                try:
+                    self.ona = dAttribs["ona"] if dAttribs["ona"] else 90 - self.satel
+                except TypeError, e:
+                    pass
                 self.cloudcover = dAttribs["cc"]
                 self.sensor = dAttribs["sensor"]
                 self.catid = dAttribs["catid"]
                 self.tdi = dAttribs["tdi"]
                 
                 if dAttribs["date"]:
-                    self.acqdate = datetime.strptime(dAttribs["date"],"%Y-%m-%dT%H:%M:%S.%fZ")
+                    try:
+                        self.acqdate = datetime.strptime(dAttribs["date"],"%Y-%m-%dT%H:%M:%S.%fZ")
+                    except ValueError, e:
+                        try:
+                            self.acqdate = datetime.strptime(dAttribs["date"],"%Y-%m-%d %H:%M GMT")
+                        except ValueError, e:
+                            logger.error("Cannot parse date string {} from {}".format(dAttribs['date'],metapath))
                     
                 
 
@@ -501,10 +562,10 @@ class ImageInfo:
                 
             #### Handle nonesense or nodata cloud cover values
             if self.cloudcover < 0 or self.cloudcover > 1:
-                self.cloudcover = 0.5
+                self.cloudcover = params.max_cc
             
-            if self.cloudcover > 0.5:
-                logger.debug("Image too cloudy (>50 percent): %s --> %f" %(self.srcfp,self.cloudcover))
+            if self.cloudcover > params.max_cc:
+                logger.debug("Image too cloudy (>%s): %s --> %f" %(params.max_cc,self.srcfp,self.cloudcover))
                 score = -1
             
             #### Handle ridiculously low sun el values, these images will result is spurious TOA values
@@ -722,6 +783,11 @@ def getMosaicParameters(iinfo,options):
     else:
         params.xtilesize = None
         params.ytilesize = None
+        
+    if options.max_cc is not None:
+    	params.max_cc = options.max_cc
+    else:
+    	params.max_cc = 0.5
     
     params.force_pan_to_multi = True if params.bands > 1 and options.force_pan_to_multi else False # determine if force pan to multi is applicable and true
     

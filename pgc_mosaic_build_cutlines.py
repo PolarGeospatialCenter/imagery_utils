@@ -182,6 +182,13 @@ def main():
             ("RESOLUTION", ogr.OFTReal, 0),
             ("OFF_NADIR", ogr.OFTReal, 0),
             ("SUN_ELEV", ogr.OFTReal, 0),
+            ("SUN_AZ", ogr.OFTReal, 0),
+            ("SAT_ELEV", ogr.OFTReal, 0),
+            ("SAT_AZ", ogr.OFTReal, 0),
+            ("STATS_MIN", ogr.OFTString, 80),
+            ("STATS_MAX", ogr.OFTString, 80),
+            ("STATS_STD", ogr.OFTString, 80),
+            ("STATS_MEAN", ogr.OFTString, 80),
             ("CLOUDCOVER", ogr.OFTReal, 0),
             ("TDI", ogr.OFTReal, 0),
             ("DATE_DIFF", ogr.OFTReal, 0),
@@ -232,6 +239,9 @@ def main():
             feat.SetField("CAT_ID",iinfo.catid)
             feat.SetField("OFF_NADIR",iinfo.ona)
             feat.SetField("SUN_ELEV",iinfo.sunel)
+            feat.SetField("SUN_AZ",iinfo.sunaz)
+            feat.SetField("SAT_ELEV",iinfo.satel)
+            feat.SetField("SAT_AZ",iinfo.sataz)
             feat.SetField("CLOUDCOVER",iinfo.cloudcover)
             feat.SetField("SCORE",iinfo.score)
             
@@ -243,6 +253,25 @@ def main():
             
             res = ((iinfo.xres+iinfo.yres)/2.0) if iinfo.xres else 0
             feat.SetField("RESOLUTION",res)
+            
+            if len(iinfo.stat_dct) > 0:
+                min_list = []
+                max_list = []
+                mean_list = []
+                stdev_list = []
+                keys = iinfo.stat_dct.keys()
+                keys.sort()
+                for band in keys:
+                    imin, imax, imean, istdev = iinfo.stat_dct[band]
+                    min_list.append(str(imin))
+                    max_list.append(str(imax))
+                    mean_list.append(str(imean))
+                    stdev_list.append(str(istdev))
+                
+                feat.SetField("STATS_MIN",",".join(min_list))
+                feat.SetField("STATS_MAX",",".join(max_list))
+                feat.SetField("STATS_MEAN",",".join(mean_list))
+                feat.SetField("STATS_STD",",".join(stdev_list))              
                 
             feat.SetGeometry(geom)
             

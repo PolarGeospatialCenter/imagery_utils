@@ -268,20 +268,21 @@ def processImage(srcfp,dstfp,opt):
             overlap = overlap_check(info.geometry_wkt,opt.spatial_ref,opt.dem)
             if overlap is False:
                 err = 1
-
-    #### Warp Image
-    if not err == 1 and not os.path.isfile(info.warpfile):
-        rc = WarpImage(opt,info)
-        if rc == 1:
-            err = 1
-            LogMsg("ERROR in image warping")
-
-    #### Calculate Output File
-    if not err == 1 and os.path.isfile(info.warpfile):
-        rc = calcStats(opt,info)
-        if rc == 1:
-            err = 1
-            LogMsg("ERROR in image calculation")
+    
+    if not os.path.isfile(info.dstfp):
+        #### Warp Image
+        if not err == 1 and not os.path.isfile(info.warpfile):
+            rc = WarpImage(opt,info)
+            if rc == 1:
+                err = 1
+                LogMsg("ERROR in image warping")
+    
+        #### Calculate Output File
+        if not err == 1 and os.path.isfile(info.warpfile):
+            rc = calcStats(opt,info)
+            if rc == 1:
+                err = 1
+                LogMsg("ERROR in image calculation")
 
     ####  Write Output Metadata
     if not err == 1:
@@ -969,9 +970,30 @@ def WriteOutputMetadata(opt,info):
 
 
     elif info.sat in ['IK01']:
-        imd = None
-        # TODO: write code for IK metadata
-
+        match = PGC_IK_FILE.search(info.srcfn)
+        if match:
+            component = match.group('cmp')
+            
+            metad = getIKMetadataAsXml(info.metapath)
+            imd = ET.Element("IMD")
+            
+            elem = metad.find('Source_Image_Metadata')
+            elem.remove(elem.find('Number_of_Source_Images'))
+            for child in elem.findall("Source_Image_ID"):
+                prod_id_elem = child.find("Product_Image_ID")
+                if not prod_id_elem.text == component[:3]:
+                    elem.remove(child)
+            imd.append(elem)
+     
+            elem = metad.find('Product_Component_Metadata')
+            elem.remove(elem.find('Number_of_Components'))
+            for child in elem.findall("Component_ID"):
+                if not child.attrib['id'] == component:
+                    elem.remove(child)
+            imd.append(elem)
+    
+            
+            
     ####  Determine custom MD
     dMD = {}
     tm = datetime.today()
@@ -1013,8 +1035,19 @@ def WriteOutputMetadata(opt,info):
     if imd is not None:
         ref.append(imd)
 
-    ET.ElementTree(root).write(omd)
+    #ET.ElementTree(root).write(omd,xml_declaration=True)
+    xmlstring = prettify(root)
+    fh = open(omd,'w')
+    fh.write(xmlstring)
     return 0
+
+
+def prettify(elem):
+    """Return a pretty-printed XML string for the Element.
+    """
+    rough_string = ET.tostring(elem, 'utf-8')
+    reparsed = minidom.parseString(rough_string)
+    return reparsed.toprettyxml(indent="  ")
 
 
 def WarpImage(opt,info):
@@ -1505,7 +1538,7 @@ def getIKMetadata(fp_mode, metafile):
             ("Country_Code", "COUNTRY"),
             ("Percent_Component_Cloud_Cover", "CLOUDCOVER"),
             ("Sensor_Name", "SENSOR"),
-            ("Sun_Angle_Elevation", "SUN_ELEV")
+            ("Sun_Angle_Elevation", "SUN_ELEV"),        
     	]
 
     metad = getIKMetadataAsXml(metafile)
@@ -1597,8 +1630,10 @@ def getIKMetadataAsXml(metafile):
 	tags_1L = ["Product_Order_Metadata", "Source_Image_Metadata", "Product_Space_Metadata",
 			   "Product_Component_Metadata"]
 	tags_2L = ["Source_Image_ID", "Component_ID"]
-	tags_coords = ["Latitude", "Longitude", "Map_X_(Easting)", "Map_Y_(Northing)",
-				   "UL_Map_X_(Easting)", "UL_Map_Y_(Northing)"]
+	tags_coords = ["Latitude", "Longitude", "Map_X_Easting", "Map_Y_Northing",
+				   "UL_Map_X_Easting", "UL_Map_Y_Northing", "Pan_Cross_Scan",
+                                   "Pan_Along_Scan", "MS_Cross_Scan", "MS_Along_Scan",
+                                   ]
 	ignores = ["Company Information", "Address", "GeoEye", "12076 Grant Street",
 			  "Thornton, Colorado 80241", "U.S.A.", "Contact Information",
 			  "On the Web: http://www.geoeye.com", "Customer Service Phone (U.S.A.): 1.800.232.9037",
@@ -1635,7 +1670,7 @@ def getIKMetadataAsXml(metafile):
 
 			# Tag/value pair
 			if mat1:
-				tag = mat1.group("tag").strip().replace(" ", "_").replace("/", "_")
+				tag = mat1.group("tag").strip().replace(" ", "_").replace("/", "_").replace("(", "").replace(")", "")
 				if mat1.group("data"):
 					data = mat1.group("data").strip()
 				else:
@@ -1673,7 +1708,7 @@ def getIKMetadataAsXml(metafile):
 				# Vanilla tag/value pair
 				else:
 					# Adjust depth if we just finished a Coordinate block
-					if tag not in tags_coords and current.tag == "Coordinate":
+					if tag not in tags_coords and current.tag in ["Coordinate","Component_Map_Coordinates_in_Map_Units","Acquired_Nominal_GSD"]:
 						while current.tag not in tags_2L and current.tag not in tags_1L and current.tag != "root":
 							current = parent
 							parent = node_stack.pop()
@@ -1684,7 +1719,7 @@ def getIKMetadataAsXml(metafile):
 
 			# Handle new group names
 			elif mat2:
-				tag = mat2.group("tag").strip()
+				tag = mat2.group("tag").strip().replace(" ", "_").replace("/", "_").replace("(", "").replace(")", "")
 
 				# Except for Coordinates there aren't really any 4th level tags we care about, so we always
 				# back up until current points at a second or top-level node
