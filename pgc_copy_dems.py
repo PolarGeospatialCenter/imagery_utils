@@ -101,7 +101,7 @@ def main():
     if srctype == 'dir':
         for root, dirs, files in os.walk(src):
             for f in files:
-                if (f.endswith(['-DEM.tif','_dem.tif']) and not 'fltr' in f):
+                if (f.endswith(('-DEM.tif','_dem.tif')) and not 'fltr' in f):
                     overlaps.append(os.path.join(root,f))
 
 
