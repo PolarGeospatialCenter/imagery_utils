@@ -41,7 +41,6 @@ def image_type_tests(pgc_ortho_script_path, test_imagery_directory, output_dir):
         subprocess.call(command, shell=True)
 
 
-
 def input_parameter_tests_dg(pgc_ortho_script_path, test_imagery_directory, output_dir):
     """
     Runs the ortho script on a single multispectral DigitalGlobe image with

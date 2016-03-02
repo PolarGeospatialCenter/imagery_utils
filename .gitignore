@@ -1,5 +1,4 @@
 **/*.pyc
 /mosaic_bash_scripts
 /tests/testdata
-
 *.pyc
