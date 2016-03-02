@@ -13,7 +13,7 @@ from lib.ortho_utils import *
 logger = logging.getLogger("logger")
 logger.setLevel(logging.DEBUG)
 
-SUBMISSION_TYPES = ['HPC','VM','HPC_JOB']
+SUBMISSION_TYPES = ['HPC','VM','JOB']
 
 gdal.SetConfigOption('GDAL_PAM_ENABLED','NO')
 
@@ -102,7 +102,7 @@ def main():
     ####  Submission logic
     ################################
 
-    if opt.submission_type <> 'HPC_JOB':
+    if opt.submission_type <> 'JOB':
 
 	####  Determine submission type based on presence of pbsnodes cmd
 	try:
@@ -216,11 +216,11 @@ def main():
 	    if done is False:
 
 		if submission_type == 'HPC':
-		    arg_str = arg_str_base + " --submission_type=HPC_JOB"
+		    arg_str = arg_str_base + " --submission_type=JOB"
 		    cmd = r'qsub %s -N Ortho%04i -v p1="%s %s %s %s" "%s"' %(l,i,scriptpath,arg_str,srcfp,dstdir,qsubpath)
 
 		elif submission_type == 'VM':
-		    arg_str = arg_str_base
+		    arg_str = arg_str_base + " --submission_type=JOB"
 		    cmd = r'python %s %s %s %s' %(scriptpath,arg_str,srcfp,dstdir)
 
 		else:
@@ -255,7 +255,7 @@ def main():
     ####  Execution logic
     ################################
 
-    elif srctype == 'image' and opt.submission_type == 'HPC_JOB':
+    elif srctype == 'image' and opt.submission_type == 'JOB':
 	srcdir, srcfn = os.path.split(src)
 
 	#### Derive dstfp
@@ -281,7 +281,7 @@ def main():
 	    rc = processImage(src,dstfp,opt)
 
     else:
-	logger.error("Submission type HPC_JOB is only compatible with specifying an image as input source")
+	logger.error("Submission type JOB is only compatible with specifying an image as input source")
 
 
 if __name__ == "__main__":
