@@ -127,7 +127,7 @@ def main():
             ExecCmd(cmd)
             
         else:
-            cmd = 'gdalwarp -srcnodata "%s" "%s" "%s"' %(srcnodata,mergefile,localtile1)
+            cmd = 'gdalwarp -srcnodata "%s" -dstnodata "%s" "%s" "%s"' %(srcnodata,srcnodata,mergefile,localtile1)
             ExecCmd(cmd)
             
         c += 1
