@@ -303,7 +303,7 @@ def HandleTile(feature_id, feature_geom, stereo_index_path, dstdir, dstfn, aoi_s
                             if not demInfo in contribs:
                                 contribs.append(demInfo)
                             
-                            #### subtract geom from first coverage since that area is now covered
+                            #### subtract geom from second coverage since that area is now covered
                             feature_geom2 = feature_geom2.Difference(geom_remainder)
                     
                 else:
