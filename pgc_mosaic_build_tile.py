@@ -39,8 +39,7 @@ def main():
     
     #### Parse Arguments
     args = parser.parse_args()
-    scriptpath = os.path.abspath(sys.argv[0])
-    
+
     status = 0
         
     bands = args.bands
@@ -164,7 +163,7 @@ def main():
     
     #### Delete temp files
     deleteTempFiles(del_images)
-    os.rmdir(wd)
+    shutil.rmtree(wd)
    
     logger.info("Done")
 

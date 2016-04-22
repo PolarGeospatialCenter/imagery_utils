@@ -188,8 +188,6 @@ class ImageInfo:
         if i != -1:
             date_str = feat.GetFieldAsString(i)
             self.acqdate = datetime.strptime(date_str[:19],"%Y-%m-%dT%H:%M:%S")
-
-        self.datapixelcount_dct = None
         
         geom = feat.GetGeometryRef()
         self.geom = geom.Clone()
@@ -257,28 +255,7 @@ class ImageInfo:
             self.geom = ogr.CreateGeometryFromWkt(poly_wkt)
             self.xs = [ulx,urx,lrx,llx]
             self.ys = [uly,ury,lry,lly]
-            
-            #### get stats and store in lists
-            self.stat_dct = {}
-            self.datapixelcount_dct = {}
-            for bandnum in range(1,self.bands+1):
-                band = ds.GetRasterBand(bandnum)
-                stats = band.GetStatistics(False,True)
-                dt_min = 0.5
-                dt_max = stats[1] + 0.5
-                dt_range = int(math.ceil(dt_max - dt_min))
-                h = band.GetHistogram(dt_min, dt_max, dt_range, 0, 0)
-                nz = numpy.nonzero(h)
-                low_value = nz[0][1]
 
-                # If stats min is 1 and data type is an integer, try to get the next largest value
-                if stats[0] <= 1 and self.datatype > 0 and self.datatype <= 5:
-                    logger.info("Image stats min less than or equal to 1 (min = {}), using next lowest integer value: {}".format(stats[0],low_value))
-                    stats[0] = float(low_value)
-
-                self.stat_dct[bandnum] = stats
-                self.datapixelcount_dct[bandnum] = sum(h)
-            print self.datapixelcount_dct
         else:
             logger.warning("Cannot open image: %s" %self.srcfp)
             self.xsize = None
@@ -289,8 +266,6 @@ class ImageInfo:
             self.datatype_readable = None
             self.xres = None
             self.yres = None
-            self.stat_dct = {}
-            self.datapixelcount_dct = None
 
         ds = None
         
@@ -479,8 +454,7 @@ class ImageInfo:
                             self.acqdate = datetime.strptime(dAttribs["date"],"%Y-%m-%d %H:%M GMT")
                         except ValueError, e:
                             logger.error("Cannot parse date string {} from {}".format(dAttribs['date'],metapath))
-                    
-                
+
 
     def getScore(self,params):
         
@@ -597,6 +571,35 @@ class ImageInfo:
         self.score = score
         return self.score
 
+
+    def get_raster_stats(self):
+        self.stat_dct = {}
+        self.datapixelcount_dct = {}
+        ds = gdal.Open(self.srcfp)
+        if ds is not None:
+
+            #### get stats and store in dictionaries
+            for bandnum in range(1,self.bands+1):
+                band = ds.GetRasterBand(bandnum)
+                stats = band.GetStatistics(False,True)
+                dt_min = 0.5
+                dt_max = stats[1] + 0.5
+                dt_range = int(math.ceil(dt_max - dt_min))
+                h = band.GetHistogram(dt_min, dt_max, dt_range, 0, 0)
+                nz = numpy.nonzero(h)
+                low_value = nz[0][1]
+
+                # If stats min is 1 and data type is an integer, try to get the next largest value
+                if stats[0] <= 1 and self.datatype > 0 and self.datatype <= 5:
+                    logger.info("Image stats min less than or equal to 1 (min = {}), using next lowest integer value: {}".format(stats[0],low_value))
+                    stats[0] = float(low_value)
+
+                self.stat_dct[bandnum] = stats
+                self.datapixelcount_dct[bandnum] = sum(h)
+            ds = None
+
+        else:
+            logger.warning("Cannot open image: %s" %self.srcfp)
 
 class DemInfo:
     def __init__(self,src,frmt,srs=None):

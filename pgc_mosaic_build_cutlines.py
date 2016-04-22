@@ -125,9 +125,10 @@ def main():
                 centroid = geom.Centroid()
                 logger.info("%s: geometry acquired - centroid: %f, %f" %(iinfo.srcfn, centroid.GetX(), centroid.GetY()))
         
-        logger.info("Calculating image scores")
+        logger.info("Getting imae metadata and calculating image scores")
         for iinfo in imginfo_list2:
             iinfo.getScore(params)
+            iinfo.get_raster_stats()
             logger.info("%s: %s" %(iinfo.srcfn,iinfo.score))
                
         ####  Overlay geoms and remove non-contributors
