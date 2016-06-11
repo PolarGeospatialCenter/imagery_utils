@@ -1,13 +1,15 @@
-import os, string, sys, shutil, math, glob, re, tarfile, logging, shlex, platform, argparse, signal
+import os, string, sys, shutil, math, glob, re, tarfile, logging, platform, argparse
 from datetime import datetime, timedelta
 
-from subprocess import *
+from lib import utils
 from xml.dom import minidom
 from xml.etree import cElementTree as ET
 
-import gdal, ogr,osr, gdalconst
+import gdal, ogr, osr, gdalconst
 
-gdal.SetConfigOption('GDAL_PAM_ENABLED','NO')
+#### Create Loggers
+logger = logging.getLogger("logger")
+logger.setLevel(logging.DEBUG)
 
 DGbandList = ['BAND_P','BAND_C','BAND_B','BAND_G','BAND_Y','BAND_R','BAND_RE','BAND_N','BAND_N2','BAND_S1','BAND_S2','BAND_S3','BAND_S4','BAND_S5','BAND_S6','BAND_S7','BAND_S8']
 formats = {'GTiff':'.tif','JP2OpenJPEG':'.jp2','ENVI':'.envi','HFA':'.img'}
@@ -47,7 +49,6 @@ DG_FILE = re.compile(r"""
                         (?P<oname>\d{2}[a-z]{3}\d{8}-[a-z0-9_]{4,9}-\d{12}_\d{2}_P\d{3})
                         """, re.I | re.X)
 
-
 PGC_IK_FILE = re.compile(r"""
                          (?P<pgcpfx>                        # PGC prefix
                             (?P<sensor>[a-z]{2}\d{2})_      # Sensor code
@@ -62,44 +63,9 @@ PGC_IK_FILE = re.compile(r"""
                          )
                          (?P<ext>\.[a-z0-9][a-z0-9.]*)      # File name extension
                          """, re.I | re.X)
-#### Create Loggers
-logger = logging.getLogger("logger")
-logger.setLevel(logging.DEBUG)
 
 class ImageInfo:
     pass
-
-
-class SpatialRef(object):
-
-    def __init__(self,epsg):
-	srs = osr.SpatialReference()
-	try:
-	    epsgcode = int(epsg)
-
-	except ValueError, e:
-	    raise RuntimeError("EPSG value must be an integer: %s" %epsg)
-	else:
-
-	    err = srs.ImportFromEPSG(epsgcode)
-	    if err == 7:
-		raise RuntimeError("Invalid EPSG code: %d" %epsgcode)
-	    else:
-		proj4_string = srs.ExportToProj4()
-
-		proj4_patterns = {
-		    "+ellps=GRS80 +towgs84=0,0,0,0,0,0,0":"+datum=NAD83",
-		    "+ellps=WGS84 +towgs84=0,0,0,0,0,0,0":"+datum=WGS84",
-		}
-
-		for pattern, replacement in proj4_patterns.iteritems():
-		    if proj4_string.find(pattern) <> -1:
-			proj4_string = proj4_string.replace(pattern,replacement)
-
-		self.srs = srs
-		self.proj4 = proj4_string
-		self.epsg = epsgcode
-
 
 def buildParentArgumentParser():
 
@@ -115,7 +81,7 @@ def buildParentArgumentParser():
     ####Optional Arguments
     parser.add_argument("-f", "--format", choices=formats.keys(), default="GTiff",
                       help="output to the given format (default=GTiff)")
-    parser.add_argument("--gtiff_compression", choices=gtiff_compressions, default="lzw",
+    parser.add_argument("--gtiff-compression", choices=gtiff_compressions, default="lzw",
                       help="GTiff compression type (default=lzw)")
     parser.add_argument("-p", "--epsg", required=True, type=int,
                       help="epsg projection code for output files")
@@ -133,20 +99,20 @@ def buildParentArgumentParser():
                       help="output multispectral images as 3 band RGB")
     parser.add_argument("--bgrn", action="store_true", default=False,
                       help="output multispectral images as 4 band BGRN (reduce 8 band to 4)")
-    parser.add_argument("-s", "--save_temps", action="store_true", default=False,
+    parser.add_argument("-s", "--save-temps", action="store_true", default=False,
                       help="save temp files")
     parser.add_argument("--wd",
                       help="local working directory for cluster jobs (default is dst dir)")
-    parser.add_argument("--skip_warp", action='store_true', default=False,
+    parser.add_argument("--skip-warp", action='store_true', default=False,
                       help="skip warping step")
-    parser.add_argument("--no_pyramids", action='store_true', default=False, help='suppress calculation of output image pyramids and stats')
-    parser.add_argument("--ortho_height", type=long, help='constant elevation to use for orthorectification (value should be in meters above the wgs84 ellipoid)')
+    parser.add_argument("--no-pyramids", action='store_true', default=False, help='suppress calculation of output image pyramids and stats')
+    parser.add_argument("--ortho-height", type=long, help='constant elevation to use for orthorectification (value should be in meters above the wgs84 ellipoid)')
 
 
     return parser, pos_arg_keys
 
 
-def processImage(srcfp,dstfp,opt):
+def process_image(srcfp,dstfp,args):
 
     err = 0
 
@@ -158,11 +124,11 @@ def processImage(srcfp,dstfp,opt):
     info.dstdir,info.dstfn = os.path.split(dstfp)
 
     starttime = datetime.today()
-    LogMsg('Image: %s' %(info.srcfn))
+    logger.info('Image: %s' %(info.srcfn))
 
     #### Get working dir
-    if opt.wd is not None:
-        wd = opt.wd
+    if args.wd is not None:
+        wd = args.wd
     else:
         wd = info.dstdir
     if not os.path.isdir(wd):
@@ -170,7 +136,7 @@ def processImage(srcfp,dstfp,opt):
             os.makedirs(wd)
         except OSError:
             pass
-    LogMsg("Working Dir: %s" %wd)
+    logger.info("Working Dir: %s" %wd)
 
     #### Derive names
     info.localsrc = os.path.join(wd,info.srcfn)
@@ -181,15 +147,15 @@ def processImage(srcfp,dstfp,opt):
 
     #### Verify EPSG
     try:
-        spatial_ref = SpatialRef(opt.epsg)
+        spatial_ref = utils.SpatialRef(args.epsg)
     except RuntimeError, e:
-        logger.error("Invalid EPSG code: {0)".format(opt.epsg))
-	err = 1
+        logger.error("Invalid EPSG code: {0)".format(args.epsg))
+        err = 1
     else:
-	opt.spatial_ref = spatial_ref
+        args.spatial_ref = spatial_ref
 
     #### Verify that dem and ortho_height are not both specified
-    if opt.dem is not None and opt.ortho_height is not None:
+    if args.dem is not None and args.ortho_height is not None:
         logger.error("--dem and --ortho_height options are mutually exclusive.  Please choose only one.")
         err = 1
 
@@ -204,7 +170,7 @@ def processImage(srcfp,dstfp,opt):
         if gd['prod'][1] == '3':
             logger.error("Cannot process 3* products")
             err = 1
-        if (gd['prod'][1:3] == '2A' and gd['tile'] is not None and gd['ext'] == '.tif') and not opt.skip_warp:
+        if (gd['prod'][1:3] == '2A' and gd['tile'] is not None and gd['ext'] == '.tif') and not args.skip_warp:
             logger.error("Cannot process 2A tiled Geotiffs")
             err = 1
 
@@ -226,7 +192,7 @@ def processImage(srcfp,dstfp,opt):
     #### Check If Image is IKONOS msi that does not exist, if so, stack to dstdir, else, copy srcfn to dstdir
     if not err == 1:
         if "IK01" in info.srcfn and "msi" in info.srcfn and not os.path.isfile(info.srcfp):
-            LogMsg("Converting IKONOS band images to composite image")
+            logger.info("Converting IKONOS band images to composite image")
             members = [os.path.join(info.srcdir,info.srcfn.replace("msi",b)) for b in ikMsiBands]
             status = [os.path.isfile(member) for member in members]
             if sum(status) != 4:
@@ -237,12 +203,12 @@ def processImage(srcfp,dstfp,opt):
                 #if not os.path.isfile(os.path.join(wd,os.path.basename(info.metapath))):
                 #    shutil.copy(info.metapath, os.path.join(wd,os.path.basename(info.metapath)))
                 if rc == 1:
-                    LogMsg("Error building merged Ikonos image: %s" %info.srcfp)
+                    logger.error("Error building merged Ikonos image: %s" %info.srcfp)
                     err = 1
 
         else:
             if os.path.isfile(info.srcfp):
-                LogMsg("Copying image to working directory")
+                logger.info("Copying image to working directory")
                 copy_list = glob.glob("%s.*" %os.path.splitext(info.srcfp)[0])
                 #copy_list.append(info.metapath)
                 for fpi in copy_list:
@@ -251,75 +217,75 @@ def processImage(srcfp,dstfp,opt):
                         shutil.copy2(fpi,fpo)
 
             else:
-                LogMsg("Source images does not exist: %s" %info.srcfp)
+                logger.warning("Source images does not exist: %s" %info.srcfp)
                 err = 1
 
 
     #### Get Image Stats
     if not err == 1:
-        info, rc = GetImageStats(opt,info)
+        info, rc = GetImageStats(args,info)
         if rc == 1:
             err = 1
-            LogMsg("ERROR in stats calculation")
+            logger.errpr("Error in stats calculation")
 
     #### Check that DEM overlaps image
     if not err == 1:
-        if opt.dem:
-            overlap = overlap_check(info.geometry_wkt,opt.spatial_ref,opt.dem)
+        if args.dem:
+            overlap = overlap_check(info.geometry_wkt,args.spatial_ref,args.dem)
             if overlap is False:
                 err = 1
     
     if not os.path.isfile(info.dstfp):
         #### Warp Image
         if not err == 1 and not os.path.isfile(info.warpfile):
-            rc = WarpImage(opt,info)
+            rc = WarpImage(args,info)
             if rc == 1:
                 err = 1
-                LogMsg("ERROR in image warping")
+                logger.error("Error in image warping")
     
         #### Calculate Output File
         if not err == 1 and os.path.isfile(info.warpfile):
-            rc = calcStats(opt,info)
+            rc = calcStats(args,info)
             if rc == 1:
                 err = 1
-                LogMsg("ERROR in image calculation")
+                logger.error("Error in image calculation")
 
     ####  Write Output Metadata
     if not err == 1:
-        rc = WriteOutputMetadata(opt,info)
+        rc = WriteOutputMetadata(args,info)
         if rc == 1:
             err = 1
-            LogMsg("ERROR in writing metadata file")
+            logger.error("Error in writing metadata file")
 
     #### Copy image to final location if working dir is used
-    if opt.wd is not None:
+    if args.wd is not None:
         if not err == 1:
-            LogMsg("Copying to destination directory")
+            logger.info("Copying to destination directory")
             for fpi in glob.glob("%s.*" %os.path.splitext(info.localdst)[0]):
                 fpo = os.path.join(info.dstdir,os.path.basename(fpi))
                 if not os.path.isfile(fpo):
                     shutil.copy2(fpi,fpo)
-        if not opt.save_temps:
-            deleteTempFiles([info.localdst])
+        if not args.save_temps:
+            utils.delete_temp_files([info.localdst])
 
     #### Check If Done, Delete Temp Files
     done = os.path.isfile(info.dstfp)
     if done is False:
         err = 1
-        LogMsg("ERROR: final image not present")
+        logger.error("Final image not present")
 
     if err == 1:
-        LogMsg("Processing failed: %s" %info.srcfn)
-        if not opt.save_temps:
-            deleteTempFiles([dstfp,info.rawvrt,info.warpfile,info.vrtfile,info.localsrc])
+        logger.error("Processing failed: %s" %info.srcfn)
+        if not args.save_temps:
+            utils.delete_temp_files([dstfp,info.rawvrt,info.warpfile,info.vrtfile,info.localsrc])
 
-    elif not opt.save_temps:
-        deleteTempFiles([info.rawvrt,info.warpfile,info.vrtfile,info.localsrc])
+    elif not args.save_temps:
+        utils.delete_temp_files([info.rawvrt,info.warpfile,info.vrtfile,info.localsrc])
 
     #### Calculate Total Time
     endtime = datetime.today()
     td = (endtime-starttime)
-    LogMsg("Total Processing Time: %s\n" %(td))
+    logger.info("Total Processing Time: %s\n" %(td))
 
     return err
 
@@ -338,10 +304,9 @@ def stackIkBands(dstfp, members):
     vrt = os.path.splitext(dstfp)[0]+ "_merge.vrt"
 
     #### Gather metadata from original blue image and save as strings for merge command
-    LogMsg("Stacking IKONOS MSI bands")
+    logger.info("Stacking IKONOS MSI bands")
     src_ds = gdal.Open(srcfp,gdalconst.GA_ReadOnly)
     if src_ds is not None:
-
 
         #### Get basic metadata
         m = src_ds.GetMetadata()
@@ -383,13 +348,13 @@ def stackIkBands(dstfp, members):
         cmd = 'gdalbuildvrt -separate "%s" "%s"' %(vrt,'" "'.join(members))
 
         #
-        (err,so,se) = ExecCmd(cmd)
+        (err,so,se) = utils.exec_cmd(cmd)
         if err == 1:
             rc = 1
 
         cmd = 'gdal_translate -a_srs "%s" -of NITF -co "IC=NC" %s %s "%s" "%s"' %(s_srs_proj4,string.join(m_list, " "), string.join(tre_list, " "), vrt, dstfp )
 
-        (err,so,se) = ExecCmd(cmd)
+        (err,so,se) = utils.exec_cmd(cmd)
         if err == 1:
             rc = 1
 
@@ -433,42 +398,41 @@ def stackIkBands(dstfp, members):
     return rc
 
 
-def calcStats(opt,info):
+def calcStats(args,info):
 
-    LogMsg("Calculating image with stats")
-
+    logger.info("Calculating image with stats")
     rc = 0
 
     #### Get Well-known Text String of Projection from EPSG Code
-    p = opt.spatial_ref.srs
+    p = args.spatial_ref.srs
     prj = p.ExportToWkt()
 
     imax = 2047.0
 
     if info.stretch == 'ns':
-        if opt.outtype == "Byte":
+        if args.outtype == "Byte":
             omax = 255.0
-        elif opt.outtype == "UInt16":
+        elif args.outtype == "UInt16":
             omax = 2047.0
-        elif opt.outtype == "Float32":
+        elif args.outtype == "Float32":
             omax = 2047.0
     else:
-        if opt.outtype == "Byte":
+        if args.outtype == "Byte":
             omax = 200.0
-        elif opt.outtype == "UInt16":
+        elif args.outtype == "UInt16":
             omax = 2000.0
-        elif opt.outtype == "Float32":
+        elif args.outtype == "Float32":
             omax = 1.0
 
     #### Stretch
     if info.stretch != "ns":
         CFlist = GetCalibrationFactors(info)
         if len(CFlist) == 0:
-            LogMsg("Cannot get image calibration factors from metadata")
+            logger.error("Cannot get image calibration factors from metadata")
             return 1
 
         if len(CFlist) < info.bands:
-            LogMsg("Metadata image calibration factors have fewer bands than the image")
+            logger.error("Metadata image calibration factors have fewer bands than the image")
             return 1
 
     wds = gdal.Open(info.warpfile,gdalconst.GA_ReadOnly)
@@ -513,24 +477,24 @@ def calcStats(opt,info):
                 if vds.GetRasterBand(band).GetColorInterpretation() == gdalconst.GCI_AlphaBand:
                     vds.GetRasterBand(band).SetColorInterpretation(gdalconst.GCI_Undefined)
         else:
-            LogMsg("Cannot create virtual dataset: %s" %info.vrtfile)
+            logger.error("Cannot create virtual dataset: %s" %info.vrtfile)
 
     else:
-        LogMsg("Cannot open dataset: %s" %wds_fp)
+        logger.error("Cannot open dataset: %s" %wds_fp)
 
     vds = None
     wds = None
 
-    if opt.format == 'GTiff':
-        if opt.gtiff_compression == 'lzw':
+    if args.format == 'GTiff':
+        if args.gtiff_compression == 'lzw':
             co = '-co "PHOTOMETRIC=MINISBLACK" -co "TILED=YES" -co "COMPRESS=LZW" -co "BIGTIFF=IF_SAFER" '
-        elif opt.gtiff_compression == 'jpeg95':
+        elif args.gtiff_compression == 'jpeg95':
             co = '-co "PHOTOMETRIC=MINISBLACK" -co "TILED=YES" -co "compress=jpeg" -co "jpeg_quality=95" -co "BIGTIFF=IF_SAFER" '
 
-    elif opt.format == 'HFA':
+    elif args.format == 'HFA':
         co = '-co "COMPRESSED=YES" -co "STATISTICS=YES" '
 
-    elif opt.format == 'JP2OpenJPEG':   #### add rgb constraint if openjpeg (3 bands only, also test if 16 bit possible)?
+    elif args.format == 'JP2OpenJPEG':   #### add rgb constraint if openjpeg (3 bands only, also test if 16 bit possible)?
         co = '-co "QUALITY=25" '
 
     else:
@@ -542,35 +506,33 @@ def calcStats(opt,info):
     else:
         config_options = ''
 
-    if opt.no_pyramids:
+    if args.no_pyramids:
         base_cmd = 'gdal_translate'
     else:
         base_cmd = 'gdal_translate -stats'
 
-
-
     cmd = ('%s %s -ot %s -a_srs "%s" %s%s-of %s "%s" "%s"' %(
         base_cmd,
         config_options,
-        opt.outtype,
-        opt.spatial_ref.proj4,
+        args.outtype,
+        args.spatial_ref.proj4,
         info.rgb_bands,
         co,
-        opt.format,
+        args.format,
         info.vrtfile,
         info.localdst
         ))
 
-    (err,so,se) = ExecCmd(cmd)
+    (err,so,se) = utils.exec_cmd(cmd)
     if err == 1:
         rc = 1
 
     #### Calculate Pyramids
-    if not opt.no_pyramids:
-        if opt.format in ["GTiff"]:
+    if not args.no_pyramids:
+        if args.format in ["GTiff"]:
             if os.path.isfile(info.localdst):
                 cmd = ('gdaladdo "%s" 2 4 8 16' %(info.localdst))
-                (err,so,se) = ExecCmd(cmd)
+                (err,so,se) = utils.exec_cmd(cmd)
                 if err == 1:
                     rc = 1
 
@@ -584,15 +546,13 @@ def calcStats(opt,info):
     return rc
 
 
-def GetImageStats(opt, info):
+def GetImageStats(args, info):
 
     #### Add code to read info from IKONOS blu image
-
     rc = 0
     info.extent = ""
     info.centerlong = ""
-
-    vendor, sat = getSensor(info.srcfn)
+    vendor, sat = utils.get_sensor(info.srcfn)
 
     if vendor is None:
         rc = 1
@@ -600,7 +560,7 @@ def GetImageStats(opt, info):
     info.sat = sat
     info.vendor = vendor
 
-    info.stretch = opt.stretch
+    info.stretch = args.stretch
 
     if info.vendor == 'GeoEye' and info.sat == 'IK01' and "_msi_" in info.srcfn:
         src_image_name = info.srcfn.replace("_msi_","_blu_")
@@ -690,7 +650,7 @@ def GetImageStats(opt, info):
 
         #### Create srs objects
         s_srs = osr.SpatialReference(proj)
-        t_srs = opt.spatial_ref.srs
+        t_srs = args.spatial_ref.srs
         g_srs = osr.SpatialReference()
         g_srs.ImportFromEPSG(WGS84)
         sg_ct = osr.CoordinateTransformation(s_srs,g_srs)
@@ -704,7 +664,7 @@ def GetImageStats(opt, info):
             ll_geom.Transform(sg_ct)
             lr_geom.Transform(sg_ct)
             extent_geom.Transform(sg_ct)
-        LogMsg("Geographic extent: %s" %str(extent_geom))
+        logger.info("Geographic extent: %s" %str(extent_geom))
 
         #### Get Lat and Lon coords in arrays
         lons = []
@@ -720,7 +680,7 @@ def GetImageStats(opt, info):
             ll_geom.Transform(gt_ct)
             lr_geom.Transform(gt_ct)
             extent_geom.Transform(gt_ct)
-        LogMsg("Projected extent: %s" %str(extent_geom))
+        logger.info("Projected extent: %s" %str(extent_geom))
 
         info.geometry_wkt = extent_geom.ExportToWkt()
         #### Get centroid and back project to geographic coords (this is neccesary for images that cross 180)
@@ -735,7 +695,7 @@ def GetImageStats(opt, info):
             Ys.append(pt.GetY())
 
         #print lons
-        LogMsg("Centroid: %s" %str(centroid))
+        logger.info("Centroid: %s" %str(centroid))
 
         if max(lons) - min(lons) > 180:
 
@@ -752,19 +712,17 @@ def GetImageStats(opt, info):
         resx = abs(math.sqrt((ul_geom.GetX() - ur_geom.GetX())**2 + (ul_geom.GetY() - ur_geom.GetY())**2)/ xsize)
         resy = abs(math.sqrt((ul_geom.GetX() - ll_geom.GetX())**2 + (ul_geom.GetY() - ll_geom.GetY())**2)/ ysize)
 
-
         ####  Make a string for Pixel Size Specification
-        if opt.resolution is not None:
-            info.res = "-tr %s %s " %(opt.resolution,opt.resolution)
+        if args.resolution is not None:
+            info.res = "-tr %s %s " %(args.resolution,args.resolution)
         else:
             info.res = "-tr %.12f %.12f " %(resx,resy)
-        LogMsg("Original image size: %f x %f, res: %.12f x %.12f" %(rasterxsize_m, rasterysize_m, resx, resy))
-
+        logger.info("Original image size: %f x %f, res: %.12f x %.12f" %(rasterxsize_m, rasterysize_m, resx, resy))
 
         #### Set RGB bands
         info.rgb_bands = ""
 
-        if opt.rgb is True:
+        if args.rgb is True:
             if info.bands == 1:
                 pass
             elif info.bands == 3:
@@ -773,23 +731,23 @@ def GetImageStats(opt, info):
                 info.rgb_bands = "-b 3 -b 2 -b 1 "
             elif info.bands == 8:
                 info.rgb_bands = "-b 5 -b 3 -b 2 "
-
             else:
-                LogMsg("Error: cannot get rgb bands from a {0} band image".format(info.bands))
+                logger.error("Cannot get rgb bands from a {0} band image".format(info.bands))
                 rc = 1
 
-        if opt.bgrn is True:
+        if args.bgrn is True:
             if info.bands == 1:
+                pass
+            elif info.bands == 4:
                 pass
             elif info.bands == 8:
                 info.rgb_bands = "-b 2 -b 3 -b 5 -b 7 "
             else:
-                LogMsg("Error: cannot get bgrn bands from a {0} band image".format(info.bands))
+                logger.error("Cannot get bgrn bands from a {0} band image".format(info.bands))
                 rc = 1
-
-
+                
     else:
-        LogMsg("Cannot open dataset: %s" %info.localsrc)
+        logger.error("Cannot open dataset: %s" %info.localsrc)
         rc = 1
 
     return info, rc
@@ -933,7 +891,7 @@ def GetGEMetadataPath(srcfp):
         return None
 
 
-def WriteOutputMetadata(opt,info):
+def WriteOutputMetadata(args,info):
 
     ####  Ortho metadata name
     omd = os.path.splitext(info.localdst)[0] + ".xml"
@@ -946,7 +904,7 @@ def WriteOutputMetadata(opt,info):
         try:
             metad = ET.parse(metapath)
         except ET.ParseError:
-            LogMsg("Invalid xml formatting in metadata file: %s" %metapath)
+            logger.error("Invalid xml formatting in metadata file: %s" %metapath)
             return 1
         else:
             imd = metad.find("IMD")
@@ -954,7 +912,7 @@ def WriteOutputMetadata(opt,info):
     ####  If GE
     elif info.vendor == 'GeoEye' and info.sat == "GE01":
 
-        metad = getGEMetadataAsXml(info.metapath)
+        metad = utils.getGEMetadataAsXml(info.metapath)
         imd = ET.Element("IMD")
         include_tags = ["sensorInfo","inputImageInfo","correctionParams","bandSpecificInformation"]
 
@@ -974,7 +932,7 @@ def WriteOutputMetadata(opt,info):
         if match:
             component = match.group('cmp')
             
-            metad = getIKMetadataAsXml(info.metapath)
+            metad = utils.getIKMetadataAsXml(info.metapath)
             imd = ET.Element("IMD")
             
             elem = metad.find('Source_Image_Metadata')
@@ -998,22 +956,22 @@ def WriteOutputMetadata(opt,info):
     dMD = {}
     tm = datetime.today()
     dMD["PROCESS_DATE"] = tm.strftime("%d-%b-%Y %H:%M:%S")
-    if not opt.skip_warp:
-        if opt.dem:
-            dMD["ORTHO_DEM"] = os.path.basename(opt.dem)
-        elif opt.ortho_height is not None:
-            dMD["ORTHO_HEIGHT"] = str(opt.ortho_height)
+    if not args.skip_warp:
+        if args.dem:
+            dMD["ORTHO_DEM"] = os.path.basename(args.dem)
+        elif args.ortho_height is not None:
+            dMD["ORTHO_HEIGHT"] = str(args.ortho_height)
         else:
             h = get_rpc_height(info)
             dMD["ORTHO_HEIGHT"] = str(h)
-    dMD["RESAMPLEMETHOD"] = opt.resample
-    dMD["STRETCH"] = opt.stretch
-    dMD["BITDEPTH"] = opt.outtype
-    dMD["FORMAT"] = opt.format
-    dMD["COMPRESSION"] = opt.gtiff_compression
+    dMD["RESAMPLEMETHOD"] = args.resample
+    dMD["STRETCH"] = args.stretch
+    dMD["BITDEPTH"] = args.outtype
+    dMD["FORMAT"] = args.format
+    dMD["COMPRESSION"] = args.gtiff_compression
     #dMD["BANDNUMBER"]
     #dMD["BANDMAP"]
-    dMD["EPSG_CODE"] = str(opt.epsg)
+    dMD["EPSG_CODE"] = str(args.epsg)
 
     pgcmd = ET.Element("PGC_IMD")
     for tag in dMD:
@@ -1050,7 +1008,7 @@ def prettify(elem):
     return reparsed.toprettyxml(indent="  ")
 
 
-def WarpImage(opt,info):
+def WarpImage(args,info):
 
     rc = 0
 
@@ -1062,9 +1020,9 @@ def WarpImage(opt,info):
 
     if not os.path.isfile(info.warpfile):
 
-        LogMsg("Warping Image")
+        logger.info("Warping Image")
 
-        if not opt.skip_warp:
+        if not args.skip_warp:
 
             #### If Image is TIF, extract RPB
             if os.path.splitext(info.localsrc)[1].lower() == ".tif":
@@ -1091,7 +1049,7 @@ def WarpImage(opt,info):
 
         #### convert to VRT and modify 4th band
         cmd = 'gdal_translate -of VRT "{0}" "{1}"'.format(info.localsrc,info.rawvrt)
-        (err,so,se) = ExecCmd(cmd)
+        (err,so,se) = utils.exec_cmd(cmd)
         if err == 1:
             rc = 1
 
@@ -1104,22 +1062,22 @@ def WarpImage(opt,info):
         nodata_list = ["0"] * info.bands
 
 
-        if not opt.skip_warp:
+        if not args.skip_warp:
 
             if rc <> 1:
                 ####  Set RPC_DEM or RPC_HEIGHT transformation option
-                if opt.dem != None:
-                    LogMsg('DEM: %s' %(os.path.basename(opt.dem)))
-                    to = "RPC_DEM=%s" %opt.dem
+                if args.dem != None:
+                    logger.info('DEM: %s' %(os.path.basename(args.dem)))
+                    to = "RPC_DEM=%s" %args.dem
 
-                elif opt.ortho_height is not None:
-                    LogMsg("Elevation: {0} meters".format(opt.ortho_height))
-                    to = "RPC_HEIGHT=%f" %opt.ortho_height
+                elif args.ortho_height is not None:
+                    logger.info("Elevation: {0} meters".format(args.ortho_height))
+                    to = "RPC_HEIGHT=%f" %args.ortho_height
 
                 else:
                     #### Get Constant Elevation From XML
                     h = get_rpc_height(info)
-                    LogMsg("Average elevation: %f meters" %(h))
+                    logger.info("Average elevation: %f meters" %(h))
                     to = "RPC_HEIGHT=%f" %h
                     ds = None
 
@@ -1131,14 +1089,14 @@ def WarpImage(opt,info):
                     info.centerlong,
                     info.extent,
                     info.res,
-                    opt.spatial_ref.proj4,
-                    opt.resample,
+                    args.spatial_ref.proj4,
+                    args.resample,
                     to,
                     info.rawvrt,
                     info.warpfile
                     )
 
-                (err,so,se) = ExecCmd(cmd)
+                (err,so,se) = utils.exec_cmd(cmd)
                 #print err
                 if err == 1:
                     rc = 1
@@ -1150,13 +1108,13 @@ def WarpImage(opt,info):
                 config_options,
                 " ".join(nodata_list),
                 info.res,
-                opt.spatial_ref.proj4,
-                opt.resample,
+                args.spatial_ref.proj4,
+                args.resample,
                 info.rawvrt,
                 info.warpfile
                 )
 
-            (err,so,se) = ExecCmd(cmd)
+            (err,so,se) = utils.exec_cmd(cmd)
             #print err
             if err == 1:
                 rc = 1
@@ -1183,10 +1141,10 @@ def get_rpc_height(info):
             h = float(''.join([c for c in h1 if c in '1234567890.+-']))
         else:
             h = 0
-            LogMsg("Cannot determine avg elevation. Using 0.")
+            logger.warning("Cannot determine avg elevation. Using 0.")
     else:
         h = 0
-        LogMsg("Cannot determine avg elevation. Using 0.")
+        logger.warning("Cannot determine avg elevation. Using 0.")
     return h
 
 
@@ -1221,16 +1179,16 @@ def GetCalibrationFactors(info):
             bandList = range(0,3,1)
 
     else:
-        LogMsg( "Vendor or sensor not recognized: %s, %s" %(info.vendor, info.sat))
+        logger.warning( "Vendor or sensor not recognized: %s, %s" %(info.vendor, info.sat))
 
-    #LogMsg("Calibration factors: %s"%calibDict)
+    #logger.info("Calibration factors: %s"%calibDict)
     if len(calibDict) > 0:
 
         for band in bandList:
             if band in calibDict:
                 CFlist.append(calibDict[band])
 
-    LogMsg("Calibration factor list: %s"%CFlist)
+    logger.info("Calibration factor list: %s"%CFlist)
     return CFlist
 
 
@@ -1256,30 +1214,30 @@ def overlap_check(geometry_wkt, spatial_ref, demPath):
 
                 dem_geometry_wkt = 'POLYGON (( %f %f, %f %f, %f %f, %f %f, %f %f ))' %(minx,miny,minx,maxy,maxx,maxy,maxx,miny,minx,miny)
                 demGeometry = ogr.CreateGeometryFromWkt(dem_geometry_wkt)
-		LogMsg("DEM extent: %s" %demGeometry)
+                logger.info("DEM extent: %s" %demGeometry)
                 demSpatialReference = osr.SpatialReference(demProjection)
 
                 coordinateTransformer = osr.CoordinateTransformation(imageSpatialReference, demSpatialReference)
-		if not imageSpatialReference.IsSame(demSpatialReference):
-		    #LogMsg("Image Spatial Refernce: %s" %imageSpatialReference)
-		    #LogMsg("DEM Spatial ReferenceL %s" %demSpatialReference)
-		    #LogMsg("Image Geometry before transformation: %s" %imageGeometry)
-		    LogMsg("Transforming image geometry to dem spatial reference")
+                if not imageSpatialReference.IsSame(demSpatialReference):
+                    #logger.info("Image Spatial Refernce: %s" %imageSpatialReference)
+                    #logger.info("DEM Spatial ReferenceL %s" %demSpatialReference)
+                    #logger.info("Image Geometry before transformation: %s" %imageGeometry)
+                    logger.info("Transforming image geometry to dem spatial reference")
                     imageGeometry.Transform(coordinateTransformer)
-		    #LogMsg("Image Geometry after transformation: %s" %imageGeometry)
+                    #logger.info("Image Geometry after transformation: %s" %imageGeometry)
 
                 dem = None
                 overlap = imageGeometry.Within(demGeometry)
 
                 if overlap is False:
-                    LogMsg("ERROR - Image is not contained within DEM extent")
+                    logger.error("Image is not contained within DEM extent")
 
             else:
-                LogMsg("ERROR - DEM has no spatial reference information: %s" %demPath)
+                logger.error("DEM has no spatial reference information: %s" %demPath)
                 overlap = False
 
     else:
-        LogMsg("ERROR - Cannot open DEM to determine extent: %s" %demPath)
+        logger.error("Cannot open DEM to determine extent: %s" %demPath)
         overlap = False
 
 
@@ -1289,7 +1247,7 @@ def overlap_check(geometry_wkt, spatial_ref, demPath):
 def ExtractRPB(item,rpb_p):
     rc = 0
     tar_p = os.path.splitext(item)[0]+".tar"
-    LogMsg(tar_p)
+    logger.info(tar_p)
     if os.path.isfile(tar_p):
         try:
             tar = tarfile.open(tar_p, 'r')
@@ -1309,11 +1267,11 @@ def ExtractRPB(item,rpb_p):
             logger.error("Cannot open Tar file: %s" %tar_p)
             rc = 1
     else:
-        LogMsg("Tar file does not exist: %s" %tar_p)
+        logger.info("Tar file does not exist: %s" %tar_p)
         rc = 1
 
     if rc == 1:
-        LogMsg("Cannot extract RPC file.  Orthorectification will fail.")
+        logger.info("Cannot extract RPC file.  Orthorectification will fail.")
     return rc
 
 
@@ -1463,7 +1421,7 @@ def getDGXmlData(xmlpath,stretch):
             for band in abscalfact_dict:
                 satband = sat+'_'+band
                 if satband not in EsunDict:
-                    LogMsg("Cannot find sensor and band in Esun lookup table: %s.  Try using --stretch ns." %satband)
+                    logger.warning("Cannot find sensor and band in Esun lookup table: %s.  Try using --stretch ns." %satband)
                     return None
                 else:
                     Esun = EsunDict[satband]
@@ -1475,7 +1433,7 @@ def getDGXmlData(xmlpath,stretch):
                 radfact = units_factor * (abscal/effbandw)
                 reflfact = units_factor * ((abscal * des**2 * math.pi) / (Esun * math.cos(math.radians(sunAngle)) * effbandw))
 
-                LogMsg("{0}: \n\tabsCalFactor {1}\n\teffectiveBandwidth {2}\n\tEarth-Sun distance {3}\n\tEsun {4}\n\tSun angle {5}\n\tSun elev {6}\n\tUnits factor {9}\n\tReflectance correction {7}\n\tRadiance correction {8}".format(satband, abscal, effbandw, des, Esun, sunAngle, sunEl, reflfact, radfact, units_factor))
+                logger.info("{0}: \n\tabsCalFactor {1}\n\teffectiveBandwidth {2}\n\tEarth-Sun distance {3}\n\tEsun {4}\n\tSun angle {5}\n\tSun elev {6}\n\tUnits factor {9}\n\tReflectance correction {7}\n\tRadiance correction {8}".format(satband, abscal, effbandw, des, Esun, sunAngle, sunEl, reflfact, radfact, units_factor))
 
                 if stretch == "rd":
                     calibDict[band] = radfact
@@ -1517,7 +1475,7 @@ def GetIKcalibDict(metafile,stretch):
         radfact = 10000.0 / (calCoef * bw )
         reflfact = (10000.0 * des**2 * math.pi) / (calCoef * bw * Esun * math.cos(math.radians(sunAngle)))
 
-        LogMsg("{0}: calibration coef {1}, Earth-Sun distance {2}, Esun {3}, sun angle {4}, bandwidth {5}, reflectance factor {6}, radience factor {7}".format(band, calCoef, des, Esun, sunAngle, bw, reflfact, radfact))
+        logger.info("{0}: calibration coef {1}, Earth-Sun distance {2}, Esun {3}, sun angle {4}, bandwidth {5}, reflectance factor {6}, radience factor {7}".format(band, calCoef, des, Esun, sunAngle, bw, reflfact, radfact))
 
         if stretch == "rd":
             calibDict[band] = radfact
@@ -1529,25 +1487,25 @@ def GetIKcalibDict(metafile,stretch):
 
 def getIKMetadata(fp_mode, metafile):
     ik2fp = [
-            ("File_Format", "OUTPUT_FMT"),
-            ("Product_Order_Number", "ORDER_ID"),
-            ("Bits_per_Pixel_per_Band", "BITS_PIXEL"),
-            ("Source_Image_ID", "CAT_ID"),
-            ("Acquisition_Date_Time", "ACQ_TIME"),
-            ("Scan_Direction", "SCAN_DIR"),
-            ("Country_Code", "COUNTRY"),
-            ("Percent_Component_Cloud_Cover", "CLOUDCOVER"),
-            ("Sensor_Name", "SENSOR"),
-            ("Sun_Angle_Elevation", "SUN_ELEV"),        
-    	]
+        ("File_Format", "OUTPUT_FMT"),
+        ("Product_Order_Number", "ORDER_ID"),
+        ("Bits_per_Pixel_per_Band", "BITS_PIXEL"),
+        ("Source_Image_ID", "CAT_ID"),
+        ("Acquisition_Date_Time", "ACQ_TIME"),
+        ("Scan_Direction", "SCAN_DIR"),
+        ("Country_Code", "COUNTRY"),
+        ("Percent_Component_Cloud_Cover", "CLOUDCOVER"),
+        ("Sensor_Name", "SENSOR"),
+        ("Sun_Angle_Elevation", "SUN_ELEV"),        
+    ]
 
-    metad = getIKMetadataAsXml(metafile)
+    metad = utils.getIKMetadataAsXml(metafile)
     if metad is not None:
         metadict = {}
         search_keys = dict(ik2fp)
 
     else:
-        LogMsg("Unable to parse metadata from %s" % metafile)
+        logger.error("Unable to parse metadata from %s" % metafile)
         return None
 
     metad_map = dict((c, p) for p in metad.getiterator() for c in p)  # Child/parent mapping
@@ -1577,7 +1535,7 @@ def getIKMetadata(fp_mode, metafile):
             siid = os.path.basename(metafile.lower())[5:33]
         siid_nodes = metad.findall(r".//Source_Image_ID")
         if siid_nodes is None:
-            LogMsg( "Could not find any Source Image ID fields in metadata %s" % metafile)
+            logger.error( "Could not find any Source Image ID fields in metadata %s" % metafile)
             return None
 
         siid_node = None
@@ -1587,7 +1545,7 @@ def getIKMetadata(fp_mode, metafile):
                 break
 
         if siid_node is None:
-            LogMsg( "Could not locate SIID: %s in metadata %s" % (siid, metafile))
+            logger.error( "Could not locate SIID: %s in metadata %s" % (siid, metafile))
             return None
 
 
@@ -1601,139 +1559,6 @@ def getIKMetadata(fp_mode, metafile):
 
 
     return metadict
-
-
-def getIKMetadataAsXml(metafile):
-	"""
-	Given the text of an IKONOS metadata file, returns all the key/pair values as a
-	searchable XML tree
-	"""
-	if not metafile:
-		return ET.Element("root")  # No metadata provided, return an empty tree
-
-	# If metafile is a file, open it and read from it, otherwise assume a list of strings
-	if os.path.isfile(metafile) and os.path.getsize(metafile) > 0:
-		try:
-			metaf = open(metafile, "r")
-		except IOError, err:
-			LogMsg( "Could not open metadata file %s because %s" % (metafile, err))
-			raise
-	else:
-		metaf = metafile
-
-	# Patterns to identify tag/value pairs and group tags
-	ikpat1 = re.compile(r"(?P<tag>.+?): (?P<data>.+)?", re.I)
-	ikpat2 = re.compile(r"(?P<tag>[a-zA-Z ()]+)", re.I)
-
-	# Lists of tags known to be at a certain depth of the tree, to be used as
-	# attributes rather than nodes or ignored altogether
-	tags_1L = ["Product_Order_Metadata", "Source_Image_Metadata", "Product_Space_Metadata",
-			   "Product_Component_Metadata"]
-	tags_2L = ["Source_Image_ID", "Component_ID"]
-	tags_coords = ["Latitude", "Longitude", "Map_X_Easting", "Map_Y_Northing",
-				   "UL_Map_X_Easting", "UL_Map_Y_Northing", "Pan_Cross_Scan",
-                                   "Pan_Along_Scan", "MS_Cross_Scan", "MS_Along_Scan",
-                                   ]
-	ignores = ["Company Information", "Address", "GeoEye", "12076 Grant Street",
-			  "Thornton, Colorado 80241", "U.S.A.", "Contact Information",
-			  "On the Web: http://www.geoeye.com", "Customer Service Phone (U.S.A.): 1.800.232.9037",
-			  "Customer Service Phone (World Wide): 1.703.480.5670",
-			  "Customer Service Fax (World Wide): 1.703.450.9570", "Customer Service Email: info@geoeye.com",
-			  "Customer Service Center hours of operation:", "Monday - Friday, 8:00 - 20:00 Eastern Standard Time"
-			  ]
-
-	# Start processing
-	root = ET.Element("root")
-	parent = None
-	current = root
-	node_stack = []
-
-	for line in metaf:
-		item = line.strip()
-		if item in ignores:
-			continue  # Skip this stuff
-
-		# Can't have spaces or slashes in node tags
-		item = item.replace(" ", "_").replace("/", "_")
-
-		# If we've found a top-level group name, handle it here
-		if item in tags_1L:
-			child = ET.SubElement(root, item)
-			node_stack = []  # top-level nodes are children of root so reset
-			parent = root
-			current = child
-
-		# Everything else
-		else:
-			mat1 = ikpat1.search(line)
-			mat2 = ikpat2.search(line) if not mat1 else None
-
-			# Tag/value pair
-			if mat1:
-				tag = mat1.group("tag").strip().replace(" ", "_").replace("/", "_").replace("(", "").replace(")", "")
-				if mat1.group("data"):
-					data = mat1.group("data").strip()
-				else:
-					data = ""
-
-				# Second-level groups define major blocks
-				if tag in tags_2L:
-					# We may have been working on a different second-level tag, so
-					# reset the stack and pointers as needed
-					while current.tag not in tags_1L and current.tag != "root":
-						current = parent
-						parent = node_stack.pop()
-
-					# Now add the new child node
-					child = ET.SubElement(current, tag)
-					child.set("id", data)  # Currently, all 2L tags are IDs
-					node_stack.append(parent)
-					parent = current
-					current = child
-
-				# Handle 'Coordinate' tags as a special case
-				elif tag == "Coordinate":
-					# If we were working on a Coordinate, back up a level
-					if current.tag == "Coordinate":
-						child = ET.SubElement(parent, tag)
-						child.set("id", data)
-						current = child
-					else:
-						child = ET.SubElement(current, tag)
-						child.set("id", data)
-						node_stack.append(parent)
-						parent = current
-						current = child
-
-				# Vanilla tag/value pair
-				else:
-					# Adjust depth if we just finished a Coordinate block
-					if tag not in tags_coords and current.tag in ["Coordinate","Component_Map_Coordinates_in_Map_Units","Acquired_Nominal_GSD"]:
-						while current.tag not in tags_2L and current.tag not in tags_1L and current.tag != "root":
-							current = parent
-							parent = node_stack.pop()
-
-					# Add a standard node
-					child = ET.SubElement(current, tag)
-					child.text = data
-
-			# Handle new group names
-			elif mat2:
-				tag = mat2.group("tag").strip().replace(" ", "_").replace("/", "_").replace("(", "").replace(")", "")
-
-				# Except for Coordinates there aren't really any 4th level tags we care about, so we always
-				# back up until current points at a second or top-level node
-				while current.tag not in tags_2L and current.tag not in tags_1L and current.tag != "root":
-					current = parent
-					parent = node_stack.pop()
-
-				# Now add the new group node
-				child = ET.SubElement(current, tag)
-				node_stack.append(parent)
-				parent = current
-				current = child
-
-	return ET.ElementTree(root)
 
 
 def GetGEcalibDict(metafile,stretch):
@@ -1765,9 +1590,9 @@ def GetGEcalibDict(metafile,stretch):
 
 
 def getGEMetadata(fp_mode, metafile):
-	metadict = {}
-	metad = getGEMetadataAsXml(metafile)
-	if metad is not None:
+    metadict = {}
+    metad = utils.getGEMetadataAsXml(metafile)
+    if metad is not None:
 
             search_keys = ["originalFirstLineAcquisitionDateTime", "firstLineSunElevationAngle"]
             for key in search_keys:
@@ -1784,91 +1609,16 @@ def getGEMetadata(fp_mode, metafile):
                     try:
                         band = int(node.attrib["bandNumber"])
                     except Exception, e:
-                        LogMsg("Unable to retrieve band number in GE metadata")
+                        logger.error("Unable to retrieve band number in GE metadata")
                     else:
                         node = node.find(".//%s" % key)
                         if node is not None:
                             vals[band] = node.text
                 metadict[key] = vals
-	else:
-            LogMsg("Unable to get metadata from %s" % metafile)
+    else:
+        logger.error("Unable to get metadata from %s" % metafile)
 
-	return metadict
-
-
-def getGEMetadataAsXml(metafile):
-	if os.path.isfile(metafile):
-		try:
-			metaf = open(metafile, "r")
-		except IOError, err:
-			LogMsg("Could not open metadata file %s because %s" % (metafile, err))
-			raise
-	else:
-		LogMsg("Metadata file %s not found" % metafile)
-		return None
-
-	# Patterns to extract tag/value pairs and BEGIN/END group tags
-	gepat1 = re.compile(r'(?P<tag>\w+) = "?(?P<data>.*?)"?;', re.I)
-	gepat2 = re.compile(r"(?P<tag>\w+) = ", re.I)
-
-	# These tags use the following tag/value as an attribute of the group rather than
-	# a standalone node
-	group_tags = {"aoiGeoCoordinate":"coordinateNumber",
-				  "aoiMapCoordinate":"coordinateNumber",
-				  "bandSpecificInformation":"bandNumber"}
-
-	# Start processing
-	root = ET.Element("root")
-	parent = None
-	current = root
-	node_stack = []
-	mlstr = False  # multi-line string flag
-
-	for line in metaf:
-		# mlstr will be true when working on a multi-line string
-		if mlstr:
-			if not line.strip() == ");":
-				data += line.strip()
-			else:
-				data += line.strip()
-				child = ET.SubElement(current, tag)
-				child.text = data
-				mlstr = False
-
-		# Handle tag/value pairs and groups
-		mat1 = gepat1.search(line)
-		if mat1:
-			tag = mat1.group("tag").strip()
-			data = mat1.group("data").strip()
-
-			if tag == "BEGIN_GROUP":
-				if data is None or data == "":
-					child = ET.SubElement(current, "group")
-				else:
-					child = ET.SubElement(current, data)
-				if parent:
-					node_stack.append(parent)
-				parent = current
-				current = child
-			elif tag == "END_GROUP":
-				current = parent if parent else root
-				parent = node_stack.pop() if node_stack else None
-			else:
-				if current.tag in group_tags and tag == group_tags[current.tag]:
-					current.set(tag, data)
-				else:
-					child = ET.SubElement(current, tag)
-					child.text = data
-		else:
-			mat2 = gepat2.search(line)
-			if mat2:
-				tag = mat2.group("tag").strip()
-				data = ""
-				mlstr = True
-
-	metaf.close()
-	#print ET.ElementTree(root)
-	return ET.ElementTree(root)
+    return metadict
 
 
 def XmlToJ2w(jp2p):
@@ -1890,126 +1640,5 @@ def XmlToJ2w(jp2p):
     j2w.close()
 
 
-def deleteTempFiles(names):
-
-    #LogMsg('Deleting Temp Files')
-    for name in names:
-        deleteList = glob.glob(os.path.splitext(name)[0]+'.*')
-        for f in deleteList:
-            if not "log" in os.path.basename(f):
-                try:
-                    os.remove(f)
-                except Exception, e:
-                    LogMsg('Could not remove %s: %s' %(os.path.basename(f),e))
 
 
-def LogMsg(msg):
-    logger.info(msg)
-
-
-def ExecCmd(cmd):
-    logger.info(cmd)
-
-    p = Popen(cmd,stdout=PIPE,stderr=PIPE,shell=True)
-    (so,se) = p.communicate()
-    rc = p.wait()
-    err = 0
-
-    if rc != 0:
-        logger.error("Error found - Return Code = %s:  %s" %(rc,cmd))
-        err = 1
-    else:
-        logger.debug("Return Code = %s:  %s" %(rc,cmd))
-
-    logger.debug("STDOUT:  "+so)
-    logger.debug("STDERR:  "+se)
-    return (err,so,se)
-
-
-def ExecCmd_mp(job):
-    job_name, cmd = job
-    logger.info('Running job: {0}'.format(job_name))
-    logger.debug('Cmd: {0}'.format(cmd))
-    p = Popen(cmd,shell=True,stderr=PIPE,
-              stdout=PIPE,preexec_fn=os.setsid)
-    try:
-        (so,se) = p.communicate()
-    except KeyboardInterrupt:
-        os.killpg(p.pid, signal.SIGTERM)
-
-    else:
-        logger.debug(so)
-        logger.debug(se)
-
-
-def getBitdepth(outtype):
-    if outtype == "Byte":
-        bitdepth = 'u08'
-    elif outtype == "UInt16":
-        bitdepth = "u16"
-    elif outtype == "Float32":
-        bitdepth = "f32"
-
-    return bitdepth
-
-
-def getSensor(srcfn):
-
-    ### Regex signatures to identify file vendor, mode, kind, and create the name_dict
-    RAW_DG = "(?P<ts>\d\d[a-z]{3}\d{8})-(?P<prod>\w{4})?(?P<tile>\w+)?-(?P<oid>\d{12}_\d\d)_(?P<pnum>p\d{3})"
-
-    RENAMED_DG = "(?P<snsr>\w\w\d\d)_(?P<ts>\d\d[a-z]{3}\d{9})-(?P<prod>\w{4})?(?P<tile>\w+)?-(?P<catid>[a-z0-9]+)"
-
-    RENAMED_DG2 = "(?P<snsr>\w\w\d\d)_(?P<ts>\d{14})_(?P<catid>[a-z0-9]{16})"
-
-    RAW_GE = "(?P<snsr>\d[a-z])(?P<ts>\d{6})(?P<band>[a-z])(?P<said>\d{9})(?P<prod>\d[a-z])(?P<pid>\d{3})(?P<siid>\d{8})(?P<ver>\d)(?P<mono>[a-z0-9])_(?P<pnum>\d{8,9})"
-
-    RENAMED_GE = "(?P<snsr>\w\w\d\d)_(?P<ts>\d{6})(?P<band>\w)(?P<said>\d{9})(?P<prod>\d\w)(?P<pid>\d{3})(?P<siid>\d{8})(?P<ver>\d)(?P<mono>\w)_(?P<pnum>\d{8,9})"
-
-    RAW_IK = "po_(?P<po>\d{5,7})_(?P<band>[a-z]+)_(?P<cmp>\d+)"
-
-    RENAMED_IK = "(?P<snsr>[a-z]{2}\d\d)_(?P<ts>\d{12})(?P<siid>\d+)_(?P<band>[a-z]+)_(?P<lat>\d{4}[ns])"
-
-    sat = None
-    vendor = None
-
-    DG_patterns = [RAW_DG, RENAMED_DG, RENAMED_DG2]
-    GE_patterns = [RAW_GE, RENAMED_GE]
-    IK_patterns = [RAW_IK, RENAMED_IK]
-
-    for pattern in DG_patterns:
-        p = re.compile(pattern)
-        m = p.search(srcfn.lower())
-        if m is not None:
-            vendor = "DigitalGlobe"
-            gd = m.groupdict()
-            if 'snsr' in gd:
-                sat = gd['snsr']
-
-    for pattern in GE_patterns:
-        p = re.compile(pattern)
-        m = p.search(srcfn.lower())
-        if m is not None:
-            vendor = "GeoEye"
-            sat = "GE01"
-
-    for pattern in IK_patterns:
-        p = re.compile(pattern)
-        m = p.search(srcfn.lower())
-        if m is not None:
-            vendor = "GeoEye"
-            sat = "IK01"
-
-    return vendor, sat
-
-
-def FindImages(inpath,exts):
-
-    image_list = []
-    for root,dirs,files in os.walk(inpath):
-        for f in  files:
-            if os.path.splitext(f)[1].lower() in exts:
-                image_path = os.path.join(root,f)
-                image_path = string.replace(image_path,'\\','/')
-                image_list.append(image_path)
-    return image_list

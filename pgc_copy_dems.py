@@ -1,47 +1,9 @@
-
 import os, sys, string, shutil, glob
 import argparse
 import gdal,ogr,osr, gdalconst
-
-deliv_suffixes = (### ASP
-                  '-DEM.prj',
-                  '-DEM.tif',
-                  '-DRG.tif',
-                  '-IntersectionErr.tif',
-                  '-GoodPixelMap.tif',
-                  '-stereo.default',
-                  '-PC.laz',
-                  '-PC.las',
-                  '.geojson',
-                  
-                  ### SETSM
-                  '_dem.tif',
-                  '_ortho.tif',
-                  '_matchtag.tif',
-                  '_mdf.txt'
-                  )
-
-archive_suffix = ".tar"
-
-shp_suffixes = ('.shp',
-                  '.shx',
-                  '.prj',
-                  '.dbf',)
-
-pc_suffixes = ('-PC.tif',
-               '-PC-center.txt')
-
-fltr_suffixes = ('_fltr-DEM.tif',
-                 '_fltr-DEM.prj')
+from lib import utils
 
 
-log_suffixes = ('-log-point2dem',
-                '-log-stereo_corr',
-                '-log-stereo_pprc',
-                '-log-stereo_fltr',
-                '-log-stereo_rfne',
-                '-log-stereo_tri',
-                )
 def main():
 
     #### Set Up Arguments
@@ -66,7 +28,6 @@ def main():
                         help='do not make pairname subdirs for overlaps\n')
     parser.add_argument('--tar-only', action='store_true', default=False,
                         help='copy only tar archive, overrides --exclude and --include options')
-    
     parser.add_argument('--exclude-err', action='store_true', default=False,
                         help='ASP: exclude intersectionErr raster')
     parser.add_argument('--include-pc', action='store_true', default=False,
@@ -74,8 +35,7 @@ def main():
     parser.add_argument('--include-fltr', action='store_true', default=False,
                         help='ASP: include non-interpolated DEM')
     parser.add_argument('--include-logs', action='store_true', default=False,
-                        help='ASP: include stereo logs')
-    
+                        help='ASP: include stereo logs')    
 
     #### Parse Arguments
     args = parser.parse_args()
@@ -103,7 +63,6 @@ def main():
             for f in files:
                 if (f.endswith(('-DEM.tif','_dem.tif')) and not 'fltr' in f):
                     overlaps.append(os.path.join(root,f))
-
 
     elif srctype == 'shp':
         #### open shp
@@ -156,12 +115,9 @@ def main():
                             print "Cannot locate path for DEM in any of the following locations: \n%s" %('\n\t'.join(paths))
                         else:
                             print "Cannot get valid values from candidate fields (%s) in source feature class" %(', '.join(flds))
-
-
             ds = None
 
     overlaps = list(set(overlaps))
-
 
     ##### Iterate through dems and copy/move files
     total = len(overlaps)
@@ -190,7 +146,7 @@ def main():
             #### Copy all files with overlap prefix and Copy pair shp
             for f in os.listdir(srcpairdir):
                 
-                move_file = check_file_inclusion(f, pairname, overlap_prefix, args)
+                move_file = utils.check_file_inclusion(f, pairname, overlap_prefix, args)
                 
                 #### Copy/Move
                 if move_file is True:
@@ -210,59 +166,6 @@ def main():
                             print "Copying %s --> %s" %(ifp,ofp)
                             if not args.dryrun:
                                 shutil.copy2(ifp,ofp)
-
-def check_file_inclusion(f,pairname,overlap_prefix,args):
-    
-    move_file = False
-
-    #### determine if file is part of overlap
-    if overlap_prefix in f:
-        if f.endswith(deliv_suffixes):
-            move_file = True
-        if f.endswith(fltr_suffixes):
-            move_file = False
-
-        if args.include_pc is True:
-            if f.endswith(pc_suffixes):
-                move_file = True
-
-        if args.include_logs is True:
-            if f.endswith(log_suffixes):
-                move_file = True
-
-        if args.include_fltr is True:
-            if f.endswith(fltr_suffixes):
-                move_file = True
-
-        if args.exclude_drg is True:
-            if f.endswith(('-DRG.tif','_ortho.tif')):
-                move_file = False
-
-        if args.exclude_err is True:
-            if f.endswith('-IntersectionErr.tif'):
-                move_file = False
-
-        if args.dems_only is True:
-            move_file = False
-            if f.endswith(("-DEM.tif",'-DEM.prj','.geojson','_dem.tif','_meta.txt')):
-                move_file = True
-            if f.endswith(("_fltr-DEM.tif",'_fltr-DEM.prj')):
-                if args.include_fltr:
-                    move_file = True
-                else:
-                    move_file = False
-        
-        if args.tar_only is True:
-            move_file = False
-            if f.endswith(".tar"):
-                move_file = True
-                
-    #### determine if file is in pair shp
-    if f.endswith(shp_suffixes) and pairname in f and not '-DEM' in f:
-        move_file = True
-    
-    return move_file
-
 
 if __name__ == '__main__':
     main()

@@ -1,12 +1,9 @@
 import os, string, sys, logging, argparse, numpy
 from datetime import datetime
-
 import gdal, ogr,osr, gdalconst
 
-from lib.mosaic import *
-from lib import ortho_utils
+from lib import mosaic, utils
 
-gdal.SetConfigOption('GDAL_PAM_ENABLED','NO')
 
 ### Create Logger
 logger = logging.getLogger("logger")
@@ -44,8 +41,6 @@ def main():
                         help="remove duplication of pairs that occur in multiple AOI features, pair in lowest lexical feature ID is kept")
     parser.add_argument("--no-filter", action='store_true', default=False,
                         help="do not filter out non-contributing DEMs")
-    
-    
     
     #### Parse Arguments
     args = parser.parse_args()

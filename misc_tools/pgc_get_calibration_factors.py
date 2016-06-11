@@ -7,7 +7,7 @@ from xml.etree import cElementTree as ET
 
 import gdal, ogr,osr, gdalconst
 
-from lib import ortho_utils as ortho_utils
+from lib import ortho_functions, utils
 
 #### Create Loggers
 logger = logging.getLogger("logger")
@@ -17,7 +17,6 @@ gdal.SetConfigOption('GDAL_PAM_ENABLED','NO')
 
 #### Initialize Return Code Dictionary
 rc_dict = {}
-
 
 def main():
 
@@ -29,22 +28,22 @@ def main():
     parser = argparse.ArgumentParser(description="Get Radiometric Correction info from Images")
 
     parser.add_argument("src", help="source image, text file, or directory")
-    parser.add_argument("-c", "--stretch", choices=ortho_utils.stretches, default="rf",
+    parser.add_argument("-c", "--stretch", choices=ortho_functions.stretches, default="rf",
                       help="stretch type [ns: nostretch, rf: reflectance (default), mr: modified reflectance, rd: absolute radiance]")
 
 
     #### Parse Arguments
-    opt = parser.parse_args()
-    src = os.path.abspath(opt.src)
+    args = parser.parse_args()
+    src = os.path.abspath(args.src)
 
     #### Validate Required Arguments
     if os.path.isdir(src):
         srctype = 'dir'
     elif os.path.isfile(src) and os.path.splitext(src)[1].lower() == '.txt':
         srctype = 'textfile'
-    elif os.path.isfile(src) and os.path.splitext(src)[1].lower() in ortho_utils.exts:
+    elif os.path.isfile(src) and os.path.splitext(src)[1].lower() in ortho_functions.ortho_functions.exts:
         srctype = 'image'
-    elif os.path.isfile(src.replace('msi','blu')) and os.path.splitext(src)[1].lower() in ortho_utils.exts:
+    elif os.path.isfile(src.replace('msi','blu')) and os.path.splitext(src)[1].lower() in ortho_functions.ortho_functions.exts:
         srctype = 'image'
     else:
         parser.error("Arg1 is not a recognized file path or file type: %s" % (src))
@@ -58,7 +57,7 @@ def main():
 
     #### Find Images
     if srctype == "dir":
-        image_list = ortho_utils.FindImages(src, ortho_utils.exts)
+        image_list = utils.find_images(src, ortho_functions.ortho_functions.exts)
     elif srctype == "textfile":
         t = open(src,'r')
         image_list = []
@@ -71,28 +70,28 @@ def main():
     # Iterate Through Found Images
     for srcfp in image_list:
 	
-	#### Instantiate ImageInfo object
-	info = ortho_utils.ImageInfo()
+	#### Instantiate mosaic.ImageInfo object
+	info = ortho_functions.mosaic.ImageInfo()
 	info.srcfp = srcfp
 	info.srcdir,info.srcfn = os.path.split(srcfp)
-	info.vendor, info.sat = ortho_utils.getSensor(info.srcfn)
-	info.stretch = opt.stretch
+	info.vendor, info.sat = utils.get_sensor(info.srcfn)
+	info.stretch = args.stretch
 	
 	#### Find metadata file
-        metafile = ortho_utils.GetDGMetadataPath(info.srcfp)
+        metafile = ortho_functions.GetDGMetadataPath(info.srcfp)
         if metafile is None:
-            metafile = ortho_utils.ExtractDGMetadataFile(info.srcfp,wd)
+            metafile = ortho_functions.ExtractDGMetadataFile(info.srcfp,wd)
         if metafile is None:
-            metafile = ortho_utils.GetIKMetadataPath(info.srcfp)
+            metafile = ortho_functions.GetIKMetadataPath(info.srcfp)
         if metafile is None:
-            metafile = ortho_utils.GetGEMetadataPath(info.srcfp)
+            metafile = ortho_functions.GetGEMetadataPath(info.srcfp)
         if metafile is None:
             logger.error("Cannot find metadata for image: {0}".format(info.srcfp))
         else:
             info.metapath = metafile
 	
 	logger.info(info.srcfn)
-	CFlist = ortho_utils.GetCalibrationFactors(info)
+	CFlist = ortho_functions.GetCalibrationFactors(info)
     
 
 if __name__ == "__main__":

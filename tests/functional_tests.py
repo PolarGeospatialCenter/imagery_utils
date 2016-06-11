@@ -1,15 +1,11 @@
 """Runs pgc_ortho with a variety of images and input parameters to achieve test coverage."""
-import subprocess
-import sys
-import os
+import subprocess, sys, os, shutil
 
 def image_type_tests(pgc_ortho_script_path, test_imagery_directory, output_dir):
     """
     Runs the ortho script on most types of images, including images from
     all vendors, images with different band numbers, at different locations, etc.
     """
-    # test info: WV01, 1 band, Arctic
-    # pgctools2 name: WV01_12MAR262229422-P1BS-102001001B02FA00
     
     test_images = [
         #(image_path, egsg)
@@ -55,7 +51,7 @@ def input_parameter_tests_dg(pgc_ortho_script_path, test_imagery_directory, outp
     # outtype: Byte
     # gtiff compression: jpeg95
     # dem: Y:/private/elevation/dem/GIMP/GIMPv2/gimpdem_v2_30m.tif
-    command = r"""python "%s" --epsg 3413 --stretch ns --resample cubic --format GTiff --outtype Byte --gtiff_compression jpeg95 --dem /mnt/agic/storage00/agic/private/elevation/dem/GIMP/GIMPv2/gimpdem_v2_30m.tif %s/renamed_pgctools3/QB02_10100100101AD000_M1BS_500122876080_01/QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.NTF %s""" % (pgc_ortho_script_path, test_imagery_directory, output_dir)
+    command = r"""python "%s" --epsg 3413 --stretch ns --resample cubic --format GTiff --outtype Byte --gtiff-compression jpeg95 --dem /mnt/agic/storage00/agic/private/elevation/dem/GIMP/GIMPv2/gimpdem_v2_30m.tif %s/renamed_pgctools3/QB02_10100100101AD000_M1BS_500122876080_01/QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.NTF %s""" % (pgc_ortho_script_path, test_imagery_directory, output_dir)
     print command
     subprocess.call(command, shell=True)
 
@@ -66,7 +62,7 @@ def input_parameter_tests_dg(pgc_ortho_script_path, test_imagery_directory, outp
     # outtype: Byte
     # gtiff compression: lzw
     # dem: Y:/private/elevation/dem/GIMP/GIMPv2/gimpdem_v2_30m.tif
-    command = r"""python "%s" --epsg 3413 --stretch rf --resample near --format ENVI --outtype Byte --gtiff_compression lzw --dem /mnt/agic/storage00/agic/private/elevation/dem/GIMP/GIMPv2/gimpdem_v2_30m.tif %s/renamed_pgctools3/QB02_10100100101AD000_M1BS_500122876080_01/QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.NTF %s""" % (pgc_ortho_script_path, test_imagery_directory, output_dir)
+    command = r"""python "%s" --epsg 3413 --stretch rf --resample near --format ENVI --outtype Byte --gtiff-compression lzw --dem /mnt/agic/storage00/agic/private/elevation/dem/GIMP/GIMPv2/gimpdem_v2_30m.tif %s/renamed_pgctools3/QB02_10100100101AD000_M1BS_500122876080_01/QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.NTF %s""" % (pgc_ortho_script_path, test_imagery_directory, output_dir)
     print command
     subprocess.call(command, shell=True)
 
@@ -77,7 +73,7 @@ def input_parameter_tests_dg(pgc_ortho_script_path, test_imagery_directory, outp
     # outtype: Float32
     # gtiff compression: lzw
     # dem: Y:/private/elevation/dem/GIMP/GIMPv2/gimpdem_v2_30m.tif
-    command = r"""python "%s" --epsg 3413 --stretch mr --resample near --format HFA --outtype Float32 --gtiff_compression lzw --dem /mnt/agic/storage00/agic/private/elevation/dem/GIMP/GIMPv2/gimpdem_v2_30m.tif %s/renamed_pgctools3/QB02_10100100101AD000_M1BS_500122876080_01/QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.NTF %s""" % (pgc_ortho_script_path, test_imagery_directory, output_dir)
+    command = r"""python "%s" --epsg 3413 --stretch mr --resample near --format HFA --outtype Float32 --gtiff-compression lzw --dem /mnt/agic/storage00/agic/private/elevation/dem/GIMP/GIMPv2/gimpdem_v2_30m.tif %s/renamed_pgctools3/QB02_10100100101AD000_M1BS_500122876080_01/QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.NTF %s""" % (pgc_ortho_script_path, test_imagery_directory, output_dir)
     print command
     subprocess.call(command, shell=True)
 
@@ -88,7 +84,7 @@ def input_parameter_tests_dg(pgc_ortho_script_path, test_imagery_directory, outp
     # outtype: UInt16
     # gtiff compression: lzw
     # dem: None
-    command = r"""python "%s" --epsg 3413 --stretch rd --resample near --format GTiff --outtype UInt16 --gtiff_compression lzw %s/renamed_pgctools3/QB02_10100100101AD000_M1BS_500122876080_01/QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.NTF %s""" % (pgc_ortho_script_path, test_imagery_directory, output_dir)
+    command = r"""python "%s" --epsg 3413 --stretch rd --resample near --format GTiff --outtype UInt16 --gtiff-compression lzw %s/renamed_pgctools3/QB02_10100100101AD000_M1BS_500122876080_01/QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.NTF %s""" % (pgc_ortho_script_path, test_imagery_directory, output_dir)
     print command
     subprocess.call(command, shell=True)
 
@@ -102,8 +98,13 @@ def input_parameter_tests_dg(pgc_ortho_script_path, test_imagery_directory, outp
 if __name__ == '__main__':
     script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
     pgc_ortho_script_path = os.path.join(os.path.dirname(script_dir),'pgc_ortho.py')
-    test_imagery_directory = os.path.join(script_dir,'testdata')
+    test_imagery_directory = os.path.join(script_dir,'testdata','functional_tests')
     output_directory = os.path.join(script_dir,'testdata','output')
+    
+    if not os.path.isdir(output_directory):
+        os.makedirs(output_directory)
     
     image_type_tests(pgc_ortho_script_path, test_imagery_directory, output_directory)
     input_parameter_tests_dg(pgc_ortho_script_path, test_imagery_directory, output_directory)
+    
+    #shutil.rmtree(output_directory)

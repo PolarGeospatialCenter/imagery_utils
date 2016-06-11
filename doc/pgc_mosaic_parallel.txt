@@ -10,7 +10,7 @@ pgc_mosaic_parallel.py [-h] [-r RESOLUTION RESOLUTION]
 	[--qsubscript QSUBSCRIPT] [-l L]
 	[--component_shp]
 	[--gtiff_compression {jpeg95,lzw}]
-	src mosaic_name
+	src mosaicname
 
 DESCRIPTION
 -----------
@@ -20,7 +20,7 @@ The pgc_mosaic_parallel utility submits mosaic jobs to HPC cluster.  This script
 src:
 	text file or directory of input rasters.  Only tif images are considered for inclusion.
 	
-mosaic_name:
+mosaicname:
 	output mosaic name excluding extension
 
 -h, --help:

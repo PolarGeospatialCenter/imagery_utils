@@ -1,152 +1,194 @@
-import os, string, sys, shutil, math, glob, re, tarfile, logging, shlex, argparse
+import os, string, sys, shutil, math, glob, re, tarfile, logging, shlex, argparse, subprocess
 from datetime import datetime, timedelta
-
-# from subprocess import *
 from xml.dom import minidom
 from xml.etree import cElementTree as ET
-
 import gdal, ogr,osr, gdalconst
 
-from lib import ortho_utils as ortho_utils
+from lib import ortho_functions, utils
 
 #### Create Loggers
 logger = logging.getLogger("logger")
 logger.setLevel(logging.DEBUG)
 
-gdal.SetConfigOption('GDAL_PAM_ENABLED','NO')
-
-#### Initialize Return Code Dictionary
-rc_dict = {}
-
-
 def main():
 
-    #########################################################
-    ####  Handle Options
-    #########################################################
-
     #### Set Up Arguments
-    parent_parser, pos_arg_keys = ortho_utils.buildParentArgumentParser()
-    parser = argparse.ArgumentParser(parents=[parent_parser],
-                                     description="Run batch image ortho and conversion in serial")
+    parent_parser, pos_arg_keys = ortho_functions.buildParentArgumentParser()
+    parser = argparse.ArgumentParser(
+        parents=[parent_parser],
+        description="Run/submit batch image ortho and conversion tasks"
+    )
 
-    parser.add_argument("--log", help="file to log progress.  Defaults to <output dir>\process.log")
-
+    parser.add_argument("--pbs", action='store_true', default=False,
+            help="submit tasks to PBS")
+    parser.add_argument("--parallel-processes", type=int, default=1,
+            help="number of parallel processes to spawn (default 1)")
+    parser.add_argument("--qsubscript",
+            help="qsub script to use in PBS submission (default is qsub_ortho.sh in script root folder)")
+    parser.add_argument("-l",
+            help="PBS resources requested (mimicks qsub syntax)")
+    parser.add_argument("--dryrun", action='store_true', default=False,
+            help='print actions without executing')
 
     #### Parse Arguments
-    opt = parser.parse_args()
-    src = os.path.abspath(opt.src)
-    dstdir = os.path.abspath(opt.dst)
+    args = parser.parse_args()
+    scriptpath = os.path.abspath(sys.argv[0])
+    src = os.path.abspath(args.src)
+    dstdir = os.path.abspath(args.dst)
 
     #### Validate Required Arguments
     if os.path.isdir(src):
         srctype = 'dir'
     elif os.path.isfile(src) and os.path.splitext(src)[1].lower() == '.txt':
         srctype = 'textfile'
-    elif os.path.isfile(src) and os.path.splitext(src)[1].lower() in ortho_utils.exts:
+    elif os.path.isfile(src) and os.path.splitext(src)[1].lower() in ortho_functions.exts:
         srctype = 'image'
-    elif os.path.isfile(src.replace('msi','blu')) and os.path.splitext(src)[1].lower() in ortho_utils.exts:
+    elif os.path.isfile(src.replace('msi','blu')) and os.path.splitext(src)[1].lower() in ortho_functions.exts:
         srctype = 'image'
     else:
-        parser.error("Arg1 is not a recognized file path or file type: %s" % (src))
+        parser.error("Error arg1 is not a recognized file path or file type: %s" %(src))
 
     if not os.path.isdir(dstdir):
-        parser.error("Error arg2 is not a valid file path: %s" % dstdir)
+        parser.error("Error arg2 is not a valid file path: %s" %(dstdir))
+
+    ## Verify qsubscript
+    if args.qsubscript is None:
+        qsubpath = os.path.join(os.path.dirname(scriptpath),'qsub_ortho.sh')
+    else:
+        qsubpath = os.path.abspath(args.qsubscript)
+    if not os.path.isfile(qsubpath):
+        parser.error("qsub script path is not valid: %s" %qsubpath)
+
+    ## Verify processing options do not conflict
+    if args.pbs and args.parallel_processes > 1:
+        parser.error("Options --pbs and --parallel-processes > 1 are mutually exclusive")
 
     #### Verify EPSG
     try:
-        spatial_ref = ortho_utils.SpatialRef(opt.epsg)
+        spatial_ref = utils.SpatialRef(args.epsg)
     except RuntimeError, e:
         parser.error(e)
 
     #### Verify that dem and ortho_height are not both specified
-    if opt.dem is not None and opt.ortho_height is not None:
+    if args.dem is not None and args.ortho_height is not None:
         parser.error("--dem and --ortho_height options are mutually exclusive.  Please choose only one.")
-    
-    #### Set Up Logging Handlers
-    if opt.log == None:
-        logfile = os.path.join(dstdir,"process.log")
-    else:
-        logfile = os.path.abspath(opt.log)
-    if os.path.isdir(os.path.dirname(logfile)) is False:
-        parser.error("Logfile directory is not valid: %s" % os.path.dirname(logfile))
 
+    #### Test if DEM exists
+    if args.dem:
+        if not os.path.isfile(args.dem):
+            parser.error("DEM does not exist: %s" %args.dem)
+
+    #### Set up console logging handler
     lso = logging.StreamHandler()
     lso.setLevel(logging.INFO)
     formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s','%m-%d-%Y %H:%M:%S')
     lso.setFormatter(formatter)
     logger.addHandler(lso)
 
-    lfh = logging.FileHandler(logfile)
-    lfh.setLevel(logging.DEBUG)
-    formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s','%m-%d-%Y %H:%M:%S')
-    lfh.setFormatter(formatter)
-    logger.addHandler(lfh)
+    #### Get args ready to pass to task handler
+    arg_keys_to_remove = ('l', 'qsubscript', 'dryrun', 'pbs', 'parallel_processes')
+    arg_str_base = utils.convert_optional_args_to_string(args, pos_arg_keys, arg_keys_to_remove)
 
-    #### Print Warning regarding DEM use
-    if opt.dem == None:
-        ortho_utils.LogMsg("\nWARNING: No DEM is being used in this orthorectification.\nUse the -d flag on the command line to input a DEM\n")
+    ## Identify source images
+    if srctype == 'dir':
+        image_list1 = utils.find_images(src, False, ortho_functions.exts)
+    elif srctype == 'textfile':
+        image_list1 = utils.find_images(src, True, ortho_functions.exts)
     else:
-        #### Test if DEM exists
-        if not os.path.isfile(opt.dem):
-            ortho_utils.LogMsg("ERROR: DEM does not exist: %s" % opt.dem)
-            sys.exit()
+        image_list1 = [src]
 
-    #### Find Images
-    if srctype == "dir":
-        image_list = ortho_utils.FindImages(src, ortho_utils.exts)
-    elif srctype == "textfile":
-        t = open(src,'r')
-        image_list = []
-        for line in t.readlines():
-            image_list.append(line.rstrip('\n'))
-        t.close()
-    elif srctype == "image":
-        image_list = [src]
-
-
-    #### Group Ikonos
+    ## Group Ikonos
     image_list2 = []
-    for srcfp in image_list:
+    for srcfp in image_list1:
         srcdir,srcfn = os.path.split(srcfp)
-        if "IK01" in srcfn and sum([b in srcfn for b in ortho_utils.ikMsiBands]) > 0:
-            for b in ortho_utils.ikMsiBands:
+        if "IK01" in srcfn and sum([b in srcfn for b in ortho_functions.ikMsiBands]) > 0:
+            for b in ortho_functions.ikMsiBands:
                 if b in srcfn:
                     newname = os.path.join(srcdir,srcfn.replace(b,"msi"))
+                    break
             image_list2.append(newname)
 
         else:
             image_list2.append(srcfp)
 
-    image_list3 = list(set(image_list2))
-
-    # Iterate Through Found Images
-    for srcfp in image_list3:
-
+    image_list = list(set(image_list2))
+    logger.info('Number of src images: {}'.format(len(image_list)))
+    
+    ## Build task queue
+    i = 0
+    task_queue = []
+    for srcfp in image_list:
         srcdir, srcfn = os.path.split(srcfp)
-
-        #### Derive dstfp
-        stretch = opt.stretch
-
-        dstfp = os.path.join(dstdir,"%s_%s%s%d%s" % (os.path.splitext(srcfn)[0],
-	    ortho_utils.getBitdepth(opt.outtype),
-	    opt.stretch,
-	    spatial_ref.epsg,
-	    ortho_utils.formats[opt.format]
-	    ))
-
+        dstfp = os.path.join(dstdir,"%s_%s%s%d%s" %(
+            os.path.splitext(srcfn)[0],
+            utils.get_bit_depth(args.outtype),
+            args.stretch,
+            spatial_ref.epsg,
+            ortho_functions.formats[args.format]
+        ))
+        
         done = os.path.isfile(dstfp)
-
         if done is False:
-            rc_dict[srcfn] = ortho_utils.processImage(srcfp,dstfp,opt)
-
-
-    #### Print Images with Errors
-    for k,v in rc_dict.iteritems():
-        if v != 0:
-            ortho_utils.LogMsg("Failed Image: %s" %(k))
-
-
+            i += 1
+            task = utils.Task(
+                srcfn,
+                'Ortho{:04g}'.format(i),
+                'python',
+                '{} {} {} {}'.format(scriptpath, arg_str_base, srcfp, dstdir),
+                ortho_functions.process_image,
+                [srcfp, dstfp, args]
+            )
+            task_queue.append(task)
+    
+    logger.info('Number of incomplete tasks: {}'.format(i)) 
+    
+    ## Run tasks
+    if len(task_queue) > 0:
+        logger.info("Submitting Tasks")
+        if args.pbs:
+            if args.l:
+                task_handler = utils.PBSTaskHandler(qsubpath, "-l {}".format(args.l))
+            else:
+                task_handler = utils.PBSTaskHandler(qsubpath)
+            if not args.dryrun:
+                task_handler.run_tasks(task_queue)
+            
+        elif args.parallel_processes > 1:
+            task_handler = utils.ParallelTaskHandler(args.parallel_processes)
+            logger.info("Number of child processes to spawn: {0}".format(task_handler.num_processes))
+            if not args.dryrun:
+                task_handler.run_tasks(task_queue)
+    
+        else:
+            # task_handler = utils.SerialTaskHandler(method)
+            # results = task_handler.run_tasks(task_queue)
+            
+            results = {}
+            for task in task_queue:
+                           
+                src, dstfp, task_arg_obj = task.method_arg_list
+                
+                #### Set up processing log handler
+                logfile = os.path.splitext(dstfp)[0]+".log"
+                lfh = logging.FileHandler(logfile)
+                lfh.setLevel(logging.DEBUG)
+                formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s','%m-%d-%Y %H:%M:%S')
+                lfh.setFormatter(formatter)
+                logger.addHandler(lfh)
+                
+                if not args.dryrun:
+                    results[task.name] = task.method(src, dstfp, task_arg_obj)
+            
+            #### Print Images with Errors    
+            for k,v in results.iteritems():
+                if v != 0:
+                    logger.warning("Failed Image: {}".format(k))
+        
+        logger.info("Done")
+        
+    else:
+        logger.info("No images found to process")
+        
 
 if __name__ == "__main__":
     main()

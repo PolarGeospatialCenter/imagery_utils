@@ -1,18 +1,14 @@
-import os, string, sys, shutil, glob, re, tarfile, logging, argparse, signal
-from datetime import *
-from subprocess import *
-import math
+import os, string, sys, shutil, math, glob, re, tarfile, logging, platform, argparse, subprocess
+from datetime import datetime, timedelta
 from xml.etree import cElementTree as ET
-
-import gdal, ogr,osr, gdalconst
+import gdal, ogr, osr, gdalconst
 import numpy
 from numpy import flatnonzero
 
+from lib import utils
+
 logger = logging.getLogger("logger")
 logger.setLevel(logging.DEBUG)
-
-gdal.SetConfigOption('GDAL_PAM_ENABLED','NO')
-gdal.UseExceptions()
 
 MODES = ["ALL","MOSAIC","SHP","TEST"]
 EXTS = [".tif",".ntf"]
@@ -31,25 +27,6 @@ GTIFF_COMPRESSIONS = ["jpeg95","lzw"]
 #        self.panfact = dAttribs["panfact"]
 
 
-def build_arg_list(args,pos_arg_keys,arg_keys_to_remove):
-    args_dict = vars(args)
-    arg_list = []
-    
-    ## Add optional args to arg_list
-    for k,v in args_dict.iteritems():
-        if k not in pos_arg_keys and k not in arg_keys_to_remove and v is not None:
-            if isinstance(v,list) or isinstance(v,tuple):
-                arg_list.append("--%s %s" %(k,' '.join([str(item) for item in v])))
-            elif isinstance(v,bool):
-                if v is True:
-                    arg_list.append("--%s" %(k))
-            else:
-                arg_list.append("--%s %s" %(k,str(v)))
-    
-    arg_str = " ".join(arg_list)
-    return arg_str
-
-
 def buildMosaicParentArgumentParser():
     
     #### Set Up Arguments 
@@ -63,7 +40,7 @@ def buildMosaicParentArgumentParser():
                         help="extent of output mosaic -- xmin xmax ymin ymax (default is union of all inputs)")
     parser.add_argument("-t", "--tilesize", nargs=2, type=float,
                         help="tile size in coordinate system units -- xsize ysize (default is 40,000 times output resolution)")
-    parser.add_argument("--force_pan_to_multi", action="store_true", dest="force_pan_to_multi", default=False,
+    parser.add_argument("--force-pan-to-multi", action="store_true", default=False,
                         help="if output is multiband, force script to also use 1 band images")
     parser.add_argument("-b", "--bands", type=int,
                         help="number of output bands( default is number of bands in the first image)")
@@ -71,12 +48,12 @@ def buildMosaicParentArgumentParser():
                         help="month and day of the year to use as target for image suitability ranking -- 04-05")
     parser.add_argument("--nosort", action="store_true", default=False,
                         help="do not sort images by metadata. script uses the order of the input textfile or directory (first image is first drawn).  Not recommended if input is a directory; order will be random")
-    parser.add_argument("--use_exposure", action="store_true", default=False,
+    parser.add_argument("--use-exposure", action="store_true", default=False,
                         help="use exposure settings in metadata to inform score")
     parser.add_argument("--exclude",
                         help="file of file name patterns (text only, no wildcards or regexs) to exclude")
-    parser.add_argument("--max_cc", type=float,
-    			help="maximum fractional cloud cover (0.0-1.0, default 0.5)")
+    parser.add_argument("--max-cc", type=float, default=0.5,
+                        help="maximum fractional cloud cover (0.0-1.0, default 0.5)")
 
     return parser
 
@@ -92,8 +69,7 @@ class ImageInfo:
             self.get_attributes_from_record(src,srs)
         else:
             logger.error("Image format must be RECORD or IMAGE")
-        
-        
+           
     #self.xsize = None
     #self.ysize = None
     #self.proj = None
@@ -110,6 +86,7 @@ class ImageInfo:
     #"ona":None,
     #"date":None,
     #"tdi":None
+     
         
     def get_attributes_from_record(self, feat, srs):
                 
@@ -575,31 +552,35 @@ class ImageInfo:
     def get_raster_stats(self):
         self.stat_dct = {}
         self.datapixelcount_dct = {}
-        ds = gdal.Open(self.srcfp)
-        if ds is not None:
-
-            #### get stats and store in dictionaries
-            for bandnum in range(1,self.bands+1):
-                band = ds.GetRasterBand(bandnum)
-                stats = band.GetStatistics(False,True)
-                dt_min = 0.5
-                dt_max = stats[1] + 0.5
-                dt_range = int(math.ceil(dt_max - dt_min))
-                h = band.GetHistogram(dt_min, dt_max, dt_range, 0, 0)
-                nz = numpy.nonzero(h)
-                low_value = nz[0][1]
-
-                # If stats min is 1 and data type is an integer, try to get the next largest value
-                if stats[0] <= 1 and self.datatype > 0 and self.datatype <= 5:
-                    logger.info("Image stats min less than or equal to 1 (min = {}), using next lowest integer value: {}".format(stats[0],low_value))
-                    stats[0] = float(low_value)
-
-                self.stat_dct[bandnum] = stats
-                self.datapixelcount_dct[bandnum] = sum(h)
-            ds = None
-
+        if not self.datatype in [1, 2, 4]: # datatype must be unsigned integer for this process to make any sense
+            logger.warning("Raster statisics (where pixel value > 1) cannot be calculated for this dataset.  Only unsigned integer datasets show meaningful results")
         else:
-            logger.warning("Cannot open image: %s" %self.srcfp)
+            ds = gdal.Open(self.srcfp)
+            if ds is not None:
+    
+                #### get stats and store in dictionaries
+                for bandnum in range(1,self.bands+1):
+                    band = ds.GetRasterBand(bandnum)
+                    stats = band.GetStatistics(False,True)
+                    dt_min = 0.5
+                    dt_max = stats[1] + 0.5
+                    dt_range = int(math.ceil(dt_max - dt_min))
+                    h = band.GetHistogram(dt_min, dt_max, dt_range, 0, 0)
+                    nz = numpy.nonzero(h)
+                    low_value = nz[0][1]
+    
+                    # If stats min is 1 and data type is an integer, try to get the next largest value
+                    if stats[0] <= 1 and self.datatype > 0 and self.datatype <= 5:
+                        logger.info("Image stats min less than or equal to 1 (min = {}), using next lowest integer value: {}".format(stats[0],low_value))
+                        stats[0] = float(low_value)
+    
+                    self.stat_dct[bandnum] = stats
+                    self.datapixelcount_dct[bandnum] = sum(h)
+                ds = None
+    
+            else:
+                logger.warning("Cannot open image: %s" %self.srcfp)
+
 
 class DemInfo:
     def __init__(self,src,frmt,srs=None):
@@ -727,6 +708,7 @@ class DemInfo:
 class MosaicParams:
     pass
 
+
 class TileParams:
     def __init__(self,x,x2,y,y2,j,i,name):
         self.xmin = x
@@ -765,6 +747,19 @@ def filterMatchingImages(imginfo_list,params):
     return imginfo_list2
 
 
+def filter_images_by_geometry(imginfo_list, params):
+    imginfo_list2 = []
+    for iinfo in imginfo_list:
+        if iinfo.geom is not None:
+            if params.extent_geom.Intersect(iinfo.geom):
+                imginfo_list2.append(iinfo)
+            else:
+                logger.debug("Image does not intersect mosaic extent: %s" %iinfo.srcfn)
+        else: # remove from list if no geom
+            logger.debug("Null geometry for image: %s" %iinfo.srcfn)
+    return imginfo_list2
+
+
 def getMosaicParameters(iinfo,options):
     
     params = MosaicParams()
@@ -793,6 +788,8 @@ def getMosaicParameters(iinfo,options):
         params.ymin = options.extent[2]
         params.xmax = options.extent[1]
         params.ymax = options.extent[3]
+        poly_wkt = 'POLYGON (( %f %f, %f %f, %f %f, %f %f, %f %f ))' %(params.xmin,params.ymin,params.xmin,params.ymax,params.xmax,params.ymax,params.xmax,params.ymin,params.xmin,params.ymin)
+        params.extent_geom = ogr.CreateGeometryFromWkt(poly_wkt)
         
     if options.tilesize is not None:
         params.xtilesize = options.tilesize[0]
@@ -944,125 +941,10 @@ def buffernum(num,buf):
         sNum = "0%s" %sNum
     return sNum
    
-    
-def deleteTempFiles(names):
-    logger.info('Deleting Temp Files')
-    for name in names:
-        if name is not None:
-            deleteList = glob.glob(os.path.splitext(name)[0]+'.*')
-            for f in deleteList:
-                try:
-                    os.remove(f)
-                    loger.info('Deleted '+os.path.basename(f))
-                except:
-                    logger.info('Could not remove '+os.path.basename(f))
-   
                     
 def copyall(srcfile,dstdir):
     for fpi in glob.glob("%s.*" %os.path.splitext(srcfile)[0]):
         fpo = os.path.join(dstdir,os.path.basename(fpi))
         shutil.copy2(fpi,fpo)
-    
-    
-def ExecCmd(cmd):
-    logger.info(cmd)
-    p = Popen(cmd,shell=True,stderr=PIPE,stdout=PIPE)
-    (so,se) = p.communicate()
-    rc = p.wait()
-    logger.info(rc)
-    logger.info(se)
-    logger.info(so)
-    
-     
 
-
-def ExecCmd_mp(job):
-    job_name, cmd = job
-    logger.info('Running job: {0}'.format(job_name))
-    logger.debug('Cmd: {0}'.format(cmd))
-    
-    p = Popen(cmd,shell=True,stderr=PIPE,
-              stdout=PIPE,preexec_fn=os.setsid)
-    try:
-        (so,se) = p.communicate()
-    except KeyboardInterrupt:
-        os.killpg(p.pid, signal.SIGTERM)
-    
-    else:
-        logger.debug(so)
-        logger.debug(se)
-
-def getGEMetadataAsXml(metafile):
-	if os.path.isfile(metafile):
-		try:
-			metaf = open(metafile, "r")
-		except IOError, err:
-			LogMsg("Could not open metadata file %s because %s" % (metafile, err))
-			raise
-	else:
-		LogMsg("Metadata file %s not found" % metafile)
-		return None
-
-	# Patterns to extract tag/value pairs and BEGIN/END group tags
-	gepat1 = re.compile(r'(?P<tag>\w+) = "?(?P<data>.*?)"?;', re.I)
-	gepat2 = re.compile(r"(?P<tag>\w+) = ", re.I)
-
-	# These tags use the following tag/value as an attribute of the group rather than
-	# a standalone node
-	group_tags = {"aoiGeoCoordinate":"coordinateNumber",
-				  "aoiMapCoordinate":"coordinateNumber",
-				  "bandSpecificInformation":"bandNumber"}
-
-	# Start processing
-	root = ET.Element("root")
-	parent = None
-	current = root
-	node_stack = []
-	mlstr = False  # multi-line string flag
-
-	for line in metaf:
-		# mlstr will be true when working on a multi-line string
-		if mlstr:
-			if not line.strip() == ");":
-				data += line.strip()
-			else:
-				data += line.strip()
-				child = ET.SubElement(current, tag)
-				child.text = data
-				mlstr = False
-
-		# Handle tag/value pairs and groups
-		mat1 = gepat1.search(line)
-		if mat1:
-			tag = mat1.group("tag").strip()
-			data = mat1.group("data").strip()
-
-			if tag == "BEGIN_GROUP":
-				if data is None or data == "":
-					child = ET.SubElement(current, "group")
-				else:
-					child = ET.SubElement(current, data)
-				if parent:
-					node_stack.append(parent)
-				parent = current
-				current = child
-			elif tag == "END_GROUP":
-				current = parent if parent else root
-				parent = node_stack.pop() if node_stack else None
-			else:
-				if current.tag in group_tags and tag == group_tags[current.tag]:
-					current.set(tag, data)
-				else:
-					child = ET.SubElement(current, tag)
-					child.text = data
-		else:
-			mat2 = gepat2.search(line)
-			if mat2:
-				tag = mat2.group("tag").strip()
-				data = ""
-				mlstr = True
-
-	metaf.close()
-	#print ET.ElementTree(root)
-	return ET.ElementTree(root)
 

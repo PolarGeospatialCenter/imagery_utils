@@ -25,8 +25,8 @@ def main():
     #### Set Up Arguments 
     parent_parser = buildMosaicParentArgumentParser()
     parser = argparse.ArgumentParser(
-	parents=[parent_parser],
-	description="Create mosaic subtile"
+        parents=[parent_parser],
+        description="Create mosaic subtile"
 	)
     
     parser.add_argument("tile", help="output tile name")
@@ -34,7 +34,7 @@ def main():
     
     parser.add_argument("--wd",
                         help="scratch space (default is mosaic directory)")
-    parser.add_argument("--gtiff_compression", choices=GTIFF_COMPRESSIONS, default="lzw",
+    parser.add_argument("--gtiff-compression", choices=GTIFF_COMPRESSIONS, default="lzw",
                         help="GTiff compression type. Default=lzw (%s)"%string.join(GTIFF_COMPRESSIONS,','))
     
     #### Parse Arguments
@@ -114,7 +114,7 @@ def main():
             if srcbands == 1:
                 mergefile = os.path.join(wd,os.path.basename(img)[:-4])+"_merge.tif"
                 cmd = 'gdal_merge.py -ps %s %s -separate -o "%s" "%s"' %(ref_xres, ref_yres, mergefile, string.join(([img] * bands),'" "'))
-                ExecCmd(cmd)
+                utils.exec_cmd(cmd)
         srcnodata = string.join((['0'] * bands)," ")
             
         if c == 0:
@@ -123,11 +123,11 @@ def main():
                 status = 1
                 break
             cmd = 'gdalwarp %s -srcnodata "%s" -dstnodata "%s" "%s" "%s"' %(dims,srcnodata,srcnodata,mergefile,localtile1)
-            ExecCmd(cmd)
+            utils.exec_cmd(cmd)
             
         else:
             cmd = 'gdalwarp -srcnodata "%s" -dstnodata "%s" "%s" "%s"' %(srcnodata,srcnodata,mergefile,localtile1)
-            ExecCmd(cmd)
+            utils.exec_cmd(cmd)
             
         c += 1
         
@@ -146,12 +146,12 @@ def main():
                 compress_option =  '-co "compress=jpeg" -co "jpeg_quality=95"'
                 
             cmd = 'gdal_translate -stats -of GTiff %s -co "PHOTOMETRIC=MINISBLACK" -co "TILED=YES" -co "BIGTIFF=IF_SAFER" "%s" "%s"' %(compress_option,localtile1,localtile2)
-            ExecCmd(cmd)
+            utils.exec_cmd(cmd)
         
         ####  Build Pyramids        
         if os.path.isfile(localtile2):
             cmd = 'gdaladdo "%s" 2 4 8 16 30' %(localtile2)
-            ExecCmd(cmd)
+            utils.exec_cmd(cmd)
         
         #### Copy tile to destination
         if os.path.isfile(localtile2):
@@ -162,7 +162,7 @@ def main():
     
     
     #### Delete temp files
-    deleteTempFiles(del_images)
+    utils.delete_temp_files(del_images)
     shutil.rmtree(wd)
    
     logger.info("Done")
