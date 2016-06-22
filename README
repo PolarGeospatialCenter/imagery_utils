@@ -15,11 +15,11 @@ The code is tightly coupled to the systems on which it was developed.  You shoul
 
 SCRIPT USAGE
 ------------
-Scripts with "parallel" in the name are meant to submit and run jobs on a Linux cluster.  Files starting with "qsub" are torque qsub submission scripts.  See the script-specific documenation for more details on usage.
+Files starting with "qsub" are torque qsub submission scripts.  See the script-specific documenation for more details on usage.
 
 ORTHO
 
-The orthorectification script can correct for terrain displacement and radiometric settings as well as alter the bit depth of the imagery.  pgc_ortho_parallel.py will submit and run jobs on a cluster, whereas pgc_ortho.py will run the jobs serially on a sngle machine, linux or windows.
+The orthorectification script can correct for terrain displacement and radiometric settings as well as alter the bit depth of the imagery.  Using the --pbs option will sumit the jobs to an Torque job sceduler.  Alternatively, using the --parallel-proceses option  will instruct the script to run multiple tasks in parallel.
 
 Example:  python pgc_ortho.py --epsg 3031 --dem DEM.tif --format GTiff --stretch ns --outtype UInt16 input_dir output dir
 
@@ -29,27 +29,28 @@ MOSAIC
 
 The mosaicking toolset mosaics multiple input images into a set of non-overlapping output tile images.  It can sort the images accounding to several factors including cloud cover, sun elevation engle, off-nadir angle, probability of overexposure, and proximity to a specific date.  It consists of 4 scripts:
 
-1. pgc_mosaic_parallel.py - initializes the output mosaic and submits each tile as a job on a lunix cluster.
+1. pgc_mosaic.py - initializes the output mosaic and submits each tile as a job.
 2. pgc_mosaic_query_index.py - takes mosaic parameters and a shapefile index and determines which images will contribute to the resulting mosaic. The resulting list can be used to reduce the number of images that are run through the orthorectification script to those that will be eventually used.
 3. pgc_mosaic_build_tile.py - builds an individual mosaic tile.  This script is invoked by pgc_mosaic_parallel.
 4. pgc_mosaic_build_cutlines.py - builds a shapefile index of the image cutlines or of all contributing images.  This script is invoked by pgc_mosaic_parallel.
 
-Example:  python pgc_mosaic_parallel.py --bands 1 --tilesize 20000 20000 --resolution 0.5 0.5 input_dir output_mosaic_name
+Example:  python pgc_mosaic.py --pbs --bands 1 --tilesize 20000 20000 --resolution 0.5 0.5 input_dir output_mosaic_name
 
 This example will evalutate all the 1-band images in input_dir and sort them according to their quality score.  It will submit a job to the cluster queue to build each tile of size 20,000 x 20,000 pixels at 0.5 meters resolution.  The output tiles will be Geotiffs named by appending a row and column identifier to the output_mosaic_name.
 
 PANSHARPEN
 
-The pacharpening utility applies the orthorectification process to both the pan and multi image in a pair and then pansharmens them using Dan Stalke's gdal_landsat_pansharp tool (https://github.com/gina-alaska/dans-gdal-scripts/wiki/Gdal_landsat_pansharp).  pgc_pansharp_parallel is meant to submit jobs to a cluster queuing system or run a simgle image pair.
+The pacharpening utility applies the orthorectification process to both the pan and multi image in a pair and then pansharmens them using the GDAL tool gdal_pansharpen.  GDAL 2.1 is required for this tool to function.
 
+NDVI
+
+The NDVI utility calculated NDVI from multispectral image(s).  The tool is designed to rn on data that have already been run through the pgc_ortho utility.
 
 INSTALLATION AND DEPENDANCIES
 -----------------------------
 LINUX
 
 Installation of PGC's GDAL stack is documented on our Github page (https://github.com/PolarGeospatialCenter/gdal-full).
-
-Details on installing the parsharpening tool can be found here: https://github.com/gina-alaska/dans-gdal-scripts/wiki/Gdal_landsat_pansharp. 
 
 WINDOWS
 
