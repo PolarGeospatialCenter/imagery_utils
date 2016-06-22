@@ -52,7 +52,7 @@ dst:
 		No stretch: scales the DN values to the output data type. Outtype Byte means values are scaled from 0-255.  UInt16 and Float32 keep the original 11 bit DN values from 0-2047.
 		Reflectance: calculates top of atmosphere reflectance and scales it to the output data type. Outtype Byte means values are scaled 0-200, UInt16 scales 0-2000, Float32 is unscaled percent refelctance (0-1).
 		Modified reflectance: same as reflactance, but with a histogram stretch applied that brightens the lower end of the dynamic range.  mr stretch is used for non-ice covered areas.
-		Absolute radience: calcualtes absolute top of atmosphere radience.  UInt16 is the only appropriate data type to use for this stretch becasue the units are W/m2/micrometers.
+		Absolute radience: calcualtes absolute top of atmosphere radience.  UInt16 or Float 32 are the only appropriate data types to use for this stretch becasue the units are W/m2/micrometers.
 		
 --resample {near,bilinear,cubic,cubicspline,lanczos}:
 	orthorectification resampling strategy - mimicks gdalwarp options
@@ -69,8 +69,29 @@ dst:
 --wd WD:
 	local working directory for cluster jobs (default is dst dir).  This option should be used on any HPC job where there is storage local to the processing node.  It will reduce IO and increase processing speed.
 	
---skip_warp:
+--skip-warp:
 	skip warping step
+
+--skip-dem-overlap-check:
+	skip verification of image-DEM overlap
+
+--no-pyramids:
+	suppress calculation of output image pyramids and stats
+
+--ortho-height ORTHO_HEIGHT:
+	constant elevation to use for orthorectification (value should be in meters above the wgs84 ellipoid)
+	
+--pbs:
+	submit tasks to PBS
+	
+--parallel-processes PARALLEL_PROCESSES:
+	number of parallel processes to spawn (default 1)
+
+--qsubscript QSUBSCRIPT:
+	qsub script to use in cluster job submission (default is qsub_ortho.sh in script root folder)
+	
+-l L:
+	PBS resources requested (mimics qsub syntax)
 	
 --log LOG:
 	file to log progress. Defaults to <output_dir>\process.log

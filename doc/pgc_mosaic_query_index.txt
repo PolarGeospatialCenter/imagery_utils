@@ -37,7 +37,7 @@ dstdir:
 -t TILESIZE TILESIZE, --tilesize TILESIZE TILESIZE:
 	tile size in coordinate system units -- xsize ysize (default is 40,000 times output resolution)
 	
---force_pan_to_multi:
+--force-pan-to-multi:
 	if output is multiband, force script to also use 1 band images
 	
 -b BANDS, --bands BANDS:
@@ -49,7 +49,7 @@ dstdir:
 --nosort:
 	do not sort images by metadata. script uses the orderof the input textfile or directory.  Fist image is the frst droawn and subsequent images will overlay the earlier images. Not recommended if src is a directory; the sort order will be random.
 	
---use_exposure:
+--use-exposure:
 	use exposure settings in metadata to inform score.  This is applicable usually only in Antarctica.
 	
 --exclude EXCLUDE:
