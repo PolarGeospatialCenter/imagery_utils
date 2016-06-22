@@ -128,7 +128,7 @@ def main():
         for iinfo in imginfo_list2:
             iinfo.getScore(params)
             iinfo.get_raster_stats()
-            #logger.info("%s: %s" %(iinfo.srcfn,iinfo.score))
+            logger.info("%s: %s" %(iinfo.srcfn,iinfo.score))
                
         ####  Overlay geoms and remove non-contributors
         if args.component_shp:

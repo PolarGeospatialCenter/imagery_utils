@@ -45,7 +45,7 @@ class TestMosaicImageInfo(unittest.TestCase):
         self.assertAlmostEqual(image_info.score, 79.1422222)
         
         image_info.get_raster_stats()
-        stat_dct = {1: [40.0, 200.0, 135.8281142029, 33.541005345559]}
+        stat_dct = {1: [40.0, 200.0, 135.82811420290182, 33.54100534555833]}
         datapixelcount_dct = {1: 4435509}
         self.assertEqual(image_info.stat_dct, stat_dct)
         self.assertEqual(image_info.datapixelcount_dct, datapixelcount_dct)
@@ -75,7 +75,7 @@ class TestMosaicImageInfo(unittest.TestCase):
         self.assertAlmostEqual(image_info.score, 79.2)
         
         image_info.get_raster_stats()
-        stat_dct = {1: [24.0, 192.0, 60.004250622881, 18.321626067646]}
+        stat_dct = {1: [24.0, 192.0, 60.0042506228806, 18.321626067645923]}
         datapixelcount_dct = {1: 1403559}
         self.assertEqual(image_info.stat_dct, stat_dct)
         self.assertEqual(image_info.datapixelcount_dct, datapixelcount_dct)  
@@ -110,8 +110,7 @@ class TestMosaicImageInfo(unittest.TestCase):
         datapixelcount_dct = {}
         self.assertEqual(image_info.stat_dct, stat_dct)
         self.assertEqual(image_info.datapixelcount_dct, datapixelcount_dct)
-        
-        
+             
     def test_image_info_wv02_ndvi_int16(self):
         srcdir = os.path.join(os.path.join(test_dir,'mosaic','pansh_ndvi'))
         image = 'WV02_20110901210434_103001000B41DC00_11SEP01210434-M1BS-052730735130_01_P007_u16rf3413_pansh_ndvi.tif'
@@ -141,13 +140,12 @@ class TestMosaicImageInfo(unittest.TestCase):
         stat_dct = {1: [-991.0, 996.0, 536.7883746333843, 250.83677803422484]}
         datapixelcount_dct = {1: 1202904}
         self.assertEqual(image_info.stat_dct, stat_dct)
-        #self.assertEqual(image_info.datapixelcount_dct, datapixelcount_dct)  
+        self.assertEqual(image_info.datapixelcount_dct, datapixelcount_dct)  
     
-    
-    #@unittest.skip("skipping")
     def test_image_info_multispectral_dg_ge01(self):
         image = 'GE01_20130728161916_1050410002608900_13JUL28161916-M1BS-054448357040_01_P002_u08mr3413.tif'
         image_info = mosaic.ImageInfo(os.path.join(self.srcdir,image), 'IMAGE')
+        self.maxDiff = None
         
         self.assertEqual(image_info.xres, 32.0)
         self.assertEqual(image_info.yres, 32.0)
@@ -171,10 +169,10 @@ class TestMosaicImageInfo(unittest.TestCase):
         
         image_info.get_raster_stats()
         stat_dct = {
-            1: [44.0, 180.0, 73.052249470621, 13.760346025453],
-            2: [28.0, 182.0, 62.263215357387, 16.410250286248],
-            3: [9.0, 187.0, 51.739020378928, 17.017318737228],
-            4: [7.0, 178.0, 57.12859134704, 20.162025784223]
+            1: [44.0, 180.0, 73.05224947061919, 13.760346025453206],
+            2: [28.0, 182.0, 62.26321535738713, 16.410250286247617],
+            3: [9.0, 187.0, 51.73902037892776, 17.01731873722769],
+            4: [7.0, 178.0, 57.128591347040505, 20.162025784223044]
         }
         datapixelcount_dct = {1: 287601, 2: 287601, 3: 287601, 4: 287601}
         self.assertEqual(image_info.stat_dct, stat_dct)
@@ -235,7 +233,7 @@ class TestMosaicImageInfo(unittest.TestCase):
         self.assertAlmostEqual(image_info.score, -1)
         
         image_info.get_raster_stats()
-        stat_dct =  {1: [80.0, 191.0, 185.71027775367, 6.9658147557528]}
+        stat_dct =  {1: [80.0, 191.0, 185.7102777536714, 6.965814755751974]}
         datapixelcount_dct =  {1: 1152100}
         self.assertEqual(image_info.stat_dct, stat_dct)
         self.assertEqual(image_info.datapixelcount_dct, datapixelcount_dct)

@@ -26,7 +26,7 @@ class TestMosaicFunc(unittest.TestCase):
         if not os.path.isdir(self.dstdir):
             os.makedirs(self.dstdir)
 
-    @unittest.skip("skipping")
+    #@unittest.skip("skipping")
     def test_pan_mosaic(self):   
         # extent = -820000.0, -800000.0, -2420000.0, -2400000.0
         # tilesize = 10000, 10000
@@ -52,7 +52,7 @@ class TestMosaicFunc(unittest.TestCase):
         self.assertTrue(os.path.isfile(mosaicname + '_components.shp'))
         self.assertTrue(os.path.isfile(mosaicname + '_tiles.shp'))
     
-    @unittest.skip("skipping")
+    #@unittest.skip("skipping")
     def test_bgrn_mosaic(self):   
         # extent = -3260000, -3240000, 520000, 540000
         # tilesize = 10000, 10000
@@ -77,7 +77,8 @@ class TestMosaicFunc(unittest.TestCase):
         self.assertTrue(os.path.isfile(mosaicname + '_cutlines.shp'))
         self.assertTrue(os.path.isfile(mosaicname + '_components.shp'))
         self.assertTrue(os.path.isfile(mosaicname + '_tiles.shp'))
-        
+    
+    #@unittest.skip("skipping")    
     def test_ndvi_pansh_mosaic(self):   
         # extent = -3260000, -3240000, 520000, 540000
         # tilesize = 10000, 10000
@@ -93,8 +94,8 @@ class TestMosaicFunc(unittest.TestCase):
         )
         p = subprocess.Popen(cmd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell=True)
         se,so = p.communicate()
-        print so
-        print se
+        # print so
+        # print se
         
         self.assertTrue(os.path.isfile(mosaicname + '_1_1.tif'))
         self.assertTrue(os.path.isfile(mosaicname + '_1_2.tif'))
@@ -104,8 +105,8 @@ class TestMosaicFunc(unittest.TestCase):
         self.assertTrue(os.path.isfile(mosaicname + '_components.shp'))
         self.assertTrue(os.path.isfile(mosaicname + '_tiles.shp'))
         
-    # def tearDown(self):
-    #     shutil.rmtree(self.dstdir)
+    def tearDown(self):
+        shutil.rmtree(self.dstdir)
         
     
     ## test_mosaic_pbs

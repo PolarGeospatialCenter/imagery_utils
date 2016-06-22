@@ -7,8 +7,6 @@ from xml.etree import cElementTree as ET
 import gdal, ogr, osr, gdalconst
 
 gdal.SetConfigOption('GDAL_PAM_ENABLED', 'NO')
-gdal.UseExceptions()
-
 
 #### Create Loggers
 logger = logging.getLogger("logger")
