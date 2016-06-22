@@ -18,7 +18,7 @@ logger = logging.getLogger("logger")
 class TestMosaicImageInfo(unittest.TestCase):
     
     def setUp(self):
-        self.srcdir = os.path.join(os.path.join(test_dir,'mosaic_src'))
+        self.srcdir = os.path.join(os.path.join(test_dir,'mosaic','ortho'))
 
     def test_image_info_ge01(self):
         image = 'GE01_20090707163115_297600_5V090707P0002976004A222012202432M_001529596_u08mr3413.tif'
@@ -81,35 +81,67 @@ class TestMosaicImageInfo(unittest.TestCase):
         self.assertEqual(image_info.datapixelcount_dct, datapixelcount_dct)  
     
     def test_image_info_wv02_ndvi(self):
-        srcdir = os.path.join(os.path.join(test_dir,'mosaic_src3'))
-        image = ''
+        srcdir = os.path.join(os.path.join(test_dir,'mosaic','ndvi'))
+        image = 'WV02_20110901210434_103001000B41DC00_11SEP01210434-M1BS-052730735130_01_P007_u16rf3413_ndvi.tif'
+        image_info = mosaic.ImageInfo(os.path.join(srcdir,image), 'IMAGE')
+        
+        self.assertEqual(image_info.xres, 64.0)
+        self.assertEqual(image_info.yres, 64.0)
+        self.assertEqual(image_info.proj, 'PROJCS["unnamed",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433],AUTHORITY["EPSG","4326"]],PROJECTION["Polar_Stereographic"],PARAMETER["latitude_of_origin",70],PARAMETER["central_meridian",-45],PARAMETER["scale_factor",1],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]]]')
+        self.assertEqual(image_info.bands, 1)
+        self.assertEqual(image_info.datatype, 6)
+
+        mosaic_args = MosaicArgs()
+        mosaic_params = mosaic.getMosaicParameters(image_info, mosaic_args)
+        image_info.getScore(mosaic_params)
+        
+        self.assertEqual(image_info.sensor, 'WV02')
+        self.assertEqual(image_info.sunel, 37.7)
+        self.assertEqual(image_info.ona, 19.4)
+        self.assertEqual(image_info.cloudcover, 0.0)
+        self.assertEqual(image_info.tdi, 24.0)
+        self.assertEqual(image_info.panfactor ,1)
+        #self.assertEqual(image_info.exposure_factor, 0)
+        self.assertEqual(image_info.date_diff, -9999)
+        self.assertAlmostEqual(image_info.score, 78.555555555)
+        
+        image_info.get_raster_stats()
+        stat_dct = {}
+        datapixelcount_dct = {}
+        self.assertEqual(image_info.stat_dct, stat_dct)
+        self.assertEqual(image_info.datapixelcount_dct, datapixelcount_dct)
+        
+        
+    def test_image_info_wv02_ndvi_int16(self):
+        srcdir = os.path.join(os.path.join(test_dir,'mosaic','pansh_ndvi'))
+        image = 'WV02_20110901210434_103001000B41DC00_11SEP01210434-M1BS-052730735130_01_P007_u16rf3413_pansh_ndvi.tif'
         image_info = mosaic.ImageInfo(os.path.join(srcdir,image), 'IMAGE')
         
         self.assertEqual(image_info.xres, 16.0)
         self.assertEqual(image_info.yres, 16.0)
         self.assertEqual(image_info.proj, 'PROJCS["unnamed",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433],AUTHORITY["EPSG","4326"]],PROJECTION["Polar_Stereographic"],PARAMETER["latitude_of_origin",70],PARAMETER["central_meridian",-45],PARAMETER["scale_factor",1],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]]]')
         self.assertEqual(image_info.bands, 1)
-        self.assertEqual(image_info.datatype, 1)
+        self.assertEqual(image_info.datatype, 3)
 
         mosaic_args = MosaicArgs()
         mosaic_params = mosaic.getMosaicParameters(image_info, mosaic_args)
         image_info.getScore(mosaic_params)
         
-        self.assertEqual(image_info.sensor, 'WV01')
-        self.assertEqual(image_info.sunel, 39.0)
-        self.assertEqual(image_info.ona, 18.5)
+        self.assertEqual(image_info.sensor, 'WV02')
+        self.assertEqual(image_info.sunel, 37.7)
+        self.assertEqual(image_info.ona, 19.4)
         self.assertEqual(image_info.cloudcover, 0.0)
-        self.assertEqual(image_info.tdi, 16.0)
+        self.assertEqual(image_info.tdi, 24.0)
         self.assertEqual(image_info.panfactor ,1)
         #self.assertEqual(image_info.exposure_factor, 0)
         self.assertEqual(image_info.date_diff, -9999)
-        self.assertAlmostEqual(image_info.score, 79.2)
+        self.assertAlmostEqual(image_info.score, 78.555555555)
         
         image_info.get_raster_stats()
-        stat_dct = {1: [24.0, 192.0, 60.004250622881, 18.321626067646]}
-        datapixelcount_dct = {1: 1403559}
+        stat_dct = {1: [-991.0, 996.0, 536.7883746333843, 250.83677803422484]}
+        datapixelcount_dct = {1: 1202904}
         self.assertEqual(image_info.stat_dct, stat_dct)
-        self.assertEqual(image_info.datapixelcount_dct, datapixelcount_dct)  
+        #self.assertEqual(image_info.datapixelcount_dct, datapixelcount_dct)  
     
     
     #@unittest.skip("skipping")

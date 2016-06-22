@@ -89,8 +89,8 @@ def main():
         ds = gdal.Open(image)
         if ds is not None:
             srcbands = ds.RasterCount
-            
-            images[image] = srcbands
+            srcnodata_val = ds.GetRasterBand(1).GetNoDataValue()
+            images[image] = (srcbands, srcnodata_val)
             final_intersects.append(image)
             logger.info("%s" %(os.path.basename(image)))
     
@@ -108,14 +108,14 @@ def main():
             
         #### Check if bands number is correct
         mergefile = img
+        srcbands, srcnodata_val = images[img]
         
         if args.force_pan_to_multi is True and bands > 1:
-            srcbands = images[img]
             if srcbands == 1:
                 mergefile = os.path.join(wd,os.path.basename(img)[:-4])+"_merge.tif"
                 cmd = 'gdal_merge.py -ps %s %s -separate -o "%s" "%s"' %(ref_xres, ref_yres, mergefile, string.join(([img] * bands),'" "'))
                 utils.exec_cmd(cmd)
-        srcnodata = string.join((['0'] * bands)," ")
+        srcnodata = string.join(([str(srcnodata_val)] * bands)," ")
             
         if c == 0:
             if os.path.isfile(localtile1):
@@ -126,11 +126,10 @@ def main():
             utils.exec_cmd(cmd)
             
         else:
-            cmd = 'gdalwarp -srcnodata "%s" -dstnodata "%s" "%s" "%s"' %(srcnodata,srcnodata,mergefile,localtile1)
+            cmd = 'gdalwarp -srcnodata "%s" "%s" "%s"' %(srcnodata,mergefile,localtile1)
             utils.exec_cmd(cmd)
             
         c += 1
-        
         
         if not mergefile == img:
             del_images.append(mergefile)

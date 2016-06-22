@@ -93,7 +93,6 @@ def main():
         else:
             logger.info("Number of intersecting images: %i" %len(intersects))
         
-        
         #### gather image info list
         logger.info("Gathering image info")
         imginfo_list = [mosaic.ImageInfo(image,"IMAGE") for image in intersects]
@@ -123,13 +122,13 @@ def main():
                 imginfo_list2.append(iinfo)
                 centroid = geom.Centroid()
                 logger.info("%s: geometry acquired - centroid: %f, %f" %(iinfo.srcfn, centroid.GetX(), centroid.GetY()))
-                print geom
+                #print geom
         
-        logger.info("Getting imae metadata and calculating image scores")
+        logger.info("Getting image metadata and calculating image scores")
         for iinfo in imginfo_list2:
             iinfo.getScore(params)
             iinfo.get_raster_stats()
-            logger.info("%s: %s" %(iinfo.srcfn,iinfo.score))
+            #logger.info("%s: %s" %(iinfo.srcfn,iinfo.score))
                
         ####  Overlay geoms and remove non-contributors
         if args.component_shp:

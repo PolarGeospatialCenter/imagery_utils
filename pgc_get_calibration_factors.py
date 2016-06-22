@@ -41,9 +41,9 @@ def main():
         srctype = 'dir'
     elif os.path.isfile(src) and os.path.splitext(src)[1].lower() == '.txt':
         srctype = 'textfile'
-    elif os.path.isfile(src) and os.path.splitext(src)[1].lower() in ortho_functions.ortho_functions.exts:
+    elif os.path.isfile(src) and os.path.splitext(src)[1].lower() in ortho_functions.exts:
         srctype = 'image'
-    elif os.path.isfile(src.replace('msi','blu')) and os.path.splitext(src)[1].lower() in ortho_functions.ortho_functions.exts:
+    elif os.path.isfile(src.replace('msi','blu')) and os.path.splitext(src)[1].lower() in ortho_functions.exts:
         srctype = 'image'
     else:
         parser.error("Arg1 is not a recognized file path or file type: %s" % (src))
@@ -71,7 +71,7 @@ def main():
     for srcfp in image_list:
 	
 	#### Instantiate mosaic.ImageInfo object
-	info = ortho_functions.mosaic.ImageInfo()
+	info = ortho_functions.ImageInfo()
 	info.srcfp = srcfp
 	info.srcdir,info.srcfn = os.path.split(srcfp)
 	info.vendor, info.sat = utils.get_sensor(info.srcfn)

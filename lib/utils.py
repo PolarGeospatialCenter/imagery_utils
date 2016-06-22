@@ -1,61 +1,71 @@
 import os, string, sys, shutil, math, glob, re, tarfile, logging, platform, argparse, subprocess
 from datetime import datetime, timedelta
+
 import multiprocessing as mp
 from xml.dom import minidom
 from xml.etree import cElementTree as ET
 import gdal, ogr, osr, gdalconst
 
-gdal.SetConfigOption('GDAL_PAM_ENABLED','NO')
+gdal.SetConfigOption('GDAL_PAM_ENABLED', 'NO')
 gdal.UseExceptions()
+
 
 #### Create Loggers
 logger = logging.getLogger("logger")
 logger.setLevel(logging.DEBUG)
 
 ## Copy DEM global vars
-deliv_suffixes = (### ASP
-                  '-DEM.prj',
-                  '-DEM.tif',
-                  '-DRG.tif',
-                  '-IntersectionErr.tif',
-                  '-GoodPixelMap.tif',
-                  '-stereo.default',
-                  '-PC.laz',
-                  '-PC.las',
-                  '.geojson',
-                  
-                  ### SETSM
-                  '_dem.tif',
-                  '_ortho.tif',
-                  '_matchtag.tif',
-                  '_meta.txt'
-                  )
+deliv_suffixes = (
+### ASP
+'-DEM.prj',
+'-DEM.tif',
+'-DRG.tif',
+'-IntersectionErr.tif',
+'-GoodPixelMap.tif',
+'-stereo.default',
+'-PC.laz',
+'-PC.las',
+'.geojson',
+
+### SETSM
+'_dem.tif',
+'_ortho.tif',
+'_matchtag.tif',
+'_meta.txt'
+)
 
 archive_suffix = ".tar"
 
-shp_suffixes = ('.shp',
+shp_suffixes = (
+                  '.shp',
                   '.shx',
                   '.prj',
-                  '.dbf',)
+                  '.dbf'
+)
 
-pc_suffixes = ('-PC.tif',
-               '-PC-center.txt')
+pc_suffixes = (
+                  '-PC.tif',
+                  '-PC-center.txt'
+)
 
-fltr_suffixes = ('_fltr-DEM.tif',
-                 '_fltr-DEM.prj')
+fltr_suffixes = (
+                  '_fltr-DEM.tif',
+                  '_fltr-DEM.prj'
+)
 
 
-log_suffixes = ('-log-point2dem',
-                '-log-stereo_corr',
-                '-log-stereo_pprc',
-                '-log-stereo_fltr',
-                '-log-stereo_rfne',
-                '-log-stereo_tri',
-                )
+log_suffixes = (
+                  '-log-point2dem',
+                  '-log-stereo_corr',
+                   '-log-stereo_pprc',
+                  '-log-stereo_fltr',
+                  '-log-stereo_rfne',
+                  '-log-stereo_tri'
+)
 
 
 class Task(object):
-    
+
     def __init__(self, task_name, task_abrv, task_exe, task_cmd, task_method=None, task_method_arg_list=None):
         self.name = task_name
         self.abrv = task_abrv
@@ -66,9 +76,9 @@ class Task(object):
 
 
 class PBSTaskHandler(object):
-    
+
     def __init__(self, qsubscript, qsub_args=""):
-        
+
         ####  verify PBS is present by calling pbsnodes cmd
         try:
             cmd = "pbsnodes"
@@ -76,17 +86,17 @@ class PBSTaskHandler(object):
             so, se = p.communicate()
         except OSError,e:
             raise RuntimeError("PBS job submission is not available on this system")
-        
+
         self.qsubscript = qsubscript
         if not qsubscript:
             raise RuntimeError("PBS job submission resuires a valid qsub script")
         elif not os.path.isfile(qsubscript):
             raise RuntimeError("Qsub script does not exist: {}".format(qsubscript))
-        
+
         self.qsub_args = qsub_args
-        
+
     def run_tasks(self, tasks):
-    
+
         for task in tasks:
             cmd = r'qsub {} -N {} -v p1="{}" "{}"'.format(
                 self.qsub_args,
@@ -95,20 +105,19 @@ class PBSTaskHandler(object):
                 self.qsubscript
             )
             subprocess.call(cmd, shell=True)
-            
+
 
 class ParallelTaskHandler(object):
-    
+
     def __init__(self, num_processes=1):
-        
         self.num_processes = num_processes
         if mp.cpu_count() < num_processes:
             raise RuntimeError("Specified number of processes ({0}) is higher than the system cpu count ({1})".format(num_proceses,mp.count_cpu()))
         elif num_processes < 1:
             raise RuntimeError("Specified number of processes ({0}) must be greater than 0, using default".format(num_proceses,mp.count_cpu()))
-        
+
     def run_tasks(self, tasks):
-                    
+
         task_queue = [[task.name, self._format_task(task)] for task in tasks]
         pool = mp.Pool(self.num_processes)
         try:
@@ -116,14 +125,14 @@ class ParallelTaskHandler(object):
         except KeyboardInterrupt:
             pool.terminate()
             raise RuntimeError("Processes terminated without file cleanup")
-    
+
     def _format_task(self, task):
         _cmd = r'{} {}'.format(
             task.exe,
             task.cmd,
         )
         return _cmd
-                
+
 
 class SpatialRef(object):
 
@@ -139,20 +148,21 @@ class SpatialRef(object):
                 raise RuntimeError("Invalid EPSG code: %d" %epsgcode)
             else:
                 proj4_string = srs.ExportToProj4()
-    
-            proj4_patterns = {
-                "+ellps=GRS80 +towgs84=0,0,0,0,0,0,0":"+datum=NAD83",
-                "+ellps=WGS84 +towgs84=0,0,0,0,0,0,0":"+datum=WGS84",
-            }
-    
-            for pattern, replacement in proj4_patterns.iteritems():
-                if proj4_string.find(pattern) <> -1:
-                    proj4_string = proj4_string.replace(pattern,replacement)
-    
-            self.srs = srs
-            self.proj4 = proj4_string
-            self.epsg = epsgcode
-            
+
+        proj4_patterns = {
+            "+ellps=GRS80 +towgs84=0,0,0,0,0,0,0":"+datum=NAD83",
+            "+ellps=WGS84 +towgs84=0,0,0,0,0,0,0":"+datum=WGS84",
+        }
+
+        for pattern, replacement in proj4_patterns.iteritems():
+            if proj4_string.find(pattern) <> -1:
+                proj4_string = proj4_string.replace(pattern,replacement)
+
+        self.srs = srs
+        self.proj4 = proj4_string
+        self.epsg = epsgcode
+
+
 
 def get_bit_depth(outtype):
     if outtype == "Byte":
@@ -261,7 +271,7 @@ def find_images(inpath, is_textfile, target_exts):
             else:
                 logger.debug("File in textfile does not exist or has an invalid extension: %s" %image)
         t.close()
-                
+
     else:
         for root,dirs,files in os.walk(inpath):
             for f in  files:
@@ -269,14 +279,14 @@ def find_images(inpath, is_textfile, target_exts):
                     image_path = os.path.join(root,f)
                     image_path = string.replace(image_path,'\\','/')
                     image_list.append(image_path)
-    
+
     return image_list
 
 
 def find_images_with_exclude_list(inpath, is_textfile, target_exts, exclude_list):
-    
+
     image_list = []
-    
+
     if is_textfile is True:
         t = open(inpath,'r')
         for line in t.readlines():
@@ -286,7 +296,7 @@ def find_images_with_exclude_list(inpath, is_textfile, target_exts, exclude_list
             else:
                 logger.info("File in textfile does not exist or has an invalid extension: %s" %image)
         t.close()
-                
+
     else:
         for root,dirs,files in os.walk(inpath):
             for f in  files:
@@ -294,22 +304,22 @@ def find_images_with_exclude_list(inpath, is_textfile, target_exts, exclude_list
                     image_path = os.path.join(root,f)
                     image_path = string.replace(image_path,'\\','/')
                     image_list.append(image_path)
-    
+
     #print len(exclude_list)
     if len(exclude_list) > 0:
-        
+
         image_list2 = []
         for image in image_list:
             include=True
             for pattern in exclude_list:
                 if pattern in image:
                     include=False
-            
+
             if include==False:
                 logger.debug("Scene ID is matches pattern in exclude_list: %s" %image)
             else:
                 image_list2.append(image)
-    
+
         return image_list2
 
     else:
@@ -317,7 +327,7 @@ def find_images_with_exclude_list(inpath, is_textfile, target_exts, exclude_list
 
 
 def convert_optional_args_to_string(args, positional_arg_keys, arg_keys_to_remove):
-    
+
     args_dict = vars(args)
     arg_list = []
 
@@ -332,7 +342,7 @@ def convert_optional_args_to_string(args, positional_arg_keys, arg_keys_to_remov
                     arg_list.append("--{}".format(k))
             else:
                 arg_list.append("--{} {}".format(k,str(v)))
-    
+
     arg_str_base = " ".join(arg_list)
     return arg_str_base
 
@@ -377,17 +387,17 @@ def check_file_inclusion(f, pairname, overlap_prefix, args):
                     move_file = True
                 else:
                     move_file = False
-        
+
         if args.tar_only is True:
             move_file = False
             if f.endswith(".tar"):
                 move_file = True
-                
+
     #### determine if file is in pair shp
     if (f.endswith(shp_suffixes) and pairname in f and not '-DEM' in f):
         if not args.dems_only:
             move_file = True
-    
+
     return move_file
 
 
@@ -401,7 +411,7 @@ def delete_temp_files(names):
                     os.remove(f)
                 except Exception, e:
                     logger.warning('Could not remove %s: %s' %(os.path.basename(f),e))
-                    
+
 
 def getGEMetadataAsXml(metafile):
     if os.path.isfile(metafile):

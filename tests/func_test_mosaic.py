@@ -18,7 +18,7 @@ logger = logging.getLogger("logger")
 class TestMosaicFunc(unittest.TestCase):
     
     def setUp(self):
-        self.srcdir = os.path.join(os.path.join(test_dir,'mosaic_src'))
+        self.srcdir = os.path.join(os.path.join(test_dir,'mosaic','ortho'))
         self.scriptpath = os.path.join(root_dir, "pgc_mosaic.py")
         self.dstdir = os.path.join(script_dir, 'testdata', 'output')
         # if os.path.isdir(self.dstdir):
@@ -82,7 +82,7 @@ class TestMosaicFunc(unittest.TestCase):
         # extent = -3260000, -3240000, 520000, 540000
         # tilesize = 10000, 10000
         # bands = 1
-        srcdir = os.path.join(os.path.join(test_dir,'mosaic_src2'))
+        srcdir = os.path.join(os.path.join(test_dir,'mosaic','pansh_ndvi'))
         mosaicname = os.path.join(self.dstdir, 'testmosaic3')
         args = '--component-shp -e -3260000 -3240000 520000 540000 -t 10000 10000 -b 1'
         cmd = 'python {} {} {} {}'.format(
@@ -104,7 +104,7 @@ class TestMosaicFunc(unittest.TestCase):
         self.assertTrue(os.path.isfile(mosaicname + '_components.shp'))
         self.assertTrue(os.path.isfile(mosaicname + '_tiles.shp'))
         
-    # def cleanUp(self):
+    # def tearDown(self):
     #     shutil.rmtree(self.dstdir)
         
     

@@ -8,6 +8,8 @@ from lib import ortho_functions, utils
 logger = logging.getLogger("logger")
 logger.setLevel(logging.DEBUG)
 
+outtypes = ['Float32', 'Int16']
+
 def main():
 
     #### Set Up Arguments
@@ -19,6 +21,8 @@ def main():
     parser.add_argument("dst", help="destination directory")
     pos_arg_keys = ["src","dst"]
     
+    parser.add_argument("-t", "--outtype", choices=outtypes, default='Float32',
+                    help="output data type (for Int16, output values are scaled from -1000 to 1000)")
     parser.add_argument("-s", "--save-temps", action="store_true", default=False,
                     help="save temp files")
     parser.add_argument("--wd",
@@ -219,13 +223,21 @@ def calc_ndvi(srcfp, dstfp, args):
         ## execute gdal_calc
         if calc_src:
             if os.path.isfile(calc_src) and not os.path.isfile(dstfp_local):
-                calc = '"(A-B)/(A+B)"'
-                cmd = 'gdal_calc.py --calc {4} -A {0} --A_band {1} -B {0} --B_band {2} --outfile {3} --type Float32 --co tiled=yes --co compress=lzw --co bigtiff=if_safer'.format(
+                if args.outtype == 'Float32':
+                    calc = '"(A-B)/(A+B)"'
+                elif args.outtype == 'Int16':
+                    calc = '"(A-B)/(A+B)*1000"'
+                else:
+                    logger.error = ("Unupported output data type: {}".format(args.outtype))
+                    return 1
+                
+                cmd = 'gdal_calc.py --debug --calc {4} -A {0} --A_band {1} -B {0} --B_band {2} --NoDataValue 0 --type {5} --outfile {3} --co tiled=yes --co compress=lzw --co bigtiff=if_safer'.format(
                     calc_src,
                     nir_band,
                     red_band,
                     dstfp_local,
-                    calc
+                    calc,
+                    args.outtype
                 )
                 utils.exec_cmd(cmd)
             

@@ -168,7 +168,7 @@ class TestCollectFiles(unittest.TestCase):
                 '01JAN08QB020800008JAN01102125-P1BS-005590467020_01_P001_________AAE_0AAAAABAABA0.xml'
             ]
         
-        for root, dirs, files in os.walk(test_dir):
+        for root, dirs, files in os.walk(os.path.join(test_dir, 'ortho')):
             for f in files:
                 if f.lower().endswith(".ntf") or f.lower().endswith(".tif"):
                     #print f

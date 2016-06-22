@@ -552,31 +552,36 @@ class ImageInfo:
     def get_raster_stats(self):
         self.stat_dct = {}
         self.datapixelcount_dct = {}
-        if not self.datatype in [1, 2, 4]: # datatype must be unsigned integer for this process to make any sense
-            logger.warning("Raster statisics (where pixel value > 1) cannot be calculated for this dataset.  Only unsigned integer datasets show meaningful results")
+        if not self.datatype in [1, 2, 3, 4, 5]: # datatype must be integer for this process to make any sense
+            logger.warning("Raster statisics cannot be calculated for this dataset.  Only integer datasets show meaningful results")
         else:
             ds = gdal.Open(self.srcfp)
-            if ds is not None:
+            if ds:
     
                 #### get stats and store in dictionaries
                 for bandnum in range(1,self.bands+1):
                     band = ds.GetRasterBand(bandnum)
-                    stats = band.GetStatistics(False,True)
-                    dt_min = 0.5
-                    dt_max = stats[1] + 0.5
-                    dt_range = int(math.ceil(dt_max - dt_min))
-                    h = band.GetHistogram(dt_min, dt_max, dt_range, 0, 0)
-                    nz = numpy.nonzero(h)
-                    low_value = nz[0][1]
-    
-                    # If stats min is 1 and data type is an integer, try to get the next largest value
-                    if stats[0] <= 1 and self.datatype > 0 and self.datatype <= 5:
-                        logger.info("Image stats min less than or equal to 1 (min = {}), using next lowest integer value: {}".format(stats[0],low_value))
-                        stats[0] = float(low_value)
-    
-                    self.stat_dct[bandnum] = stats
-                    self.datapixelcount_dct[bandnum] = sum(h)
-                ds = None
+                    #stats = band.GetStatistics(False,True)
+                    
+                    # # If stats min is 1 and data type is unsighed integer, try to get the next largest value
+                    # if self.datatype in [1, 2, 4]:
+                    #     dt_min = 0.5
+                    #     dt_max = stats[1] + 0.5
+                    #     dt_range = int(math.ceil(dt_max - dt_min))
+                    #     h = band.GetHistogram(dt_min, dt_max, dt_range, 0, 0)
+                    #     nz = numpy.nonzero(h)
+                    #     low_value = nz[0][1]
+                    #     if stats[0] <= 1:
+                    #         logger.info("Unsigned integer image stats min less than or equal to 1 (min = {}), using next lowest integer value: {}".format(stats[0],low_value))
+                    #         stats[0] = float(low_value)
+                    # # else:
+                    #     dt_min = stats[0] - 0.5
+                    #     dt_max = stats[1] + 0.5
+                    #     h = band.GetHistogram(dt_min, dt_max, 1, 0, 0)
+                    # 
+                    # self.stat_dct[bandnum] = stats
+                    # self.datapixelcount_dct[bandnum] = sum(h)
+                # ds = None
     
             else:
                 logger.warning("Cannot open image: %s" %self.srcfp)
