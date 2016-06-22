@@ -5,7 +5,7 @@ script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
 root_dir = os.path.dirname(script_dir)
 sys.path.append(root_dir)
 
-from lib import ortho_functions
+from lib import ortho_functions, utils
 
 logger = logging.getLogger("logger")
 # lso = logging.StreamHandler()
@@ -187,6 +187,26 @@ class TestCollectFiles(unittest.TestCase):
                     if metafile and os.path.basename(metafile) in rm_files:
                         os.remove(metafile)
 
+
+class TestDEMOverlap(unittest.TestCase):
+    
+    def setUp(self):
+        self.dem = os.path.join(os.path.join(test_dir,'dem','ramp_lowres.tif'))
+        self.srs = utils.SpatialRef(4326)
+    
+    def test_dem_overlap(self):
+        
+        image_geom_wkts = [
+            ('POLYGON ((-52.23 70.843333,-51.735 70.844444,-51.736667 70.760556,-52.23 70.759722,-52.23 70.843333))',False), # False
+            ('POLYGON ((-64.23 -70.843333,-63.735 -70.844444,-63.736667 -70.760556,-64.23 -70.759722,-64.23 -70.843333))',True), # True
+            ('POLYGON ((-52.23 -50.843333,-51.735 -50.844444,-51.736667 -50.760556,-52.23 -50.759722,-52.23 -50.843333))', False) # False
+        ]
+        
+        for wkt, result in image_geom_wkts:
+            test_result = ortho_functions.overlap_check(wkt, self.srs, self.dem)
+            self.assertEqual(test_result, result)
+    
+
 if __name__ == '__main__':
     
     #### Set Up Arguments
@@ -211,6 +231,7 @@ if __name__ == '__main__':
     test_cases = [
         TestMetadata,
         TestCollectFiles,
+        TestDEMOverlap
     ]
     
     suites = []

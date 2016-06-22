@@ -105,6 +105,8 @@ def buildParentArgumentParser():
                       help="local working directory for cluster jobs (default is dst dir)")
     parser.add_argument("--skip-warp", action='store_true', default=False,
                       help="skip warping step")
+    parser.add_argument("--skip-dem-overlap-check", action='store_true', default=False,
+                      help="skip verification of image-DEM overlap")
     parser.add_argument("--no-pyramids", action='store_true', default=False, help='suppress calculation of output image pyramids and stats')
     parser.add_argument("--ortho-height", type=long, help='constant elevation to use for orthorectification (value should be in meters above the wgs84 ellipoid)')
 
@@ -230,8 +232,8 @@ def process_image(srcfp,dstfp,args):
 
     #### Check that DEM overlaps image
     if not err == 1:
-        if args.dem:
-            overlap = overlap_check(info.geometry_wkt,args.spatial_ref,args.dem)
+        if args.dem and not args.skip_dem_overlap_check:
+            overlap = overlap_check(info.geometry_wkt, args.spatial_ref, args.dem)
             if overlap is False:
                 err = 1
     
