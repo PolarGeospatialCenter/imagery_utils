@@ -64,7 +64,7 @@ class ImageInfo:
         self.frmt = frmt  #image format (IMAGE,RECORD)
         
         if frmt == 'IMAGE':
-            self.get_attributes_from_file(src)
+            self.get_attributes_from_file(os.path.abspath(src))
         elif frmt == 'RECORD':
             self.get_attributes_from_record(src,srs)
         else:

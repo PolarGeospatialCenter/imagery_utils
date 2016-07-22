@@ -67,13 +67,17 @@ def main():
         localpath = os.path.dirname(tile)
     
     intersects = []
-    t = open(inpath,'r')
-    for line in t.readlines():
-        intersects.append(line.rstrip('\n').rstrip('\r'))
-    t.close()
+    if os.path.isfile(inpath):
+        t = open(inpath,'r')
+        for line in t.readlines():
+            intersects.append(line.rstrip('\n').rstrip('\r'))
+        t.close()
+    else:
+        logger.error("Intersecting image file does not exist: {}".format(inpath))
     
     logger.info(tile)
-    #logger.info str(intersects))
+    
+    logger.info("Number of image found in source file: {}".format(len(intersects)))
     
     wd = os.path.join(localpath,os.path.splitext(os.path.basename(tile))[0])
     if not os.path.isdir(wd):
@@ -93,6 +97,8 @@ def main():
             images[image] = (srcbands, srcnodata_val)
             final_intersects.append(image)
             logger.info("%s" %(os.path.basename(image)))
+        else:
+            logger.error("Cannot open image: {}".format(image))
     
         ds = None
     

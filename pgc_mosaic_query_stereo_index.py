@@ -1,4 +1,4 @@
-import os, string, sys, logging, argparse, numpy
+import os, string, sys, logging, argparse, numpy, re
 from datetime import datetime
 import gdal, ogr,osr, gdalconst
 
@@ -219,7 +219,7 @@ def HandleTile(feature_id, feature_geom, stereo_index_path, dstdir, dstfn, aoi_s
             
             while feat:
                 
-                demInfo = DemInfo(feat,"RECORD",srs=s_srs)
+                demInfo = mosaic.DemInfo(feat,"RECORD",srs=s_srs)
                 
                 if demInfo.geom is not None and demInfo.geom.GetGeometryType() == ogr.wkbPolygon:
                     if not aoi_srs.IsSame(s_srs):
@@ -331,6 +331,7 @@ def HandleTile(feature_id, feature_geom, stereo_index_path, dstdir, dstfn, aoi_s
                         fields = [
                             ("PAIRNAME", ogr.OFTString, 100),
                             ("CATALOGID", ogr.OFTString, 20),
+                            ("STEREOPAIR", ogr.OFTString, 20),
                             ("SCORE", ogr.OFTReal, 0),
                             ("SENSOR", ogr.OFTString, 8),
                             ("CLOUDCOVER", ogr.OFTReal, 0),

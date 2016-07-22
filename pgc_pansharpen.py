@@ -37,14 +37,26 @@ dRegExs = {
     IK01p:("IK01")
 }
 
-def get_panchromatic_name(sensor,mul_name):
+def get_panchromatic_name(sensor,mul_path):
 
     ####  check for pan version
+    mul_dir, mul_name = os.path.split(mul_path)
+    
     if sensor in ["WV02","WV03","QB02"]:
         pan_name = mul_name.replace("-M","-P")
     elif sensor == "GE01":
         if "_5V" in mul_name:
-            pan_name = mul_name.replace("M0","P0")
+            
+            pan_name_base = mul_path[:-24].replace("M0","P0")
+            candidates = glob.glob(pan_name_base + "*")
+            candidates2 = [f for f in candidates if f.endswith(('.ntf','.NTF','.tif','.TIF'))]
+            if len(candidates2) == 0:
+                pan_name = ''
+            elif len(candidates2) == 1:
+                pan_name = os.path.basename(candidates2[0])
+            else: #raise error for now. TODO: iterate through candidates for greatest overlap
+                pan_name = ''
+                logger.error('{} panchromatic images match the multispectral image name {}'.format(len(candidates2),mul_name))
         else:
             pan_name = mul_name.replace("-M","-P")
     elif sensor == "IK01":
@@ -53,6 +65,8 @@ def get_panchromatic_name(sensor,mul_name):
         pan_name = mul_name.replace("bgrn","pan")
 
     return pan_name
+
+
 
 def main():
 
@@ -153,10 +167,10 @@ def main():
                 break
         if sensor:
             print "Image: {}, Sensor: {}".format(srcfn,sensor)    
-            pan_name = get_panchromatic_name(sensor,srcfn)
+            pan_name = get_panchromatic_name(sensor,srcfp)
             pan_srcfp = os.path.join(srcdir,pan_name)
             if not os.path.isfile(pan_srcfp):
-                logger.error("Corresponding panchromatic image not found: %s" %(pan_srcfp))
+                logger.error("Corresponding panchromatic image not found: %s" %(srcfp))
             else:
                 image_list.append(srcfp)
                 
@@ -255,7 +269,7 @@ def exec_pansharpen(mul_srcfp, pansh_dstfp, args):
             sensor = dRegExs[regex]
             break
 
-    pan_name = get_panchromatic_name(sensor,srcfn)
+    pan_name = get_panchromatic_name(sensor,mul_srcfp)
     pan_srcfp = os.path.join(srcdir,pan_name)
     print "Multispectral image: %s" %mul_srcfp
     print "Panchromatic image: %s" %pan_srcfp
