@@ -8,6 +8,9 @@ from lib import ortho_functions, utils
 logger = logging.getLogger("logger")
 logger.setLevel(logging.DEBUG)
 
+#TODO: build image pair class
+# compare mul and pan extent to find smaller extent and pass in to ortho_functions.process() as a parameter
+
 #### Reg Exs
 
 # WV02_12FEB061315046-P1BS-10300100106FC100.ntf

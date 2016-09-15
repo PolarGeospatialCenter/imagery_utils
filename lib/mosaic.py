@@ -593,6 +593,14 @@ class DemInfo:
     def __init__(self,src,frmt,srs=None):
         
         self.frmt = frmt  #image format (IMAGE,RECORD)
+        self.pairname = None
+        self.geom = None
+        self.sensor = None
+        self.acqdate = None
+        self.sunel = None
+        self.cloudcover = None
+        self.density = None
+        self.dem_id = None
         
         if frmt == 'IMAGE':
             self.get_attributes_from_file(src)
@@ -600,20 +608,13 @@ class DemInfo:
             self.get_attributes_from_record(src,srs)
         else:
             logger.error("Image format must be RECORD or IMAGE")
-        
-    #self.pairname = None
-    #self.proj = None
-    #self.geom = None
-    #self.sensor = None
-    #self.acqdate = None
-    #"cc":None,
-    #"sunel":None,
-    #"date":None,
+ 
         
     def get_attributes_from_record(self, feat, srs):
                 
         self.proj = srs.ExportToWkt()
         
+        # Fields from DG archive index
         i = feat.GetFieldIndex("AVSUNELEV")
         if i != -1:
             self.sunel = feat.GetFieldAsDouble(i)
@@ -632,11 +633,22 @@ class DemInfo:
         i = feat.GetFieldIndex("STEREOPAIR")
         if i != -1:
             self.catid2 = feat.GetFieldAsString(i)
+        i = feat.GetFieldIndex("SENSOR")
+        if i != -1:
+            self.sensor = feat.GetFieldAsString(i)
         
         i = feat.GetFieldIndex("ACQDATE")
         if i != -1:
             date_str = feat.GetFieldAsString(i)
             self.acqdate = datetime.strptime(date_str[:19],"%Y-%m-%d")
+        
+        # Fields from SETSM indices
+        i = feat.GetFieldIndex("DENSITY")
+        if i != -1:
+            self.density = feat.GetFieldAsDouble(i)
+        i = feat.GetFieldIndex("DEM_ID")
+        if i != -1:
+            self.dem_id = feat.GetFieldAsString(i)
         
         geom = feat.GetGeometryRef()
         self.geom = geom.Clone()
@@ -646,17 +658,24 @@ class DemInfo:
         
         score = 0
        
-        required_attribs = [
+        required_attribs1 = [
             self.sunel,
             self.cloudcover,
             self.sensor,
         ]
         
-        #### Test if all required values were found in metadata search
-        status = [val is None for val in required_attribs]
+        required_attribs2 = [
+            self.density,
+            self.dem_id,
+            self.sensor,
+        ]
         
-        if sum(status) != 0:
-            logger.error("Cannot determine score for image {0}:\n  Sun elev\t{1}\n  Cloudcover\t{2}\n  Sensor\t{3}".format(self.pairname,self.sunel,self.cloudcover,self.sensor))
+        #### Test if all required values were found in metadata search
+        status1 = [val is None for val in required_attribs1]
+        status2 = [val is None for val in required_attribs2]
+        
+        if sum(status1) != 0 and sum(status2) != 0:
+            logger.error("Cannot determine score for image {0}:\n  Sun elev\t{1}\n  Cloudcover\t{2}\n  Sensor\t{3}\n  Density\t{4}".format(self.pairname,self.sunel,self.cloudcover,self.sensor,self.density))
             score = -1
             
         elif self.sensor == 'QB02':
@@ -684,30 +703,37 @@ class DemInfo:
                 ccwt = 75
                 sunelwt = 5
                 datediffwt = 20
+                densitywt = 80
                 
             else:
                 ccwt = 90
                 sunelwt = 10
                 datediffwt = 0
+                densitywt = 100
                 self.date_diff = -9999
                 
                 
             #### Handle nonesense or nodata cloud cover values
-            if self.cloudcover < 0 or self.cloudcover > 1:
-                self.cloudcover = 0.5
+            if self.cloudcover:
+                if self.cloudcover < 0 or self.cloudcover > 1:
+                    self.cloudcover = 0.5
             
-            if self.cloudcover > 0.2:
-                logger.debug("Stereopair too cloudy (>20 percent): %s --> %f" %(self.pairname,self.cloudcover))
-                score = -1
+                if self.cloudcover > 0.2:
+                    logger.debug("Stereopair too cloudy (>20 percent): %s --> %f" %(self.pairname,self.cloudcover))
+                    score = -1
             
             #### Handle ridiculously low sun el values
-            if self.sunel < 1:
+            if self.sunel and self.sunel < 1:
                 logger.debug("Sun elevation too low (<1 degrees): %s --> %f" %(self.pairname,self.sunel))
                 score = -1
                         
             if not score == -1:
-                score = ccwt * (1-self.cloudcover) + sunelwt * (self.sunel/90) + datediffwt * ((183 - self.date_diff)/183.0)
-        
+                # determine score method
+                if sum(status1) == 0:
+                    score = ccwt * (1-self.cloudcover) + sunelwt * (self.sunel/90) + datediffwt * ((183 - self.date_diff)/183.0)
+                elif sum(status2) == 0:
+                    score = densitywt * self.density + datediffwt * ((183 - self.date_diff)/183.0)
+
         self.score = score
         return self.score
 

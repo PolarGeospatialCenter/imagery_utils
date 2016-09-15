@@ -115,6 +115,8 @@ def buildParentArgumentParser():
 
 
 def process_image(srcfp,dstfp,args):
+    
+    ## TODO add optional extent parameter
 
     err = 0
 
