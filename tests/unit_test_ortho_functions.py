@@ -206,6 +206,32 @@ class TestDEMOverlap(unittest.TestCase):
             test_result = ortho_functions.overlap_check(wkt, self.srs, self.dem)
             self.assertEqual(test_result, result)
     
+class TestTargetExtent(unittest.TestCase):
+        
+    def test_target_extent(self):
+        wkt = 'POLYGON ((810287 2505832,811661 2487415,807201 2487233,805772 2505802,810287 2505832))'
+        target_extent_geom = ogr.CreateGeometryFromWkt(wkt)
+        args = ProcessArgs()
+        info = ImageInfo()
+        rc = ortho_functions.GetImageStats(args, info, target_extent_geom)
+        self.assertEqual(info.extent, '-te 805772.000000000000 2487233.000000000000 811661.000000000000 2505832.000000000000 ')
+   
+        
+class ProcessArgs(object):
+    def __init__(self):
+        self.epsg = 32629
+        self.resolution = None
+        self.rgb = False
+        self.bgrn = False
+        self.stretch = 'rf'
+        self.spatial_ref = utils.SpatialRef(self.epsg)
+        
+class ImageInfo(object):
+    def __init__(self):
+        self.srcfn = 'GE01_20110307105821_1050410001518E00_11MAR07105821-M1BS-500657359080_01_P008.ntf'
+        self.localsrc = os.path.join(os.path.join(test_dir,'ortho',self.srcfn))
+
+
 
 if __name__ == '__main__':
     
@@ -231,7 +257,8 @@ if __name__ == '__main__':
     test_cases = [
         TestMetadata,
         TestCollectFiles,
-        TestDEMOverlap
+        TestDEMOverlap,
+        TestTargetExtent
     ]
     
     suites = []

@@ -114,10 +114,8 @@ def buildParentArgumentParser():
     return parser, pos_arg_keys
 
 
-def process_image(srcfp,dstfp,args):
+def process_image(srcfp,dstfp,args,target_extent_geom=None):
     
-    ## TODO add optional extent parameter
-
     err = 0
 
     #### Instantiate ImageInfo object
@@ -221,13 +219,13 @@ def process_image(srcfp,dstfp,args):
                         shutil.copy2(fpi,fpo)
 
             else:
-                logger.warning("Source images does not exist: %s" %info.srcfp)
+                logger.warning("Source image does not exist: %s" %info.srcfp)
                 err = 1
 
 
     #### Get Image Stats
     if not err == 1:
-        info, rc = GetImageStats(args,info)
+        info, rc = GetImageStats(args,info,target_extent_geom)
         if rc == 1:
             err = 1
             logger.errpr("Error in stats calculation")
@@ -552,7 +550,7 @@ def calcStats(args,info):
     return rc
 
 
-def GetImageStats(args, info):
+def GetImageStats(args, info, target_extent_geom=None):
 
     #### Add code to read info from IKONOS blu image
     rc = 0
@@ -576,7 +574,7 @@ def GetImageStats(args, info):
         src_image = info.localsrc
         info.bands = None
 
-    ds = gdal.Open(info.localsrc,gdalconst.GA_ReadOnly)
+    ds = gdal.Open(src_image,gdalconst.GA_ReadOnly)
     if ds is not None:
 
         ####  Get extent from GCPs
@@ -672,12 +670,8 @@ def GetImageStats(args, info):
             extent_geom.Transform(sg_ct)
         logger.info("Geographic extent: %s" %str(extent_geom))
 
-        #### Get Lat and Lon coords in arrays
-        lons = []
-        lats = []
-        for pt in ul_geom, ur_geom, ll_geom, lr_geom:
-            lons.append(pt.GetX())
-            lats.append(pt.GetY())
+        #### Get geographic Envelope
+        minlon, maxlon, minlat, maxlat = extent_geom.GetEnvelope()
 
         #### Transform geoms to target srs
         if not g_srs.IsSame(t_srs):
@@ -687,70 +681,76 @@ def GetImageStats(args, info):
             lr_geom.Transform(gt_ct)
             extent_geom.Transform(gt_ct)
         logger.info("Projected extent: %s" %str(extent_geom))
-
-        info.geometry_wkt = extent_geom.ExportToWkt()
-        #### Get centroid and back project to geographic coords (this is neccesary for images that cross 180)
-        centroid = extent_geom.Centroid()
-        centroid.Transform(tg_ct)
-
-        #### Get X and Y coords in arrays
-        Xs = []
-        Ys = []
-        for pt in ul_geom, ur_geom, ll_geom, lr_geom:
-            Xs.append(pt.GetX())
-            Ys.append(pt.GetY())
-
-        #print lons
-        logger.info("Centroid: %s" %str(centroid))
-
-        if max(lons) - min(lons) > 180:
-
-            if centroid.GetX() < 0:
-                info.centerlong = '--config CENTER_LONG -180 '
-            else:
-                info.centerlong = '--config CENTER_LONG 180 '
-
-        info.extent = "-te %.12f %.12f %.12f %.12f " %(min(Xs),min(Ys),max(Xs),max(Ys))
-
-        rasterxsize_m = abs(math.sqrt((ul_geom.GetX() - ur_geom.GetX())**2 + (ul_geom.GetY() - ur_geom.GetY())**2))
-        rasterysize_m = abs(math.sqrt((ul_geom.GetX() - ll_geom.GetX())**2 + (ul_geom.GetY() - ll_geom.GetY())**2))
-
-        resx = abs(math.sqrt((ul_geom.GetX() - ur_geom.GetX())**2 + (ul_geom.GetY() - ur_geom.GetY())**2)/ xsize)
-        resy = abs(math.sqrt((ul_geom.GetX() - ll_geom.GetX())**2 + (ul_geom.GetY() - ll_geom.GetY())**2)/ ysize)
-
-        ####  Make a string for Pixel Size Specification
-        if args.resolution is not None:
-            info.res = "-tr %s %s " %(args.resolution,args.resolution)
-        else:
-            info.res = "-tr %.12f %.12f " %(resx,resy)
-        logger.info("Original image size: %f x %f, res: %.12f x %.12f" %(rasterxsize_m, rasterysize_m, resx, resy))
-
-        #### Set RGB bands
-        info.rgb_bands = ""
-
-        if args.rgb is True:
-            if info.bands == 1:
-                pass
-            elif info.bands == 3:
-                info.rgb_bands = "-b 3 -b 2 -b 1 "
-            elif info.bands == 4:
-                info.rgb_bands = "-b 3 -b 2 -b 1 "
-            elif info.bands == 8:
-                info.rgb_bands = "-b 5 -b 3 -b 2 "
-            else:
-                logger.error("Cannot get rgb bands from a {0} band image".format(info.bands))
+        
+        ## test user provided extent and ues if appropriate
+        if target_extent_geom:
+            if not extent_geom.Intersects(target_extent_geom):
                 rc = 1
-
-        if args.bgrn is True:
-            if info.bands == 1:
-                pass
-            elif info.bands == 4:
-                pass
-            elif info.bands == 8:
-                info.rgb_bands = "-b 2 -b 3 -b 5 -b 7 "
             else:
-                logger.error("Cannot get bgrn bands from a {0} band image".format(info.bands))
-                rc = 1
+                logger.info("Using user-provided extent: %s" %str(target_extent_geom))
+                extent_geom = target_extent_geom
+        
+        if rc <> 1:
+            info.extent_geom = extent_geom
+            info.geometry_wkt = extent_geom.ExportToWkt()
+            #### Get centroid and back project to geographic coords (this is neccesary for images that cross 180)
+            centroid = extent_geom.Centroid()
+            centroid.Transform(tg_ct)
+    
+            #### Get projected Envelope
+            minx, maxx, miny, maxy = extent_geom.GetEnvelope()
+    
+            #print lons
+            logger.info("Centroid: %s" %str(centroid))
+    
+            if maxlon - minlon > 180:
+    
+                if centroid.GetX() < 0:
+                    info.centerlong = '--config CENTER_LONG -180 '
+                else:
+                    info.centerlong = '--config CENTER_LONG 180 '
+    
+            info.extent = "-te %.12f %.12f %.12f %.12f " %(minx,miny,maxx,maxy)
+    
+            rasterxsize_m = abs(math.sqrt((ul_geom.GetX() - ur_geom.GetX())**2 + (ul_geom.GetY() - ur_geom.GetY())**2))
+            rasterysize_m = abs(math.sqrt((ul_geom.GetX() - ll_geom.GetX())**2 + (ul_geom.GetY() - ll_geom.GetY())**2))
+    
+            resx = abs(math.sqrt((ul_geom.GetX() - ur_geom.GetX())**2 + (ul_geom.GetY() - ur_geom.GetY())**2)/ xsize)
+            resy = abs(math.sqrt((ul_geom.GetX() - ll_geom.GetX())**2 + (ul_geom.GetY() - ll_geom.GetY())**2)/ ysize)
+    
+            ####  Make a string for Pixel Size Specification
+            if args.resolution is not None:
+                info.res = "-tr %s %s " %(args.resolution,args.resolution)
+            else:
+                info.res = "-tr %.12f %.12f " %(resx,resy)
+            logger.info("Original image size: %f x %f, res: %.12f x %.12f" %(rasterxsize_m, rasterysize_m, resx, resy))
+    
+            #### Set RGB bands
+            info.rgb_bands = ""
+    
+            if args.rgb is True:
+                if info.bands == 1:
+                    pass
+                elif info.bands == 3:
+                    info.rgb_bands = "-b 3 -b 2 -b 1 "
+                elif info.bands == 4:
+                    info.rgb_bands = "-b 3 -b 2 -b 1 "
+                elif info.bands == 8:
+                    info.rgb_bands = "-b 5 -b 3 -b 2 "
+                else:
+                    logger.error("Cannot get rgb bands from a {0} band image".format(info.bands))
+                    rc = 1
+    
+            if args.bgrn is True:
+                if info.bands == 1:
+                    pass
+                elif info.bands == 4:
+                    pass
+                elif info.bands == 8:
+                    info.rgb_bands = "-b 2 -b 3 -b 5 -b 7 "
+                else:
+                    logger.error("Cannot get bgrn bands from a {0} band image".format(info.bands))
+                    rc = 1
                 
     else:
         logger.error("Cannot open dataset: %s" %info.localsrc)

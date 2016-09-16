@@ -40,35 +40,146 @@ dRegExs = {
     IK01p:("IK01")
 }
 
-def get_panchromatic_name(sensor,mul_path):
-
-    ####  check for pan version
-    mul_dir, mul_name = os.path.split(mul_path)
+class ImagePair(object):
     
-    if sensor in ["WV02","WV03","QB02"]:
-        pan_name = mul_name.replace("-M","-P")
-    elif sensor == "GE01":
-        if "_5V" in mul_name:
+    def __init__(self, mul_srcfp, spatial_ref):
+        self.mul_srcfp = mul_srcfp
+        self.srcdir, self.mul_srcfn = os.path.split(mul_srcfp)
+        
+        ####  Identify name pattern
+        sensor = None
+        for regex in dRegExs:
+            match = regex.match(self.mul_srcfn)
+            if match is not None:
+                self.sensor = dRegExs[regex]
+                break
+        if self.sensor:
             
-            pan_name_base = mul_path[:-24].replace("M0","P0")
-            candidates = glob.glob(pan_name_base + "*")
-            candidates2 = [f for f in candidates if f.endswith(('.ntf','.NTF','.tif','.TIF'))]
-            if len(candidates2) == 0:
-                pan_name = ''
-            elif len(candidates2) == 1:
-                pan_name = os.path.basename(candidates2[0])
-            else: #raise error for now. TODO: iterate through candidates for greatest overlap
-                pan_name = ''
-                logger.error('{} panchromatic images match the multispectral image name {}'.format(len(candidates2),mul_name))
+            self.pan_srcfn = self._get_panchromatic_name()
+            self.pan_srcfp = os.path.join(self.srcdir,self.pan_srcfn)
+            if not os.path.isfile(self.pan_srcfp):
+                raise RuntimeError("Corresponding panchromatic image not found: %s" %(self.mul_srcfp))
+            else:
+            ## get extent info for both images and calc intersect
+                mul_extent = self._get_image_info(self.mul_srcfp, spatial_ref)
+                pan_extent = self._get_image_info(self.pan_srcfp, spatial_ref)
+                self.intersection_geom = mul_extent.Intersection(pan_extent)
+                print mul_extent
+                print mul_extent.Contains(pan_extent)
+                print pan_extent
+                print pan_extent.Contains(mul_extent)
+                print self.intersection_geom
+                
+    def _get_panchromatic_name(self):
+    
+        ####  check for pan version
+        if self.sensor in ["WV02","WV03","QB02"]:
+            pan_name = self.mul_srcfn.replace("-M","-P")
+        elif self.sensor == "GE01":
+            if "_5V" in self.mul_srcfn:
+                
+                pan_name_base = self.mul_srcfp[:-24].replace("M0","P0")
+                candidates = glob.glob(pan_name_base + "*")
+                candidates2 = [f for f in candidates if f.endswith(('.ntf','.NTF','.tif','.TIF'))]
+                if len(candidates2) == 0:
+                    pan_name = ''
+                elif len(candidates2) == 1:
+                    pan_name = os.path.basename(candidates2[0])
+                else: #raise error for now. TODO: iterate through candidates for greatest overlap
+                    pan_name = ''
+                    logger.error('{} panchromatic images match the multispectral image name {}'.format(len(candidates2),mul_name))
+            else:
+                pan_name = self.mul_srcfn.replace("-M","-P")
+        elif self.sensor == "IK01":
+            pan_name = mul_name.replace("blu","pan")
+            pan_name = mul_name.replace("msi","pan")
+            pan_name = mul_name.replace("bgrn","pan")
+    
+        return pan_name
+    
+    def _get_image_info(self, src_image, spatial_ref):
+
+        if self.sensor == 'IK01' and "_msi_" in src_image:
+            src_image_name = src_image("_msi_","_blu_")
+            src_image = os.path.join(self.srcdir,src_image_name)
+    
+        ds = gdal.Open(src_image, gdalconst.GA_ReadOnly)
+        if ds is not None:
+    
+            ####  Get extent from GCPs
+            num_gcps = ds.GetGCPCount()
+    
+            if num_gcps == 4:
+                gcps = ds.GetGCPs()
+                proj = ds.GetGCPProjection()
+    
+                gcp_dict = {}
+                id_dict = {"UpperLeft":1,
+                           "1":1,
+                           "UpperRight":2,
+                           "2":2,
+                           "LowerLeft":4,
+                           "4":4,
+                           "LowerRight":3,
+                           "3":3}
+    
+                for gcp in gcps:
+                    gcp_dict[id_dict[gcp.Id]] = [float(gcp.GCPPixel), float(gcp.GCPLine), float(gcp.GCPX), float(gcp.GCPY), float(gcp.GCPZ)]
+                ulx = gcp_dict[1][2]
+                uly = gcp_dict[1][3]
+                urx = gcp_dict[2][2]
+                ury = gcp_dict[2][3]
+                llx = gcp_dict[4][2]
+                lly = gcp_dict[4][3]
+                lrx = gcp_dict[3][2]
+                lry = gcp_dict[3][3]
+    
+                xsize = gcp_dict[1][0] - gcp_dict[2][0]
+                ysize = gcp_dict[1][1] - gcp_dict[4][1]
+    
+            else:
+                xsize = ds.RasterXSize
+                ysize = ds.RasterYSize
+                proj = ds.GetProjectionRef()
+                gtf = ds.GetGeoTransform()
+                print gtf
+    
+                ulx = gtf[0] + 0 * gtf[1] + 0 * gtf[2]
+                uly = gtf[3] + 0 * gtf[4] + 0 * gtf[5]
+                urx = gtf[0] + xsize * gtf[1] + 0 * gtf[2]
+                ury = gtf[3] + xsize * gtf[4] + 0 * gtf[5]
+                llx = gtf[0] + 0 * gtf[1] + ysize * gtf[2]
+                lly = gtf[3] + 0 * gtf[4] + ysize * gtf[5]
+                lrx = gtf[0] + xsize * gtf[1] + ysize* gtf[2]
+                lry = gtf[3] + xsize * gtf[4] + ysize * gtf[5]
+    
+            ds = None
+    
+            ####  Create geometry objects
+            ring = ogr.Geometry(ogr.wkbLinearRing)
+            ring.AddPoint(ulx, uly)
+            ring.AddPoint(urx, ury)
+            ring.AddPoint(lrx, lry)
+            ring.AddPoint(llx, lly)
+            ring.AddPoint(ulx, uly)
+
+            extent_geom = ogr.Geometry(ogr.wkbPolygon)
+            extent_geom.AddGeometry(ring)
+    
+            #### Create srs objects
+            s_srs = osr.SpatialReference(proj)
+            t_srs = spatial_ref.srs
+            st_ct = osr.CoordinateTransformation(s_srs,t_srs)
+    
+            #### Transform geoms to target srs
+            if not s_srs.IsSame(t_srs):
+                extent_geom.Transform(st_ct)
+            logger.info("Projected extent: %s" %str(extent_geom))
+            return extent_geom
+                   
         else:
-            pan_name = mul_name.replace("-M","-P")
-    elif sensor == "IK01":
-        pan_name = mul_name.replace("blu","pan")
-        pan_name = mul_name.replace("msi","pan")
-        pan_name = mul_name.replace("bgrn","pan")
-
-    return pan_name
-
+            logger.error("Cannot open dataset: %s" %info.localsrc)
+            return None
 
 
 def main():
@@ -156,47 +267,36 @@ def main():
     else:
         image_list1 = [src]
 
-    image_list = []
+    pair_list = []
     for srcfp in image_list1:
         #print  srcfp
-        srcdir, srcfn = os.path.split(srcfp)
-
-        ####  Identify name pattern
-        sensor = None
-        for regex in dRegExs:
-            match = regex.match(srcfn)
-            if match is not None:
-                sensor = dRegExs[regex]
-                break
-        if sensor:
-            print "Image: {}, Sensor: {}".format(srcfn,sensor)    
-            pan_name = get_panchromatic_name(sensor,srcfp)
-            pan_srcfp = os.path.join(srcdir,pan_name)
-            if not os.path.isfile(pan_srcfp):
-                logger.error("Corresponding panchromatic image not found: %s" %(srcfp))
-            else:
-                image_list.append(srcfp)
+        try:
+            image_pair = ImagePair(srcfp, spatial_ref)
+        except RuntimeError, e:
+            logger.error(e)
+        else:
+            logger.info("Image: {}, Sensor: {}".format(image_pair.mul_srcfn, image_pair.sensor))
+            pair_list.append(image_pair)
                 
-    logger.info('Number of src images: {}'.format(len(image_list)))
+    logger.info('Number of src image pairs: {}'.format(len(pair_list)))
     
     ## Build task queue
     i = 0
     task_queue = []
-    for srcfp in image_list:
-        srcdir, srcfn = os.path.split(srcfp)
+    for image_pair in pair_list:
         
         bittype = utils.get_bit_depth(args.outtype)
-        pansh_dstfp = os.path.join(dstdir,"{}_{}{}{}_pansh.tif".format(os.path.splitext(srcfn)[0],bittype,args.stretch,args.epsg))
+        pansh_dstfp = os.path.join(dstdir,"{}_{}{}{}_pansh.tif".format(os.path.splitext(image_pair.mul_srcfn)[0],bittype,args.stretch,args.epsg))
         
         if not os.path.isfile(pansh_dstfp):
             i+=1
             task = utils.Task(
-                srcfn,
+                image_pair.mul_srcfn,
                 'Pansh{:04g}'.format(i),
                 'python',
-                '{} {} {} {}'.format(scriptpath, arg_str_base, srcfp, dstdir),
+                '{} {} {} {}'.format(scriptpath, arg_str_base, image_pair.mul_srcfp, dstdir),
                 exec_pansharpen,
-                [srcfp, pansh_dstfp, args]
+                [image_pair, pansh_dstfp, args]
             )
             task_queue.append(task)
             
@@ -247,9 +347,8 @@ def main():
         logger.info("No images found to process")
 
 
-def exec_pansharpen(mul_srcfp, pansh_dstfp, args):
+def exec_pansharpen(image_pair, pansh_dstfp, args):
 
-    srcdir,srcfn = os.path.split(mul_srcfp)
     dstdir = os.path.dirname(pansh_dstfp)
 
     #### Get working dir
@@ -265,17 +364,8 @@ def exec_pansharpen(mul_srcfp, pansh_dstfp, args):
     logger.info("Working Dir: %s" %wd)
 
     ####  Identify name pattern
-    sensor = None
-    for regex in dRegExs:
-        match = regex.match(srcfn)
-        if match is not None:
-            sensor = dRegExs[regex]
-            break
-
-    pan_name = get_panchromatic_name(sensor,mul_srcfp)
-    pan_srcfp = os.path.join(srcdir,pan_name)
-    print "Multispectral image: %s" %mul_srcfp
-    print "Panchromatic image: %s" %pan_srcfp
+    print "Multispectral image: %s" %image_pair.mul_srcfp
+    print "Panchromatic image: %s" %image_pair.pan_srcfp
 
     if args.dem is not None:
         dem_arg = '-d "%s" ' %args.dem
@@ -283,8 +373,8 @@ def exec_pansharpen(mul_srcfp, pansh_dstfp, args):
         dem_arg = ""
 
     bittype = utils.get_bit_depth(args.outtype)
-    pan_basename = os.path.splitext(pan_name)[0]
-    mul_basename = os.path.splitext(srcfn)[0]
+    pan_basename = os.path.splitext(image_pair.pan_srcfn)[0]
+    mul_basename = os.path.splitext(image_pair.mul_srcfn)[0]
     pan_local_dstfp = os.path.join(wd,"{}_{}{}{}.tif".format(pan_basename,bittype,args.stretch,args.epsg))
     mul_local_dstfp = os.path.join(wd,"{}_{}{}{}.tif".format(mul_basename,bittype,args.stretch,args.epsg))
     pan_dstfp = os.path.join(dstdir,"{}_{}{}{}.tif".format(pan_basename,bittype,args.stretch,args.epsg))
@@ -300,10 +390,10 @@ def exec_pansharpen(mul_srcfp, pansh_dstfp, args):
     ####  Ortho pan
     logger.info("Orthorectifying panchromatic image")
     if not os.path.isfile(pan_dstfp) and not os.path.isfile(pan_local_dstfp):
-        rc = ortho_functions.process_image(pan_srcfp,pan_dstfp,args)
+        ortho_functions.process_image(image_pair.pan_srcfp, pan_dstfp, args)#, image_pair.intersection_geom)
 
     if not os.path.isfile(pan_local_dstfp) and os.path.isfile(pan_dstfp):
-        shutil.copy2(pan_dstfp,pan_local_dstfp)
+        shutil.copy2(pan_dstfp, pan_local_dstfp)
 
     logger.info("Orthorectifying multispectral image")
     ####  Ortho multi
@@ -312,10 +402,10 @@ def exec_pansharpen(mul_srcfp, pansh_dstfp, args):
         ##    and multiply the multi by 4
         if args.resolution:
             args.resolution = args.resolution * 4.0
-        rc = ortho_functions.process_image(mul_srcfp,mul_dstfp,args)
+        ortho_functions.process_image(image_pair.mul_srcfp, mul_dstfp, args)#, image_pair.intersection_geom)
 
     if not os.path.isfile(mul_local_dstfp) and os.path.isfile(mul_dstfp):
-        shutil.copy2(mul_dstfp,mul_local_dstfp)
+        shutil.copy2(mul_dstfp, mul_local_dstfp)
 
     ####  Pansharpen
     logger.info("Pansharpening multispectral image")
@@ -337,9 +427,9 @@ def exec_pansharpen(mul_srcfp, pansh_dstfp, args):
     #### Copy pansharpened output
     if wd <> dstdir:
         for local_path, dst_path in [
-            (pansh_local_dstfp,pansh_dstfp),
-            (pan_local_dstfp,pan_dstfp),
-            (mul_local_dstfp,mul_dstfp)
+            (pansh_local_dstfp, pansh_dstfp),
+            (pan_local_dstfp, pan_dstfp),
+            (mul_local_dstfp, mul_dstfp)
         ]:
             if os.path.isfile(local_path) and not os.path.isfile(dst_path):
                 shutil.copy2(local_path,dst_path)
@@ -358,7 +448,12 @@ def exec_pansharpen(mul_srcfp, pansh_dstfp, args):
                     os.remove(f)
                 except Exception, e:
                     logger.warning('Could not remove %s: %s' %(os.path.basename(f),e))
-
+    
+    if os.path.isfile(pansh_dstfp):
+        return 0
+    else:
+        return 0
+        
 
 if __name__ == '__main__':
     main()
