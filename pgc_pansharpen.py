@@ -47,7 +47,7 @@ class ImagePair(object):
         self.srcdir, self.mul_srcfn = os.path.split(mul_srcfp)
         
         ####  Identify name pattern
-        sensor = None
+        self.sensor = None
         for regex in dRegExs:
             match = regex.match(self.mul_srcfn)
             if match is not None:
