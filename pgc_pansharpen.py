@@ -71,7 +71,7 @@ class ImagePair(object):
                 print self.intersection_geom
                 
         else:
-            raise RuntimeError("Image does not match multispectral name pattern: {}".format(self.srcfn))
+            raise RuntimeError("Image does not match multispectral name pattern: {}".format(self.mul_srcfn))
                 
     def _get_panchromatic_name(self):
     
