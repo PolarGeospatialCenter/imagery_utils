@@ -70,6 +70,9 @@ class ImagePair(object):
                 print pan_extent.Contains(mul_extent)
                 print self.intersection_geom
                 
+        else:
+            raise RuntimeError("Image does not match multispectral name pattern: {}".format(self.srcfn))
+                
     def _get_panchromatic_name(self):
     
         ####  check for pan version
