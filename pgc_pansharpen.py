@@ -390,7 +390,7 @@ def exec_pansharpen(image_pair, pansh_dstfp, args):
     ####  Ortho pan
     logger.info("Orthorectifying panchromatic image")
     if not os.path.isfile(pan_dstfp) and not os.path.isfile(pan_local_dstfp):
-        ortho_functions.process_image(image_pair.pan_srcfp, pan_dstfp, args)#, image_pair.intersection_geom)
+        ortho_functions.process_image(image_pair.pan_srcfp, pan_dstfp, args, image_pair.intersection_geom)
 
     if not os.path.isfile(pan_local_dstfp) and os.path.isfile(pan_dstfp):
         shutil.copy2(pan_dstfp, pan_local_dstfp)
@@ -402,7 +402,7 @@ def exec_pansharpen(image_pair, pansh_dstfp, args):
         ##    and multiply the multi by 4
         if args.resolution:
             args.resolution = args.resolution * 4.0
-        ortho_functions.process_image(image_pair.mul_srcfp, mul_dstfp, args)#, image_pair.intersection_geom)
+        ortho_functions.process_image(image_pair.mul_srcfp, mul_dstfp, args, image_pair.intersection_geom)
 
     if not os.path.isfile(mul_local_dstfp) and os.path.isfile(mul_dstfp):
         shutil.copy2(mul_dstfp, mul_local_dstfp)
