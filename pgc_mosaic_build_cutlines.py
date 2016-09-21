@@ -1,5 +1,5 @@
 import os, string, sys, shutil, glob, re, tarfile,argparse, numpy, logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from subprocess import *
 from math import *
 from xml.etree import cElementTree as ET
@@ -32,6 +32,7 @@ def main():
                        help="cutline calculator pixel skip interval (default=2)")
     parser.add_argument("--component-shp", action="store_true", default=False,
                         help="create shp of all component images")
+
    
     #### Parse Arguments
     args = parser.parse_args()
@@ -127,6 +128,8 @@ def main():
         logger.info("Getting image metadata and calculating image scores")
         for iinfo in imginfo_list2:
             iinfo.getScore(params)
+            if (params.median_remove is True):
+                iinfo.get_raster_median()
             iinfo.get_raster_stats()
             logger.info("%s: %s" %(iinfo.srcfn,iinfo.score))
                
@@ -173,28 +176,53 @@ def main():
         #### Create Shp      
    
         logger.info("Creating shapefile of image boundaries: %s" %shp)
-    
-        fields = (
-            ("IMAGENAME", ogr.OFTString, 100),
-            ("SENSOR", ogr.OFTString, 10),
-            ("ACQDATE", ogr.OFTString, 10),
-            ("CAT_ID", ogr.OFTString, 30),
-            ("RESOLUTION", ogr.OFTReal, 0),
-            ("OFF_NADIR", ogr.OFTReal, 0),
-            ("SUN_ELEV", ogr.OFTReal, 0),
-            ("SUN_AZ", ogr.OFTReal, 0),
-            ("SAT_ELEV", ogr.OFTReal, 0),
-            ("SAT_AZ", ogr.OFTReal, 0),
-            ("STATS_MIN", ogr.OFTString, 80),
-            ("STATS_MAX", ogr.OFTString, 80),
-            ("STATS_STD", ogr.OFTString, 80),
-            ("STATS_MEAN", ogr.OFTString, 80),
-            ("STATS_PXCT", ogr.OFTString, 80),
-            ("CLOUDCOVER", ogr.OFTReal, 0),
-            ("TDI", ogr.OFTReal, 0),
-            ("DATE_DIFF", ogr.OFTReal, 0),
-            ("SCORE", ogr.OFTReal, 0),
-        )
+   
+        if (params.median_remove is True): 
+            fields = (
+                ("IMAGENAME", ogr.OFTString, 100),
+                ("SENSOR", ogr.OFTString, 10),
+                ("ACQDATE", ogr.OFTString, 10),
+                ("CAT_ID", ogr.OFTString, 30),
+                ("RESOLUTION", ogr.OFTReal, 0),
+                ("OFF_NADIR", ogr.OFTReal, 0),
+                ("SUN_ELEV", ogr.OFTReal, 0),
+                ("SUN_AZ", ogr.OFTReal, 0),
+                ("SAT_ELEV", ogr.OFTReal, 0),
+                ("SAT_AZ", ogr.OFTReal, 0),
+                ("STATS_MIN", ogr.OFTString, 80),
+                ("STATS_MAX", ogr.OFTString, 80),
+                ("STATS_STD", ogr.OFTString, 80),
+                ("STATS_MEAN", ogr.OFTString, 80),
+                ("STATS_PXCT", ogr.OFTString, 80),
+                ("MEDIAN", ogr.OFTString, 80),
+                ("CLOUDCOVER", ogr.OFTReal, 0),
+                ("TDI", ogr.OFTReal, 0),
+                ("DATE_DIFF", ogr.OFTReal, 0),
+                ("SCORE", ogr.OFTReal, 0),
+            )
+        else:
+            fields = (
+                ("IMAGENAME", ogr.OFTString, 100),
+                ("SENSOR", ogr.OFTString, 10),
+                ("ACQDATE", ogr.OFTString, 10),
+                ("CAT_ID", ogr.OFTString, 30),
+                ("RESOLUTION", ogr.OFTReal, 0),
+                ("OFF_NADIR", ogr.OFTReal, 0),
+                ("SUN_ELEV", ogr.OFTReal, 0),
+                ("SUN_AZ", ogr.OFTReal, 0),
+                ("SAT_ELEV", ogr.OFTReal, 0),
+                ("SAT_AZ", ogr.OFTReal, 0),
+                ("STATS_MIN", ogr.OFTString, 80),
+                ("STATS_MAX", ogr.OFTString, 80),
+                ("STATS_STD", ogr.OFTString, 80),
+                ("STATS_MEAN", ogr.OFTString, 80),
+                ("STATS_PXCT", ogr.OFTString, 80),
+                ("CLOUDCOVER", ogr.OFTReal, 0),
+                ("TDI", ogr.OFTReal, 0),
+                ("DATE_DIFF", ogr.OFTReal, 0),
+                ("SCORE", ogr.OFTReal, 0),
+            )
+
 
         OGR_DRIVER = "ESRI Shapefile"
         
@@ -277,6 +305,17 @@ def main():
                 feat.SetField("STATS_MEAN", ",".join(mean_list))
                 feat.SetField("STATS_STD", ",".join(stdev_list))
                 feat.SetField("STATS_PXCT", ",".join(px_cnt_list))
+
+            if (params.median_remove is True):
+                median_list = []
+                keys = iinfo.median.keys()
+                keys.sort()
+                for band in keys:
+                    band_median = iinfo.median[band]
+                    median_list.append(str(band_median))
+                feat.SetField("MEDIAN", ",".join(median_list))
+                logger.info("median = {}".format(",".join(median_list)))
+                
                 
             feat.SetGeometry(geom)
             
