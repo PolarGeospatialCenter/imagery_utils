@@ -1,7 +1,7 @@
 USAGE
 -----
 
-pgc_mosaic_parallel.py [-h] [-r RESOLUTION RESOLUTION]
+pgc_mosaic.py [-h] [-r RESOLUTION RESOLUTION]
 	[-e EXTENT EXTENT EXTENT EXTENT]
 	[-t TILESIZE TILESIZE] [--force_pan_to_multi]
 	[-b BANDS] [--tday TDAY] [--nosort]
@@ -10,17 +10,17 @@ pgc_mosaic_parallel.py [-h] [-r RESOLUTION RESOLUTION]
 	[--qsubscript QSUBSCRIPT] [-l L]
 	[--component_shp]
 	[--gtiff_compression {jpeg95,lzw}]
-	src mosaic_name
+	src mosaicname
 
 DESCRIPTION
 -----------
 
-The pgc_mosaic_parallel utility submits mosaic jobs to HPC cluster.  This script invokes pgc_mosaic_build_tile.py and pgc_mosaic_build_cutlines.py for process execution for each job.
+The pgc_mosaic utility runs mosaic tasks pr submits them to an HPC cluster.  This script invokes pgc_mosaic_build_tile.py and pgc_mosaic_build_cutlines.py.
 
 src:
 	text file or directory of input rasters.  Only tif images are considered for inclusion.
 	
-mosaic_name:
+mosaicname:
 	output mosaic name excluding extension
 
 -h, --help:
@@ -35,7 +35,7 @@ mosaic_name:
 -t TILESIZE TILESIZE, --tilesize TILESIZE TILESIZE:
 	tile size in coordinate system units -- xsize ysize (default is 40,000 times output resolution)
 	
---force_pan_to_multi:
+--force-pan-to-multi:
 	if output is multiband, force script to also use 1 band images
 	
 -b BANDS, --bands BANDS:
@@ -47,28 +47,40 @@ mosaic_name:
 --nosort:
 	do not sort images by metadata. script uses the order of the input text file or directory.  Fist image is the first drawn and subsequent images will overlay the earlier images. Not recommended if src is a directory; the sort order will be random.
 	
---use_exposure:
+--use-exposure:
 	use exposure settings in metadata to inform score.  This is applicable usually only in Antarctica.
 	
 --exclude EXCLUDE:
 	file of SCENE_IDs to exclude
 	
+--max-cc MAX_CC
+	maximum fractional cloud cover (0.0-1.0, default 0.5)
+	
 --mode {ALL,MOSAIC,SHP,TEST}:
 	mode: ALL- all steps (default), SHP- create shapefiles, MOSAIC- create tiled tifs, TEST- create log only
 	
+--wd WD:
+	scratch space (default is mosaic directory)
+	
 --log LOG:
 	file to log progress (default is <output_dir>\mosaic.log
+
+--pbs:
+	submit tasks to PBS
 	
+--parallel-processes PARALLEL_PROCESSES:
+	number of parallel processes to spawn (default 1)
+
 --qsubscript QSUBSCRIPT:
 	qsub script to use in cluster job submission (default is <script_dir>/qsub_mosaic.sh)
 	
 -l L:
 	PBS resources requested (mimics qsub syntax)
 	
---component_shp:
+--component-shp:
 	create shp of all component images as well as cutline shp
 	
---gtiff_compression {jpeg95,lzw}:
+--gtiff-compression {jpeg95,lzw}:
 	GTiff compression type (default=lzw). JPEG95 is jpeg compression at 95%.
 
 	

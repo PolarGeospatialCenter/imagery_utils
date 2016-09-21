@@ -1,19 +1,21 @@
 USAGE
 -----
 
-pgc_ortho_parallel.py [-h] [-f {HFA,JP2OpenJPEG,ENVI,GTiff}]
+pgc_pansharpen_parallel.py [-h] [-f {HFA,JP2OpenJPEG,ENVI,GTiff}]
 	[--gtiff_compression {jpeg95,lzw}] -p EPSG
 	[-d DEM] [-t {Byte,UInt16,Float32}]
 	[-r RESOLUTION] [-c {ns,rf,mr,rd}]
 	[--resample {near,bilinear,cubic,cubicspline,lanczos}]
-	[--rgb] [--bgrn] [-s] [--wd WD] [--skip_warp]
-	[--qsubscript QSUBSCRIPT] [-l L]
+	[--rgb] [--bgrn] [-s] [--wd WD]
+	[--skip_warp] [-l L]
+	[--qsubscript QSUBSCRIPT] [--dryrun]
 	src dst
+
 
 DESCRIPTION
 -----------
 
-The pgc_ortho_parallel utility submits batch image ortho and conversion on a Maui/Torque HPC cluster.  Each image is allocated to a job.  The script also executes the orthorectification and conversion.
+The pgc_pansharpen utility runs batch image ortho, conversion, and pansharpening tasks or submits them to a Maui/Torque HPC cluster.  Each panchromatic/multispectral image pair image is allocated to a job.  The script also executes processing steps.
 
 
 src:
@@ -26,13 +28,13 @@ dst:
 	show this help message and exit
 	
 -f {HFA,JP2OpenJPEG,ENVI,GTiff}, --format {HFA,JP2OpenJPEG,ENVI,GTiff}:
-	output to the given format (default=GTiff)
+	output to the given format (default=GTiff).
 		HFA: IMAGINE .img format
 		JP2OpenJPEG: Lossless JPEG2000 format using the OpenJPEG2 driver
 		ENVI: Binary file with .envi extension
-		GTiff: GeoTiff format.  Compression can be specified using the gtiff_compression argument.
+		GTiff: GeoTiff format.  Compression can be specified using the --gtiff_compression argument.
 	
---gtiff_compression {jpeg95,lzw}:
+--gtiff-compression {jpeg95,lzw}:
 	GTiff compression type (default=lzw). JPEG95 is jpeg compression at 95%.
 	
 -p EPSG, --epsg EPSG:
@@ -50,12 +52,12 @@ dst:
 -c {ns,rf,mr,rd}, --stretch {ns,rf,mr,rd}:
 	stretch type [ns: no stretch, rf: TOA reflectance (default), mr: modified reflectance, rd: absolute TOA radiance].
 		No stretch: scales the DN values to the output data type. Outtype Byte means values are scaled from 0-255.  UInt16 and Float32 keep the original 11 bit DN values from 0-2047.
-		Reflectance: calculates top of atmosphere reflectance and scales it to the output data type. Outtype Byte means values are scaled 0-200, UInt16 scales 0-2000, Float32 is unscaled percent reflectance (0-1).
-		Modified reflectance: same as reflectance, but with a histogram stretch applied that brightens the lower end of the dynamic range.  mr stretch is used for non-ice covered areas.
-		Absolute radiance: calculates absolute top of atmosphere radiance.  UInt16 is the only appropriate data type to use for this stretch becasue the units are W/m2/micrometers.
+		Reflectance: calculates top of atmosphere reflectance and scales it to the output data type. Outtype Byte means values are scaled 0-200, UInt16 scales 0-2000, Float32 is unscaled percent refelctance (0-1).
+		Modified reflectance: same as reflactance, but with a histogram stretch applied that brightens the lower end of the dynamic range.  mr stretch is used for non-ice covered areas.
+		Absolute radience: calcualtes absolute top of atmosphere radience.  UInt16 is the only appropriate data type to use for this stretch becasue the units are W/m2/micrometers.
 		
 --resample {near,bilinear,cubic,cubicspline,lanczos}:
-	orthorectification resampling strategy - mimics gdalwarp options
+	orthorectification resampling strategy - mimicks gdalwarp options
 	
 --rgb:
 	output multispectral images as 3 band RGB
@@ -69,11 +71,29 @@ dst:
 --wd WD:
 	local working directory for cluster jobs (default is dst dir).  This option should be used on any HPC job where there is storage local to the processing node.  It will reduce IO and increase processing speed.
 	
---skip_warp:
+--skip-warp:
 	skip warping step
+	
+--skip-dem-overlap-check:
+	skip verification of image-DEM overlap
+
+--no-pyramids:
+	suppress calculation of output image pyramids and stats
+
+--ortho-height ORTHO_HEIGHT:
+	constant elevation to use for orthorectification (value should be in meters above the wgs84 ellipoid)
+	
+--pbs:
+	submit tasks to PBS
+	
+--parallel-processes PARALLEL_PROCESSES:
+	number of parallel processes to spawn (default 1)
 	
 --qsubscript QSUBSCRIPT:
 	qsub script to use in cluster job submission (default is qsub_ortho.sh in script root folder)
 	
 -l L:
-	PBS resources requested (mimics qsub syntax)
+	PBS resources requested (mimicks qsub syntax)
+
+--dryrun:
+	print actions without executing

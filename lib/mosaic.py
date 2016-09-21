@@ -1,18 +1,17 @@
-import os, string, sys, shutil, glob, re, tarfile, logging, argparse, signal
-from datetime import *
-from subprocess import *
-from math import *
+import os, string, sys, shutil, math, glob, re, tarfile, logging, platform, argparse, subprocess
+from datetime import datetime, timedelta
 from xml.etree import cElementTree as ET
-
-import gdal, ogr,osr, gdalconst
+import gdal, ogr, osr, gdalconst
 import numpy
+from numpy import flatnonzero
+
+from lib import utils
 
 logger = logging.getLogger("logger")
 logger.setLevel(logging.DEBUG)
 
-
 MODES = ["ALL","MOSAIC","SHP","TEST"]
-EXTS = [".tif"]
+EXTS = [".tif",".ntf"]
 GTIFF_COMPRESSIONS = ["jpeg95","lzw"]
 
 #class Attribs:
@@ -28,25 +27,6 @@ GTIFF_COMPRESSIONS = ["jpeg95","lzw"]
 #        self.panfact = dAttribs["panfact"]
 
 
-def build_arg_list(args,pos_arg_keys,arg_keys_to_remove):
-    args_dict = vars(args)
-    arg_list = []
-    
-    ## Add optional args to arg_list
-    for k,v in args_dict.iteritems():
-        if k not in pos_arg_keys and k not in arg_keys_to_remove and v is not None:
-            if isinstance(v,list) or isinstance(v,tuple):
-                arg_list.append("--%s %s" %(k,' '.join([str(item) for item in v])))
-            elif isinstance(v,bool):
-                if v is True:
-                    arg_list.append("--%s" %(k))
-            else:
-                arg_list.append("--%s %s" %(k,str(v)))
-    
-    arg_str = " ".join(arg_list)
-    return arg_str
-
-
 def buildMosaicParentArgumentParser():
     
     #### Set Up Arguments 
@@ -60,7 +40,7 @@ def buildMosaicParentArgumentParser():
                         help="extent of output mosaic -- xmin xmax ymin ymax (default is union of all inputs)")
     parser.add_argument("-t", "--tilesize", nargs=2, type=float,
                         help="tile size in coordinate system units -- xsize ysize (default is 40,000 times output resolution)")
-    parser.add_argument("--force_pan_to_multi", action="store_true", dest="force_pan_to_multi", default=False,
+    parser.add_argument("--force-pan-to-multi", action="store_true", default=False,
                         help="if output is multiband, force script to also use 1 band images")
     parser.add_argument("-b", "--bands", type=int,
                         help="number of output bands( default is number of bands in the first image)")
@@ -68,12 +48,12 @@ def buildMosaicParentArgumentParser():
                         help="month and day of the year to use as target for image suitability ranking -- 04-05")
     parser.add_argument("--nosort", action="store_true", default=False,
                         help="do not sort images by metadata. script uses the order of the input textfile or directory (first image is first drawn).  Not recommended if input is a directory; order will be random")
-    parser.add_argument("--use_exposure", action="store_true", default=False,
+    parser.add_argument("--use-exposure", action="store_true", default=False,
                         help="use exposure settings in metadata to inform score")
     parser.add_argument("--exclude",
                         help="file of file name patterns (text only, no wildcards or regexs) to exclude")
-   parser.add_argument("--max_cc", type=float,
-                      help="maximum fractional cloud cover (0.0-1.0, default 0.5)")
+    parser.add_argument("--max-cc", type=float, default=0.5,
+                        help="maximum fractional cloud cover (0.0-1.0, default 0.5)")
 
     return parser
 
@@ -84,13 +64,12 @@ class ImageInfo:
         self.frmt = frmt  #image format (IMAGE,RECORD)
         
         if frmt == 'IMAGE':
-            self.get_attributes_from_file(src)
+            self.get_attributes_from_file(os.path.abspath(src))
         elif frmt == 'RECORD':
             self.get_attributes_from_record(src,srs)
         else:
             logger.error("Image format must be RECORD or IMAGE")
-        
-        
+           
     #self.xsize = None
     #self.ysize = None
     #self.proj = None
@@ -107,6 +86,7 @@ class ImageInfo:
     #"ona":None,
     #"date":None,
     #"tdi":None
+     
         
     def get_attributes_from_record(self, feat, srs):
                 
@@ -146,6 +126,10 @@ class ImageInfo:
         self.xres = None
         self.yres = None
         self.datatype = None
+        
+        self.sataz = None
+        self.satel = None
+        self.sunaz = None
         
         i = feat.GetFieldIndex("SUN_ELEV")
         if i != -1:
@@ -248,8 +232,7 @@ class ImageInfo:
             self.geom = ogr.CreateGeometryFromWkt(poly_wkt)
             self.xs = [ulx,urx,lrx,llx]
             self.ys = [uly,ury,lry,lly]
-                
-                
+
         else:
             logger.warning("Cannot open image: %s" %self.srcfp)
             self.xsize = None
@@ -264,6 +247,9 @@ class ImageInfo:
         ds = None
         
         #### Set unknown attribs to None for now
+        self.sataz = None
+        self.satel = None
+        self.sunaz = None
         self.sunel = None
         self.ona = None
         self.cloudcover = None
@@ -280,6 +266,9 @@ class ImageInfo:
         dAttribs = {
             "cc":None,
             "sunel":None,
+            "sunaz":None,
+            "satel":None,
+            "sataz":None,
             "ona":None,
             "date":None,
             "tdi":None,
@@ -293,6 +282,9 @@ class ImageInfo:
             "SATID":"sensor",
             "CLOUDCOVER":"cc",
             "MEANSUNEL":"sunel",
+            "MEANSUNAZ":"sunaz",
+            "MEANSATEL":"satel",
+            "MEANSATAZ":"sataz",
             "MEANOFFNADIRVIEWANGLE":"ona",
             "FIRSTLINETIME":"date",
             "TDILEVEL":"tdi",
@@ -301,10 +293,24 @@ class ImageInfo:
             "archiveId":"catid",
             "satelliteName":"sensor",
             "percentCloudCover":"cc",
+            "firstLineAzimuthAngle":"sataz",
+            "firstLineSunAzimuthAngle":"sunaz",
             "firstLineSunElevationAngle":"sunel",
-            "firstLineElevationAngle":"ona",
+            "firstLineElevationAngle":"satel",
             "firstLineAcquisitionDateTime":"date",
-            "tdiMode":"tdi"
+            "tdiMode":"tdi",
+            
+            ## IK tags
+            "Source_Image_ID":"catid",
+            "Sensor":"sensor",
+            "Percent_Component_Cloud_Cover":"cc",
+            "Nominal_Collection_Azimuth":"sataz",
+            "Nominal_Collection_Elevation":"satel",
+            "Sun_Angle_Elevation":"sunel",
+            "Sun_Angle_Azimuth":"sunaz",
+            "Acquisition_Date_Time":"date",
+            "Pachchromatic_TDI_Mode":"tdi",
+            
         }
             
         paths = (
@@ -351,14 +357,27 @@ class ImageInfo:
                     
                         if text is not None:
                             try:
-                                if tag == "firstLineElevationAngle":
-                                    val = 90 - float(text)
-                                elif tag in ["FIRSTLINETIME","firstLineAcquisitionDateTime","CATID","archiveId","SATID"]:
+                                if tag in [
+                                    "Acquisition_Date_Time",
+                                    "FIRSTLINETIME",
+                                    "firstLineAcquisitionDateTime",
+                                    
+                                    "CATID",
+                                    "archiveId",
+                                    
+                                    "SATID",
+                                ]:
                                     val = text
-                                elif tag == "percentCloudCover":
+                                elif tag in ["Source_Image_ID"]:
+                                    val = elem.attrib['id']
+                                elif tag in ["percentCloudCover", "Percent_Component_Cloud_Cover"]:
                                     val = float(text)/100
+                                elif tag in ["Sun_Angle_Azimuth","Sun_Angle_Elevation","Nominal_Collection_Azimuth","Nominal_Collection_Elevation"]:
+                                    val = text.strip(" degrees")
                                 elif tag == "satelliteName":
                                     val = "GE01"
+                                elif tag == "Sensor":
+                                    val = "IK01"
                                 else:
                                     val = float(text)
                                     
@@ -379,22 +398,40 @@ class ImageInfo:
                             dAttribs['tdi'] = vallist[3]
                         else:
                             logger.debug("Unexpected number of TDI values and band count ( TDI: expected 1, 4, 5, or 8 - found %d ; Band cound, expected 1, 4, or 8 - found %d) %s" %(len(vallist), self.bands, metapath))
-                            
+                    
+                    elif dTags[tag] == 'satid' and len(taglist) > 1:
+                        val = vallist[0]
+                        dAttribs[dTags[tag]] = val
+                    
                     elif len(taglist) == 1:
                         val = vallist[0]
                         dAttribs[dTags[tag]] = val
                         
-                    elif len(taglist) <> 0:
-                        logger.debug("Unexpected number of %s values, %s" %(tag,metapath))
+                    elif len(taglist) > 1:
+                        logger.debug("Unexpected number of {} values ({}), {}".format(tag,len(taglist),metapath))
                 
-                self.sunel = dAttribs["sunel"]
-                self.ona = dAttribs["ona"]
+                self.sataz = float(dAttribs["sataz"])
+                self.satel = float(dAttribs["satel"])
+                self.sunaz = float(dAttribs["sunaz"])               
+                self.sunel = float(dAttribs["sunel"])
+                try:
+                    self.ona = dAttribs["ona"] if dAttribs["ona"] else 90 - self.satel
+                except TypeError, e:
+                    pass
                 self.cloudcover = dAttribs["cc"]
                 self.sensor = dAttribs["sensor"]
                 self.catid = dAttribs["catid"]
                 self.tdi = dAttribs["tdi"]
-                self.acqdate = datetime.strptime(dAttribs["date"],"%Y-%m-%dT%H:%M:%S.%fZ")
                 
+                if dAttribs["date"]:
+                    try:
+                        self.acqdate = datetime.strptime(dAttribs["date"],"%Y-%m-%dT%H:%M:%S.%fZ")
+                    except ValueError, e:
+                        try:
+                            self.acqdate = datetime.strptime(dAttribs["date"],"%Y-%m-%d %H:%M GMT")
+                        except ValueError, e:
+                            logger.error("Cannot parse date string {} from {}".format(dAttribs['date'],metapath))
+
 
     def getScore(self,params):
         
@@ -510,10 +547,200 @@ class ImageInfo:
         
         self.score = score
         return self.score
+
+
+    def get_raster_stats(self):
+        self.stat_dct = {}
+        self.datapixelcount_dct = {}
+        if not self.datatype in [1, 2, 3, 4, 5]: # datatype must be integer for this process to make any sense
+            logger.warning("Raster statisics cannot be calculated for this dataset.  Only integer datasets show meaningful results")
+        else:
+            ds = gdal.Open(self.srcfp)
+            if ds:
     
+                #### get stats and store in dictionaries
+                for bandnum in range(1,self.bands+1):
+                    band = ds.GetRasterBand(bandnum)
+                    gdal.SetConfigOption('GDAL_PAM_ENABLED', 'YES')
+                    stats = band.ComputeStatistics(False)
+                    gdal.SetConfigOption('GDAL_PAM_ENABLED', 'NO')
+                    
+                    # If stats min is 1 and data type is unsigned integer, try to get the next largest value
+                    if self.datatype in [1, 2, 4]:
+                        dt_min = 0.5
+                        dt_max = stats[1] + 0.5
+                        dt_range = int(math.ceil(dt_max - dt_min))
+                        h = band.GetHistogram(dt_min, dt_max, dt_range, 0, 0)
+                        nz = numpy.nonzero(h)
+                        low_value = nz[0][1]
+                        if stats[0] <= 1:
+                            logger.info("Unsigned integer image stats min less than or equal to 1 (min = {}), using next lowest integer value: {}".format(stats[0],low_value))
+                            stats[0] = float(low_value)
+                    else:
+                        dt_min = stats[0] - 0.5
+                        dt_max = stats[1] + 0.5
+                        h = band.GetHistogram(dt_min, dt_max, 1, 0, 0)
+                    
+                    self.stat_dct[bandnum] = stats
+                    self.datapixelcount_dct[bandnum] = sum(h)
+                ds = None
+    
+            else:
+                logger.warning("Cannot open image: %s" %self.srcfp)
+
+
+class DemInfo:
+    def __init__(self,src,frmt,srs=None):
+        
+        self.frmt = frmt  #image format (IMAGE,RECORD)
+        self.pairname = None
+        self.geom = None
+        self.sensor = None
+        self.acqdate = None
+        self.sunel = None
+        self.cloudcover = None
+        self.density = None
+        self.dem_id = None
+        
+        if frmt == 'IMAGE':
+            self.get_attributes_from_file(src)
+        elif frmt == 'RECORD':
+            self.get_attributes_from_record(src,srs)
+        else:
+            logger.error("Image format must be RECORD or IMAGE")
+ 
+        
+    def get_attributes_from_record(self, feat, srs):
+                
+        self.proj = srs.ExportToWkt()
+        
+        # Fields from DG archive index
+        i = feat.GetFieldIndex("AVSUNELEV")
+        if i != -1:
+            self.sunel = feat.GetFieldAsDouble(i)
+        i = feat.GetFieldIndex("CLOUDCOVER")
+        if i != -1:
+            self.cloudcover = feat.GetFieldAsDouble(i)/100.0
+        i = feat.GetFieldIndex("PLATFORM")
+        if i != -1:
+            self.sensor = feat.GetFieldAsString(i)
+        i = feat.GetFieldIndex("PAIRNAME")
+        if i != -1:
+            self.pairname = feat.GetFieldAsString(i)
+        i = feat.GetFieldIndex("CATALOGID")
+        if i != -1:
+            self.catid = feat.GetFieldAsString(i)
+        i = feat.GetFieldIndex("STEREOPAIR")
+        if i != -1:
+            self.catid2 = feat.GetFieldAsString(i)
+        i = feat.GetFieldIndex("SENSOR")
+        if i != -1:
+            self.sensor = feat.GetFieldAsString(i)
+        
+        i = feat.GetFieldIndex("ACQDATE")
+        if i != -1:
+            date_str = feat.GetFieldAsString(i)
+            self.acqdate = datetime.strptime(date_str[:19],"%Y-%m-%d")
+        
+        # Fields from SETSM indices
+        i = feat.GetFieldIndex("DENSITY")
+        if i != -1:
+            self.density = feat.GetFieldAsDouble(i)
+        i = feat.GetFieldIndex("DEM_ID")
+        if i != -1:
+            self.dem_id = feat.GetFieldAsString(i)
+        
+        geom = feat.GetGeometryRef()
+        self.geom = geom.Clone()
+        
+
+    def getScore(self, target_date=None):
+        
+        score = 0
+       
+        required_attribs1 = [
+            self.sunel,
+            self.cloudcover,
+            self.sensor,
+        ]
+        
+        required_attribs2 = [
+            self.density,
+            self.dem_id,
+            self.sensor,
+        ]
+        
+        #### Test if all required values were found in metadata search
+        status1 = [val is None for val in required_attribs1]
+        status2 = [val is None for val in required_attribs2]
+        
+        if sum(status1) != 0 and sum(status2) != 0:
+            logger.error("Cannot determine score for image {0}:\n  Sun elev\t{1}\n  Cloudcover\t{2}\n  Sensor\t{3}\n  Density\t{4}".format(self.pairname,self.sunel,self.cloudcover,self.sensor,self.density))
+            score = -1
+            
+        elif self.sensor == 'QB02':
+            score = -1
+        
+        else:
+            
+            #### Test if acqdate if needed, get date difference
+            if target_date:
+                if self.acqdate is None:
+                    logger.error("Cannot get acqdate for image to determine date-based score: {0}".format(self.srcfn))
+                    self.date_diff = -9999
+                    
+                else:
+                    #### Find nearest year for target day
+                    tdeltas = []
+                    target_month, target_day = target_date[0]
+                    for y in range(self.acqdate.year-1,self.acqdate.year+2):
+                        tdeltas.append(abs((datetime(y,target_month,target_day) - self.acqdate).days))
+                    
+                    self.date_diff = min(tdeltas)
+            
+            
+                #### Assign weights
+                ccwt = 75
+                sunelwt = 5
+                datediffwt = 20
+                densitywt = 80
+                
+            else:
+                ccwt = 90
+                sunelwt = 10
+                datediffwt = 0
+                densitywt = 100
+                self.date_diff = -9999
+                
+                
+            #### Handle nonesense or nodata cloud cover values
+            if self.cloudcover:
+                if self.cloudcover < 0 or self.cloudcover > 1:
+                    self.cloudcover = 0.5
+            
+                if self.cloudcover > 0.2:
+                    logger.debug("Stereopair too cloudy (>20 percent): %s --> %f" %(self.pairname,self.cloudcover))
+                    score = -1
+            
+            #### Handle ridiculously low sun el values
+            if self.sunel and self.sunel < 1:
+                logger.debug("Sun elevation too low (<1 degrees): %s --> %f" %(self.pairname,self.sunel))
+                score = -1
+                        
+            if not score == -1:
+                # determine score method
+                if sum(status1) == 0:
+                    score = ccwt * (1-self.cloudcover) + sunelwt * (self.sunel/90) + datediffwt * ((183 - self.date_diff)/183.0)
+                elif sum(status2) == 0:
+                    score = densitywt * self.density + datediffwt * ((183 - self.date_diff)/183.0)
+
+        self.score = score
+        return self.score
+
         
 class MosaicParams:
     pass
+
 
 class TileParams:
     def __init__(self,x,x2,y,y2,j,i,name):
@@ -553,6 +780,19 @@ def filterMatchingImages(imginfo_list,params):
     return imginfo_list2
 
 
+def filter_images_by_geometry(imginfo_list, params):
+    imginfo_list2 = []
+    for iinfo in imginfo_list:
+        if iinfo.geom is not None:
+            if params.extent_geom.Intersect(iinfo.geom):
+                imginfo_list2.append(iinfo)
+            else:
+                logger.debug("Image does not intersect mosaic extent: %s" %iinfo.srcfn)
+        else: # remove from list if no geom
+            logger.debug("Null geometry for image: %s" %iinfo.srcfn)
+    return imginfo_list2
+
+
 def getMosaicParameters(iinfo,options):
     
     params = MosaicParams()
@@ -581,6 +821,8 @@ def getMosaicParameters(iinfo,options):
         params.ymin = options.extent[2]
         params.xmax = options.extent[1]
         params.ymax = options.extent[3]
+        poly_wkt = 'POLYGON (( %f %f, %f %f, %f %f, %f %f, %f %f ))' %(params.xmin,params.ymin,params.xmin,params.ymax,params.xmax,params.ymax,params.xmax,params.ymin,params.xmin,params.ymin)
+        params.extent_geom = ogr.CreateGeometryFromWkt(poly_wkt)
         
     if options.tilesize is not None:
         params.xtilesize = options.tilesize[0]
@@ -591,12 +833,12 @@ def getMosaicParameters(iinfo,options):
     else:
         params.xtilesize = None
         params.ytilesize = None
-   
+        
     if options.max_cc is not None:
-        params.max_cc = options.max_cc
+    	params.max_cc = options.max_cc
     else:
-        params.max_cc = 0.5
- 
+    	params.max_cc = 0.5
+    
     params.force_pan_to_multi = True if params.bands > 1 and options.force_pan_to_multi else False # determine if force pan to multi is applicable and true
     
     return params
@@ -629,52 +871,57 @@ def GetExactTrimmedGeom(image, step=2, tolerance=1):
             lines = xrange(0, inband.YSize, step)
             
             xsize = inband.XSize
-            npflatnonzero = numpy.flatnonzero
-            bandReadAsArray = inband.ReadAsArray
             
-            lines_flatnonzero = [npflatnonzero(bandReadAsArray(0,l,xsize,1) != nd) for l in lines]
-            i = 0
+            try:
+                lines_flatnonzero = [flatnonzero(inband.ReadAsArray(0,l,xsize,1) != nd) for l in lines]
+                    
+            except AttributeError, e:
+                logger.error("Error reading image block.  Check image for corrupt data.")
             
-            for nz in lines_flatnonzero:
+            else:
                 
-                nzmin = nz[0] if nz.size > 0 else 0
-                nzmax = nz[-1] if nz.size > 0 else 0
+                i = 0
                 
-                if nz.size > 0:
-                    pixelst.append((nzmax+1,i))
-                    pixelsb.append((nzmin,i))           
-                i += step
+                for nz in lines_flatnonzero:
+                    
+                    nzmin = nz[0] if nz.size > 0 else 0
+                    nzmax = nz[-1] if nz.size > 0 else 0
+                    
+                    if nz.size > 0:
+                        pixelst.append((nzmax+1,i))
+                        pixelsb.append((nzmin,i))           
+                    i += step
+                    
+                pixelsb.reverse()
+                pixels = pixelst + pixelsb
                 
-            pixelsb.reverse()
-            pixels = pixelst + pixelsb
-            
-            #print len(pixels)
-            
-            for px in pixels:
-                x,y = pl2xy(gtf,inband,px[0],px[1])
-                xs.append(x)
-                ys.append(y)
-                pts.append((x,y))
-                #print px[0],px[1],x,y
-            
-            #### create geometry
-            poly_vts = []
-            for pt in pts:
-                poly_vts.append("%.16f %.16f" %(pt[0],pt[1]))
-            if len(pts) > 0:
-                poly_vts.append("%.16f %.16f" %(pts[0][0],pts[0][1]))
-            
-            if len(poly_vts) > 0:
-                poly_wkt = 'POLYGON (( %s ))' %(string.join(poly_vts,", "))
-                #print poly_wkt
+                #print len(pixels)
                 
-                geom = ogr.CreateGeometryFromWkt(poly_wkt)
-                #print geom
-                #### Simplify geom
-                #logger.debug("Simplification tolerance: %.10f" %tolerance)
-                if geom is not None:
-                    geom2  = geom.Simplify(tolerance)
-            
+                for px in pixels:
+                    x,y = pl2xy(gtf,inband,px[0],px[1])
+                    xs.append(x)
+                    ys.append(y)
+                    pts.append((x,y))
+                    #print px[0],px[1],x,y
+                
+                #### create geometry
+                poly_vts = []
+                for pt in pts:
+                    poly_vts.append("%.16f %.16f" %(pt[0],pt[1]))
+                if len(pts) > 0:
+                    poly_vts.append("%.16f %.16f" %(pts[0][0],pts[0][1]))
+                
+                if len(poly_vts) > 0:
+                    poly_wkt = 'POLYGON (( %s ))' %(string.join(poly_vts,", "))
+                    #print poly_wkt
+                    
+                    geom = ogr.CreateGeometryFromWkt(poly_wkt)
+                    #print geom
+                    #### Simplify geom
+                    #logger.debug("Simplification tolerance: %.10f" %tolerance)
+                    if geom is not None:
+                        geom2  = geom.Simplify(tolerance)
+                
             
         ds = None
 
@@ -727,125 +974,10 @@ def buffernum(num,buf):
         sNum = "0%s" %sNum
     return sNum
    
-    
-def deleteTempFiles(names):
-    logger.info('Deleting Temp Files')
-    for name in names:
-        if name is not None:
-            deleteList = glob.glob(os.path.splitext(name)[0]+'.*')
-            for f in deleteList:
-                try:
-                    os.remove(f)
-                    loger.info('Deleted '+os.path.basename(f))
-                except:
-                    logger.info('Could not remove '+os.path.basename(f))
-   
                     
 def copyall(srcfile,dstdir):
     for fpi in glob.glob("%s.*" %os.path.splitext(srcfile)[0]):
         fpo = os.path.join(dstdir,os.path.basename(fpi))
         shutil.copy2(fpi,fpo)
-    
-    
-def ExecCmd(cmd):
-    logger.info(cmd)
-    p = Popen(cmd,shell=True,stderr=PIPE,stdout=PIPE)
-    (so,se) = p.communicate()
-    rc = p.wait()
-    logger.info(rc)
-    logger.info(se)
-    logger.info(so)
-    
-     
 
-
-def ExecCmd_mp(job):
-    job_name, cmd = job
-    logger.info('Running job: {0}'.format(job_name))
-    logger.debug('Cmd: {0}'.format(cmd))
-    
-    p = Popen(cmd,shell=True,stderr=PIPE,
-              stdout=PIPE,preexec_fn=os.setsid)
-    try:
-        (so,se) = p.communicate()
-    except KeyboardInterrupt:
-        os.killpg(p.pid, signal.SIGTERM)
-    
-    else:
-        logger.debug(so)
-        logger.debug(se)
-
-def getGEMetadataAsXml(metafile):
-	if os.path.isfile(metafile):
-		try:
-			metaf = open(metafile, "r")
-		except IOError, err:
-			LogMsg("Could not open metadata file %s because %s" % (metafile, err))
-			raise
-	else:
-		LogMsg("Metadata file %s not found" % metafile)
-		return None
-
-	# Patterns to extract tag/value pairs and BEGIN/END group tags
-	gepat1 = re.compile(r'(?P<tag>\w+) = "?(?P<data>.*?)"?;', re.I)
-	gepat2 = re.compile(r"(?P<tag>\w+) = ", re.I)
-
-	# These tags use the following tag/value as an attribute of the group rather than
-	# a standalone node
-	group_tags = {"aoiGeoCoordinate":"coordinateNumber",
-				  "aoiMapCoordinate":"coordinateNumber",
-				  "bandSpecificInformation":"bandNumber"}
-
-	# Start processing
-	root = ET.Element("root")
-	parent = None
-	current = root
-	node_stack = []
-	mlstr = False  # multi-line string flag
-
-	for line in metaf:
-		# mlstr will be true when working on a multi-line string
-		if mlstr:
-			if not line.strip() == ");":
-				data += line.strip()
-			else:
-				data += line.strip()
-				child = ET.SubElement(current, tag)
-				child.text = data
-				mlstr = False
-
-		# Handle tag/value pairs and groups
-		mat1 = gepat1.search(line)
-		if mat1:
-			tag = mat1.group("tag").strip()
-			data = mat1.group("data").strip()
-
-			if tag == "BEGIN_GROUP":
-				if data is None or data == "":
-					child = ET.SubElement(current, "group")
-				else:
-					child = ET.SubElement(current, data)
-				if parent:
-					node_stack.append(parent)
-				parent = current
-				current = child
-			elif tag == "END_GROUP":
-				current = parent if parent else root
-				parent = node_stack.pop() if node_stack else None
-			else:
-				if current.tag in group_tags and tag == group_tags[current.tag]:
-					current.set(tag, data)
-				else:
-					child = ET.SubElement(current, tag)
-					child.text = data
-		else:
-			mat2 = gepat2.search(line)
-			if mat2:
-				tag = mat2.group("tag").strip()
-				data = ""
-				mlstr = True
-
-	metaf.close()
-	#print ET.ElementTree(root)
-	return ET.ElementTree(root)
 

@@ -12,6 +12,8 @@ import gdal, ogr,osr, gdalconst
 logger = logging.getLogger("logger")
 logger.setLevel(logging.DEBUG)
 
+gdal.SetConfigOption('GDAL_PAM_ENABLED','NO')
+
 
     
 def main():
@@ -23,8 +25,8 @@ def main():
     #### Set Up Arguments 
     parent_parser = buildMosaicParentArgumentParser()
     parser = argparse.ArgumentParser(
-	parents=[parent_parser],
-	description="Create mosaic subtile"
+        parents=[parent_parser],
+        description="Create mosaic subtile"
 	)
     
     parser.add_argument("tile", help="output tile name")
@@ -32,13 +34,12 @@ def main():
     
     parser.add_argument("--wd",
                         help="scratch space (default is mosaic directory)")
-    parser.add_argument("--gtiff_compression", choices=GTIFF_COMPRESSIONS, default="lzw",
+    parser.add_argument("--gtiff-compression", choices=GTIFF_COMPRESSIONS, default="lzw",
                         help="GTiff compression type. Default=lzw (%s)"%string.join(GTIFF_COMPRESSIONS,','))
     
     #### Parse Arguments
     args = parser.parse_args()
-    scriptpath = os.path.abspath(sys.argv[0])
-    
+
     status = 0
         
     bands = args.bands
@@ -66,13 +67,17 @@ def main():
         localpath = os.path.dirname(tile)
     
     intersects = []
-    t = open(inpath,'r')
-    for line in t.readlines():
-        intersects.append(line.rstrip('\n').rstrip('\r'))
-    t.close()
+    if os.path.isfile(inpath):
+        t = open(inpath,'r')
+        for line in t.readlines():
+            intersects.append(line.rstrip('\n').rstrip('\r'))
+        t.close()
+    else:
+        logger.error("Intersecting image file does not exist: {}".format(inpath))
     
     logger.info(tile)
-    #logger.info str(intersects))
+    
+    logger.info("Number of image found in source file: {}".format(len(intersects)))
     
     wd = os.path.join(localpath,os.path.splitext(os.path.basename(tile))[0])
     if not os.path.isdir(wd):
@@ -88,10 +93,12 @@ def main():
         ds = gdal.Open(image)
         if ds is not None:
             srcbands = ds.RasterCount
-            
-            images[image] = srcbands
+            srcnodata_val = ds.GetRasterBand(1).GetNoDataValue()
+            images[image] = (srcbands, srcnodata_val)
             final_intersects.append(image)
             logger.info("%s" %(os.path.basename(image)))
+        else:
+            logger.error("Cannot open image: {}".format(image))
     
         ds = None
     
@@ -107,14 +114,14 @@ def main():
             
         #### Check if bands number is correct
         mergefile = img
+        srcbands, srcnodata_val = images[img]
         
         if args.force_pan_to_multi is True and bands > 1:
-            srcbands = images[img]
             if srcbands == 1:
                 mergefile = os.path.join(wd,os.path.basename(img)[:-4])+"_merge.tif"
                 cmd = 'gdal_merge.py -ps %s %s -separate -o "%s" "%s"' %(ref_xres, ref_yres, mergefile, string.join(([img] * bands),'" "'))
-                ExecCmd(cmd)
-        srcnodata = string.join((['0'] * bands)," ")
+                utils.exec_cmd(cmd)
+        srcnodata = string.join(([str(srcnodata_val)] * bands)," ")
             
         if c == 0:
             if os.path.isfile(localtile1):
@@ -122,14 +129,13 @@ def main():
                 status = 1
                 break
             cmd = 'gdalwarp %s -srcnodata "%s" -dstnodata "%s" "%s" "%s"' %(dims,srcnodata,srcnodata,mergefile,localtile1)
-            ExecCmd(cmd)
+            utils.exec_cmd(cmd)
             
         else:
             cmd = 'gdalwarp -srcnodata "%s" "%s" "%s"' %(srcnodata,mergefile,localtile1)
-            ExecCmd(cmd)
+            utils.exec_cmd(cmd)
             
         c += 1
-        
         
         if not mergefile == img:
             del_images.append(mergefile)
@@ -145,12 +151,12 @@ def main():
                 compress_option =  '-co "compress=jpeg" -co "jpeg_quality=95"'
                 
             cmd = 'gdal_translate -stats -of GTiff %s -co "PHOTOMETRIC=MINISBLACK" -co "TILED=YES" -co "BIGTIFF=IF_SAFER" "%s" "%s"' %(compress_option,localtile1,localtile2)
-            ExecCmd(cmd)
+            utils.exec_cmd(cmd)
         
         ####  Build Pyramids        
         if os.path.isfile(localtile2):
             cmd = 'gdaladdo "%s" 2 4 8 16 30' %(localtile2)
-            ExecCmd(cmd)
+            utils.exec_cmd(cmd)
         
         #### Copy tile to destination
         if os.path.isfile(localtile2):
@@ -161,8 +167,8 @@ def main():
     
     
     #### Delete temp files
-    deleteTempFiles(del_images)
-    os.rmdir(wd)
+    utils.delete_temp_files(del_images)
+    shutil.rmtree(wd)
    
     logger.info("Done")
 

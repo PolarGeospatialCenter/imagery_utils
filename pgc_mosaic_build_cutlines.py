@@ -3,9 +3,10 @@ from datetime import datetime, timedelta
 from subprocess import *
 from math import *
 from xml.etree import cElementTree as ET
-
-from lib.mosaic import *
 import gdal, ogr,osr,gdalconst
+from lib import mosaic
+
+gdal.SetConfigOption('GDAL_PAM_ENABLED','NO')
 
 logger = logging.getLogger("logger")
 logger.setLevel(logging.DEBUG)
@@ -18,18 +19,18 @@ def main():
     #########################################################
 
     #### Set Up Arguments 
-    parent_parser = buildMosaicParentArgumentParser()
+    parent_parser = mosaic.buildMosaicParentArgumentParser()
     parser = argparse.ArgumentParser(
-	parents=[parent_parser],
-	description="Create cutline or component shapefile"
-	)
+        parents=[parent_parser],
+        description="Create cutline or component shapefile"
+    )
     
     parser.add_argument("shp", help="output shapefile name")
     parser.add_argument("src", help="textfile or directory of input rasters (tif only)")
     
-    parser.add_argument("--cutline_step", type=int, default=2,
+    parser.add_argument("--cutline-step", type=int, default=2,
                        help="cutline calculator pixel skip interval (default=2)")
-    parser.add_argument("--component_shp", action="store_true", default=False,
+    parser.add_argument("--component-shp", action="store_true", default=False,
                         help="create shp of all component images")
    
     #### Parse Arguments
@@ -92,14 +93,13 @@ def main():
         else:
             logger.info("Number of intersecting images: %i" %len(intersects))
         
-        
         #### gather image info list
         logger.info("Gathering image info")
-        imginfo_list = [ImageInfo(image,"IMAGE") for image in intersects]
+        imginfo_list = [mosaic.ImageInfo(image,"IMAGE") for image in intersects]
         
         #### Get mosaic parameters
         logger.info("Getting mosaic parameters")
-        params = getMosaicParameters(imginfo_list[0],args)
+        params = mosaic.getMosaicParameters(imginfo_list[0],args)
         logger.info("Mosaic extent: %f %f %f %f" %(params.xmin, params.xmax, params.ymin, params.ymax))
         logger.info("Mosaic tilesize: %f %f" %(params.xtilesize, params.ytilesize))
         logger.info("Mosaic resolution: %.10f %.10f" %(params.xres, params.yres))
@@ -110,7 +110,7 @@ def main():
         imginfo_list2 =[]
         for iinfo in imginfo_list:
             simplify_tolerance = 2.0 * ((params.xres + params.yres) / 2.0) ## 2 * avg(xres, yres), should be 1 for panchromatic mosaics where res = 0.5m
-            geom,xs1,ys1 = GetExactTrimmedGeom(iinfo.srcfp,step=args.cutline_step,tolerance=simplify_tolerance)
+            geom,xs1,ys1 = mosaic.GetExactTrimmedGeom(iinfo.srcfp,step=args.cutline_step,tolerance=simplify_tolerance)
                 
             if geom is None:
                 logger.info("%s: geometry could not be determined" %iinfo.srcfn)
@@ -122,10 +122,12 @@ def main():
                 imginfo_list2.append(iinfo)
                 centroid = geom.Centroid()
                 logger.info("%s: geometry acquired - centroid: %f, %f" %(iinfo.srcfn, centroid.GetX(), centroid.GetY()))
+                #print geom
         
-        logger.info("Calculating image scores")
+        logger.info("Getting image metadata and calculating image scores")
         for iinfo in imginfo_list2:
             iinfo.getScore(params)
+            iinfo.get_raster_stats()
             logger.info("%s: %s" %(iinfo.srcfn,iinfo.score))
                
         ####  Overlay geoms and remove non-contributors
@@ -180,6 +182,14 @@ def main():
             ("RESOLUTION", ogr.OFTReal, 0),
             ("OFF_NADIR", ogr.OFTReal, 0),
             ("SUN_ELEV", ogr.OFTReal, 0),
+            ("SUN_AZ", ogr.OFTReal, 0),
+            ("SAT_ELEV", ogr.OFTReal, 0),
+            ("SAT_AZ", ogr.OFTReal, 0),
+            ("STATS_MIN", ogr.OFTString, 80),
+            ("STATS_MAX", ogr.OFTString, 80),
+            ("STATS_STD", ogr.OFTString, 80),
+            ("STATS_MEAN", ogr.OFTString, 80),
+            ("STATS_PXCT", ogr.OFTString, 80),
             ("CLOUDCOVER", ogr.OFTReal, 0),
             ("TDI", ogr.OFTReal, 0),
             ("DATE_DIFF", ogr.OFTReal, 0),
@@ -224,23 +234,49 @@ def main():
             
             feat = ogr.Feature(lyr.GetLayerDefn())
             
-            feat.SetField("IMAGENAME",iinfo.srcfn)
-            feat.SetField("SENSOR",iinfo.sensor)
-            feat.SetField("ACQDATE",iinfo.acqdate.strftime("%Y-%m-%d"))
-            feat.SetField("CAT_ID",iinfo.catid)
-            feat.SetField("OFF_NADIR",iinfo.ona)
-            feat.SetField("SUN_ELEV",iinfo.sunel)
-            feat.SetField("CLOUDCOVER",iinfo.cloudcover)
-            feat.SetField("SCORE",iinfo.score)
+            feat.SetField("IMAGENAME", iinfo.srcfn)
+            feat.SetField("SENSOR", iinfo.sensor)
+            feat.SetField("ACQDATE", iinfo.acqdate.strftime("%Y-%m-%d"))
+            feat.SetField("CAT_ID", iinfo.catid)
+            feat.SetField("OFF_NADIR", iinfo.ona)
+            feat.SetField("SUN_ELEV" ,iinfo.sunel)
+            feat.SetField("SUN_AZ", iinfo.sunaz)
+            feat.SetField("SAT_ELEV", iinfo.satel)
+            feat.SetField("SAT_AZ", iinfo.sataz)
+            feat.SetField("CLOUDCOVER", iinfo.cloudcover)
+            feat.SetField("SCORE", iinfo.score)
             
             tdi = iinfo.tdi if iinfo.tdi else 0
-            feat.SetField("TDI",tdi)
+            feat.SetField("TDI", tdi)
             
             date_diff = iinfo.date_diff if iinfo.date_diff else -9999
-            feat.SetField("DATE_DIFF",date_diff)
+            feat.SetField("DATE_DIFF", date_diff)
             
             res = ((iinfo.xres+iinfo.yres)/2.0) if iinfo.xres else 0
-            feat.SetField("RESOLUTION",res)
+            feat.SetField("RESOLUTION", res)
+            
+            if len(iinfo.stat_dct) > 0:
+                min_list = []
+                max_list = []
+                mean_list = []
+                stdev_list = []
+                px_cnt_list = []
+                keys = iinfo.stat_dct.keys()
+                keys.sort()
+                for band in keys:
+                    imin, imax, imean, istdev = iinfo.stat_dct[band]
+                    ipx_cnt = iinfo.datapixelcount_dct[band]
+                    min_list.append(str(imin))
+                    max_list.append(str(imax))
+                    mean_list.append(str(imean))
+                    stdev_list.append(str(istdev))
+                    px_cnt_list.append(str(ipx_cnt))
+                
+                feat.SetField("STATS_MIN", ",".join(min_list))
+                feat.SetField("STATS_MAX", ",".join(max_list))
+                feat.SetField("STATS_MEAN", ",".join(mean_list))
+                feat.SetField("STATS_STD", ",".join(stdev_list))
+                feat.SetField("STATS_PXCT", ",".join(px_cnt_list))
                 
             feat.SetGeometry(geom)
             

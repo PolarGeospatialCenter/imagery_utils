@@ -1,11 +1,8 @@
 import os, string, sys, logging, argparse, numpy
 from datetime import datetime
-
 import gdal, ogr,osr, gdalconst
 
-from lib.mosaic import *
-from lib import ortho_utils
-
+from lib import mosaic, utils
 
 ### Create Logger
 logger = logging.getLogger("logger")
@@ -17,8 +14,8 @@ def main():
     #### Set Up Arguments 
     parent_parser = buildMosaicParentArgumentParser()
     parser = argparse.ArgumentParser(
-	parents=[parent_parser],
-	description="query PGC index for images contributing to a mosaic"
+        parents=[parent_parser],
+        description="query PGC index for images contributing to a mosaic"
 	)
     
     parser.add_argument("index", help="PGC index shapefile")
@@ -32,11 +29,11 @@ def main():
                       help="target tile (default is to compute all valid tiles. multiple tiles should be delimited by a comma [ex: 23_24,23_25])")
     parser.add_argument("--overwrite", action="store_true", default=False,
                       help="overwrite any existing files")
-    parser.add_argument("--stretch", choices=ortho_utils.stretches, default="rf",
+    parser.add_argument("--stretch", choices=ortho_functions.stretches, default="rf",
                       help="stretch abbreviation used in image processing (default=rf)")
-    parser.add_argument("--build_shp", action='store_true', default=False,
+    parser.add_argument("--build-shp", action='store_true', default=False,
                       help="build shapefile of intersecting images (only invoked if --no_sort is not used)")
-    parser.add_argument("--online_only", action='store_true', default=False,
+    parser.add_argument("--online-only", action='store_true', default=False,
                       help="limit search to those records where status = online and image is found on the file system")
     
     #### Parse Arguments
@@ -107,7 +104,7 @@ def main():
             name = tile[2]
             if name != "name":
                 ### Tile csv schema: row, column, name, status, xmin, xmax, ymin, ymax, epsg code
-                t = TileParams(float(tile[4]),float(tile[5]),float(tile[6]),float(tile[7]),int(tile[0]),int(tile[1]),tile[2])
+                t = mosaic.TileParams(float(tile[4]),float(tile[5]),float(tile[6]),float(tile[7]),int(tile[0]),int(tile[1]),tile[2])
                 t.status = tile[3]
                 t.epsg = int(tile[8])
                 tiles[name] = t
@@ -183,7 +180,7 @@ def HandleTile(t,shp,dstdir,csvpath,args,exclude_list):
             
             while feat:
                 
-                iinfo = ImageInfo(feat,"RECORD",srs=s_srs)
+                iinfo = mosaic.ImageInfo(feat,"RECORD",srs=s_srs)
                 
                 if iinfo.geom is not None and iinfo.geom.GetGeometryType() == ogr.wkbPolygon:
                     if not t_srs.IsSame(s_srs):
@@ -212,11 +209,11 @@ def HandleTile(t,shp,dstdir,csvpath,args,exclude_list):
                 
                     #### Get mosaic parameters
                     logger.debug("Getting mosaic parameters")
-                    params = getMosaicParameters(imginfo_list1[0],args)
+                    params = mosaic.getMosaicParameters(imginfo_list1[0],args)
                     
                     #### Remove images that do not match ref
                     logger.debug("Setting image pattern filter")
-                    imginfo_list2 = filterMatchingImages(imginfo_list1,params)
+                    imginfo_list2 = mosaic.filterMatchingImages(imginfo_list1,params)
                     logger.info("Number of images matching filter: %i" %(len(imginfo_list2)))
                     
                     #### Sort by quality

@@ -1,0 +1,46 @@
+USAGE
+-----
+
+pgc_ndvi.py [-h] [-t {Float32,Int16}] [-s] [--wd WD] [--pbs]
+    [--parallel-processes PARALLEL_PROCESSES] [-l L]
+    [--qsubscript QSUBSCRIPT] [--dryrun]
+    src dst
+
+
+DESCRIPTION
+-----------
+
+The pgc_ndvi utility runs batch NDVI calculation tasks or submits them to a Maui/Torque HPC cluster.
+
+src:
+    source image, text file, or directory
+
+dst:
+    destination directory
+
+-h, --help:
+    show this help message and exit
+
+-t {Float32,Int16}, --outtype {Float32,Int16}:
+    output data type (for Int16, output values are scaled from -1000 to 1000)
+    
+-s, --save-temps:
+    save temp files
+    
+--wd WD:
+    local working directory for cluster jobs (default is dst dir)
+    
+--pbs:
+    submit tasks to PBS
+    
+--parallel-processes PARALLEL_PROCESSES:
+    number of parallel processes to spawn (default 1)
+    
+-l L:
+    PBS resources requested (mimicks qsub syntax)
+
+--qsubscript QSUBSCRIPT:
+    qsub script to use in cluster job submission (default is qsub_ndvi.sh in script root folder)
+    
+--dryrun:
+    print actions without executing
