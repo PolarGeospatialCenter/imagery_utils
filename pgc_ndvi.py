@@ -241,8 +241,8 @@ def calc_ndvi(srcfp, dstfp, args):
             return 1
         red_nodata = red_band.GetNoDataValue()
         if red_nodata is None:
+            logger.info("Defaulting red band nodata to zero")
             red_nodata = 0.0
-        print("red nodata value = {}".format(red_nodata))
         (red_xblocksize,red_yblocksize) = red_band.GetBlockSize()
     
         nir_band = ds.GetRasterBand(nir_band_num)
@@ -251,8 +251,8 @@ def calc_ndvi(srcfp, dstfp, args):
             return 1
         nir_nodata = nir_band.GetNoDataValue()
         if nir_nodata is None:
+            logger.info("Defaulting nir band nodata to zero")
             nir_nodata = 0.0
-        print("nir nodata value = {}".format(nir_nodata))
         (nir_xblocksize,nir_yblocksize) = nir_band.GetBlockSize()
 
         ## if different block sizes choose the smaller of the two
@@ -287,7 +287,7 @@ def calc_ndvi(srcfp, dstfp, args):
                     block_nx = nx - (xblock*xblocksize)
 
                 ## read a block from each band
-                red_array = red_band.ReadAsArray(xoff,yoff,block_nx,block_ny).astype(numpy.uint16)
+                red_array = red_band.ReadAsArray(xoff,yoff,block_nx,block_ny)
                 nir_array = nir_band.ReadAsArray(xoff,yoff,block_nx,block_ny)
 
                 ## generate mask for red nodata, nir nodata, and 
@@ -322,7 +322,6 @@ def calc_ndvi(srcfp, dstfp, args):
                         else:
                            ndvi_mask = numpy.full_like(red_array,fill_value=0,dtype=numpy.bool)
 
-               
                 ## declare ndvi array, init to nodata value
                 ndvi_array = numpy.full_like(red_array,fill_value=ndvi_nodata,dtype=numpy.float32)
                 ## cast bands to float for calc
