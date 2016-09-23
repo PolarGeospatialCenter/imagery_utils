@@ -229,27 +229,34 @@ def BandSubtractMedian(srcfp,dstfp):
                         if band_median is not None:
                             band_data = ds.GetRasterBand(band)
                             band_nodata = band_data.GetNoDataValue()
+                            # default nodata to zero
+                            if band_nodata is None:
+                                logger.info("Defaulting band {} nodata to zero".format(band))
+                                band_nodata = 0.0 
                             band_array = numpy.array(band_data.ReadAsArray())
                             nodata_mask = (band_array==band_nodata)
-                            band_min = numpy.min(band_array[~nodata_mask])
-                            corr_min = numpy.subtract(float(band_min),float(band_median))
-                            if( corr_min < float(out_min) ):
-                                logger.error("BandSubtractMedian() returns min out of range for {} band {}".format(srcfp,band))
-                                return 1
+                   
                             if out_datatype == 3:
-                                band_corrected = numpy.zeros_like(band_array,dtype=numpy.int16)
+                                band_corrected = numpy.full_like(band_array,fill_value=out_nodataval,dtype=numpy.int16)
                             else:
-                                band_corrected = numpy.zeros_like(band_array,dtype=numpy.int32)
-                              
-                            band_corrected[~nodata_mask] = numpy.subtract(band_array[~nodata_mask],band_median)
-                            band_corrected[nodata_mask] = out_nodataval
+                                band_corrected = numpy.full_like(band_array,fill_value=out_nodataval,dtype=numpy.int32)  
+                            band_valid = band_array[~nodata_mask]
+                            if band_valid.size != 0:          
+                                band_min = numpy.min(band_valid)
+                                corr_min = numpy.subtract(float(band_min),float(band_median))
+                                if( corr_min < float(out_min) ):
+                                    logger.error("BandSubtractMedian() returns min out of range for {} band {}".format(srcfp,band))
+                                    return 1
+                                band_corrected[~nodata_mask] = numpy.subtract(band_array[~nodata_mask],band_median)
+                            else:
+                                logger.warning("Band {} has no valid data".format(band))
                             out_band = out_ds.GetRasterBand(band)
                             out_band.WriteArray(band_corrected)
                             out_band.SetNoDataValue(out_nodataval)
+
                         else:
                             logger.error("BandSubtractMedian(): iinfo.median[{}] is None, image {}".format(band,srcfp))
                             return 1
-                    band_array = None
                 else:
                     logger.error("BandSubtractMedian(): !driver.Create({})".format(dstfp))
                     return 1
