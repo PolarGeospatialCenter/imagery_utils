@@ -556,74 +556,81 @@ class ImageInfo:
     def get_raster_stats(self):
         self.stat_dct = {}
         self.datapixelcount_dct = {}
-        if not self.datatype in [1, 2, 3, 4, 5]: # datatype must be integer for this process to make any sense
-            logger.warning("Raster statisics cannot be calculated for this dataset.  Only integer datasets show meaningful results")
-        else:
-            ds = gdal.Open(self.srcfp)
-            if ds:
-    
-                #### get stats and store in dictionaries
-                for bandnum in range(1,self.bands+1):
-                    band = ds.GetRasterBand(bandnum)
-                    gdal.SetConfigOption('GDAL_PAM_ENABLED', 'YES')
-                    stats = band.ComputeStatistics(False)
-                    gdal.SetConfigOption('GDAL_PAM_ENABLED', 'NO')
+        ds = gdal.Open(self.srcfp)
+        if ds:
+   
+            # get raster dimensions
+            nx = ds.RasterXSize
+            ny = ds.RasterYSize
+ 
+            #### get stats and store in dictionaries
+            for bandnum in range(1,self.bands+1):
+
+                # read band
+                band = ds.GetRasterBand(bandnum)
+
+                # get nodata value (default to zero)
+                band_nodata = band.GetNoDataValue()
+                if band_nodata is None:
+                    logger.info("Defaulting band {} nodata value to zero".format(bandnum))
+                    band_nodata = 0.0
+
+                # read band as a numpy array
+                band_array = band.ReadAsArray(0,0,nx,ny)
+
+                # generate mask for nodata
+                band_nodata_mask = (band_array == band_nodata)
+                band_valid = band_array[~band_nodata_mask]
+                if band_valid.size != 0: 
+
+                    # calculate stats
+                    band_min = numpy.amin(band_valid)
+                    band_max = numpy.amax(band_valid)
+                    band_mean = numpy.mean(band_valid,dtype=numpy.float64)
+                    band_std = numpy.std(band_valid,dtype=numpy.float64)
+                    stats = numpy.array([band_min,band_max,band_mean,band_std],numpy.float64) 
+                else:
+                    logger.warning("Band {} contains no valid data".format(bandnum))
+                    stats = numpy.array([band_nodata,band_nodata,band_nodata,band_nodata],numpy.float64)
+                self.stat_dct[bandnum] = stats
+                self.datapixelcount_dct[bandnum] = band_valid.size
                     
-                    # If stats min is 1 and data type is unsigned integer, try to get the next largest value
-                    if self.datatype in [1, 2, 4]:
-                        dt_min = 0.5
-                        dt_max = stats[1] + 0.5
-                        dt_range = int(math.ceil(dt_max - dt_min))
-                        h = band.GetHistogram(dt_min, dt_max, dt_range, 0, 0)
-                        nz = numpy.nonzero(h)
-                        low_value = nz[0][1]
-                        if stats[0] <= 1:
-                            logger.info("Unsigned integer image stats min less than or equal to 1 (min = {}), using next lowest integer value: {}".format(stats[0],low_value))
-                            stats[0] = float(low_value)
-                    else:
-                        dt_min = stats[0] - 0.5
-                        dt_max = stats[1] + 0.5
-                        h = band.GetHistogram(dt_min, dt_max, 1, 0, 0)
-  
-                    self.stat_dct[bandnum] = stats
-                    self.datapixelcount_dct[bandnum] = sum(h)
-                ds = None
-    
-            else:
-                logger.warning("Cannot open image: %s" %self.srcfp)
+                band_valid = None
+                band_nodata_mask = None
+                band_array = None
+
+            ds = None
+
+        else:
+            logger.warning("Cannot open image: %s" %self.srcfp)
 
 
     def get_raster_median(self):
         self.median = {}
-        # if not integer data type then this method will only give an approximate value
-        if not self.datatype in [1, 2, 3, 4, 5]:
-            logger.warning("get_raster_median only works for integer data types")
-        else:
-            ds = gdal.Open(self.srcfp)
-            if ds:
+        ds = gdal.Open(self.srcfp)
+        if ds:
 
-                #### get median for each band
-                for bandnum in range(1,self.bands+1):
-                    band = ds.GetRasterBand(bandnum)
-                    band_nodata = band.GetNoDataValue()
-                    band_array = numpy.array(band.ReadAsArray())
-                    band_nodata_mask = (band_array==band_nodata)
-                    band_valid = band_array[~band_nodata_mask]
-                    band_median = numpy.median(band_valid)
-                    if self.datatype==1:
-                        self.median[bandnum] = numpy.uint8(band_median)
-                    elif self.datatype==2:
-                        self.median[bandnum] = numpy.uint16(band_median)
-                    elif self.datatype==3:
-                        self.median[bandnum] = numpy.int16(band_median)
-                    elif self.datatype==4:
-                        self.median[bandnum] = numpy.uint32(band_median)
-                    else:
-                        self.median[bandnum] = numpy.int32(band_median) 
-                    logger.info("band {} median {}".format(bandnum,self.median[bandnum]))
-                ds = None
-            else:
-                logger.warning("Cannot open image: %s" %self.srcfp)
+            #### get median for each band
+            for bandnum in range(1,self.bands+1):
+                band = ds.GetRasterBand(bandnum)
+                band_nodata = band.GetNoDataValue()
+                # default nodata to zero
+                if band_nodata is None:
+                    logger.info("Defaulting band {} nodata to zero".format(bandnum))
+                    band_nodata = 0.0
+                band_array = numpy.array(band.ReadAsArray())
+                band_nodata_mask = (band_array==band_nodata)
+                band_valid = band_array[~band_nodata_mask]
+                if band_valid.size != 0:
+                    band_median = numpy.float64(numpy.median(band_valid))
+                else:
+                    logger.warning("Band {} contains no valid data".format(bandnum))
+                    band_median = numpy.float64(band_nodata)
+                self.median[bandnum] = band_median
+                logger.info("band {} median {}".format(bandnum,self.median[bandnum]))
+            ds = None
+        else:
+            logger.warning("Cannot open image: %s" %self.srcfp)
 
 
 class DemInfo:
