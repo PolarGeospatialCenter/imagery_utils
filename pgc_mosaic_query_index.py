@@ -1,8 +1,8 @@
-import os, string, sys, logging, argparse, numpy
-from datetime import datetime
+import os, string, sys, logging, argparse, numpy, glob
+from datetime import datetime, date
 import gdal, ogr,osr, gdalconst
 
-from lib import mosaic, utils
+from lib import ortho_functions, mosaic, utils
 
 ### Create Logger
 logger = logging.getLogger("logger")
@@ -12,7 +12,7 @@ EPSG_WGS84 = 4326
 def main():
     
     #### Set Up Arguments 
-    parent_parser = buildMosaicParentArgumentParser()
+    parent_parser = mosaic.buildMosaicParentArgumentParser()
     parser = argparse.ArgumentParser(
         parents=[parent_parser],
         description="query PGC index for images contributing to a mosaic"
@@ -35,11 +35,14 @@ def main():
                       help="build shapefile of intersecting images (only invoked if --no_sort is not used)")
     parser.add_argument("--online-only", action='store_true', default=False,
                       help="limit search to those records where status = online and image is found on the file system")
+    parser.add_argument("--require-pan", action='store_true', default=False,
+                      help="limit search to imagery with both a multispectral and a panchromatic component") 
     
+ 
     #### Parse Arguments
     args = parser.parse_args()
     scriptpath = os.path.abspath(sys.argv[0])
-    
+
     shp = os.path.abspath(args.index)
     csvpath = os.path.abspath(args.tile_csv)
     dstdir = os.path.abspath(args.dstdir)
@@ -193,6 +196,35 @@ def HandleTile(t,shp,dstdir,csvpath,args,exclude_list):
                             
                         elif args.online_only and not os.path.isfile(iinfo.srcfp):
                             logger.warning("Scene does not exist, excluding: {0}".format(iinfo.srcfp))
+                        elif args.require_pan:
+                            srcfp = iinfo.srcfp
+                            srcdir, mul_name = os.path.split(srcfp)
+                            if iinfo.sensor in ["WV02","WV03","QB02"]:
+                                 pan_name = mul_name.replace("-M","-P")
+                            elif iinfo.sensor == "GE01":
+                                 if "_5V" in mul_name:
+                                      pan_name_base = srcfp[:-24].replace("M0","P0")
+                                      candidates = glob.glob(pan_name_base + "*")
+                                      candidates2 = [f for f in candidates if f.endswith(('.ntf','.NTF','.tif','.TIF'))]
+                                      if len(candidates2) == 0:
+                                          pan_name = ''
+                                      elif len(candidates2) == 1:
+                                          pan_name = os.path.basename(candidates2[0])
+                                      else:
+                                          pan_name = ''
+                                          logger.error('{} panchromatic images match the multispectral image name {}'.format(len(candidates2),mul_name))
+                                 else:
+                                      pan_name = mul_name.replace("-M","-P")
+                            elif sensor == "IK01":
+                                 pan_name = mul_name.replace("blu","pan")
+                                 pan_name = mul_name.replace("msi","pan")
+                                 pan_name = mul_name.replace("bgrn","pan")    
+                            pan_srcfp = os.path.join(srcdir,pan_name)
+                            if not os.path.isfile(pan_srcfp):
+                                 logger.debug("Image does not have a panchromatic component, excluding: %s" %iinfo.srcfp)
+                            else:
+                                 logger.debug( "Intersect %s, %s: %s" %(iinfo.scene_id, iinfo.srcfp, str(iinfo.geom)))
+                                 imginfo_list1.append(iinfo)
                             
                         else:
                             logger.debug( "Intersect %s, %s: %s" %(iinfo.scene_id, iinfo.srcfp, str(iinfo.geom)))
