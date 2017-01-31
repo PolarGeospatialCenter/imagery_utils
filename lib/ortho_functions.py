@@ -457,7 +457,7 @@ def calcStats(args,info):
                 elif info.stretch == "mr":
                     # iLUT = [0, 0.125, 0.25, 0.375, 0.625, 1]
                     # oLUT = [0, 0.375, 0.625, 0.75, 0.875, 1]
-                    iLUT = [0.05, 0.2375, 0.3, 0.375, 1.05]
+                    iLUT = [0, 0.125, 0.25, 0.375, 1.0]
                     oLUT = [0, 0.675, 0.85, 0.9675, 1.2]
                     lLUT = map(lambda x: "%f:%f"%(iLUT[x]/CFlist[band-1],oLUT[x]*omax), range(len(iLUT)))
                     LUT = ",".join(lLUT)

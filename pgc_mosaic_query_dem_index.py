@@ -317,6 +317,7 @@ def HandleTile(feature_id, feature_geom, stereo_index_path, dstdir, dstfn, aoi_s
                         logger.debug("Creating shapefile of geoms: %s" %index_path)
                     
                         fields = [
+                            ("REGION", ogr.OFTString, 50),
                             ("PAIRNAME", ogr.OFTString, 100),
                             ("DEM_ID", ogr.OFTString, 100),
                             ("SCORE", ogr.OFTReal, 0),
@@ -359,6 +360,7 @@ def HandleTile(feature_id, feature_geom, stereo_index_path, dstdir, dstfn, aoi_s
                             logger.debug("Dem_id: %s" %(demInfo.dem_id))
                             
                             feat = ogr.Feature(lyr.GetLayerDefn())
+                            feat.SetField("REGION",feature_id)
                             feat.SetField("DEM_ID",demInfo.dem_id)
                             feat.SetField("PAIRNAME",demInfo.pairname)
                             feat.SetField("SCORE",demInfo.score)

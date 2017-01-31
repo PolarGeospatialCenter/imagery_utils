@@ -329,6 +329,7 @@ def HandleTile(feature_id, feature_geom, stereo_index_path, dstdir, dstfn, aoi_s
                         logger.debug("Creating shapefile of geoms: %s" %index_path)
                     
                         fields = [
+                            ("REGION", ogr.OFTString, 50),
                             ("PAIRNAME", ogr.OFTString, 100),
                             ("CATALOGID", ogr.OFTString, 20),
                             ("STEREOPAIR", ogr.OFTString, 20),
@@ -376,6 +377,7 @@ def HandleTile(feature_id, feature_geom, stereo_index_path, dstdir, dstfn, aoi_s
                             
                             feat = ogr.Feature(lyr.GetLayerDefn())
                             
+                            feat.SetField("REGION",feature_id)
                             feat.SetField("PAIRNAME",demInfo.pairname)
                             feat.SetField("CATALOGID",demInfo.catid)
                             feat.SetField("STEREOPAIR",demInfo.catid2)
@@ -426,6 +428,7 @@ def HandleTile(feature_id, feature_geom, stereo_index_path, dstdir, dstfn, aoi_s
                                 ("O_FILEPATH", ogr.OFTString, 254),
                                 ("O_DRIVE", ogr.OFTString, 20),
                                 ("S_FILEPATH", ogr.OFTString, 254),
+                                ("REGION", ogr.OFTString, 50),
                             ]
                             
                             OGR_DRIVER = "ESRI Shapefile"
@@ -538,6 +541,7 @@ def HandleTile(feature_id, feature_geom, stereo_index_path, dstdir, dstfn, aoi_s
                                         new_feat.SetField("O_FILEPATH",feat_ofilepath)
                                         new_feat.SetField("O_DRIVE",feat_odrive)
                                         new_feat.SetField("S_FILEPATH",feat_sfilepath)
+                                        new_feat.SetField("REGION",feature_id)
                 
                                         new_feat.SetGeometry(geom)
                                         if lyr.CreateFeature(new_feat) != 0:
