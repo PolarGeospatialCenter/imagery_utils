@@ -54,6 +54,10 @@ def buildMosaicParentArgumentParser():
                         help="file of file name patterns (text only, no wildcards or regexs) to exclude")
     parser.add_argument("--max-cc", type=float, default=0.5,
                         help="maximum fractional cloud cover (0.0-1.0, default 0.5)")
+    parser.add_argument("--include-all-ms", action="store_true", default=False,
+                        help="include all multispectral imagery when querying a footprint, even if the imagery has differing numbers of bands")
+    parser.add_argument("--median-remove", action="store_true", default=False,
+                        help="subtract the median from each input image before forming the mosaic in order to correct for contrast")
 
     return parser
 
@@ -552,41 +556,81 @@ class ImageInfo:
     def get_raster_stats(self):
         self.stat_dct = {}
         self.datapixelcount_dct = {}
-        if not self.datatype in [1, 2, 3, 4, 5]: # datatype must be integer for this process to make any sense
-            logger.warning("Raster statisics cannot be calculated for this dataset.  Only integer datasets show meaningful results")
+        ds = gdal.Open(self.srcfp)
+        if ds:
+   
+            # get raster dimensions
+            nx = ds.RasterXSize
+            ny = ds.RasterYSize
+ 
+            #### get stats and store in dictionaries
+            for bandnum in range(1,self.bands+1):
+
+                # read band
+                band = ds.GetRasterBand(bandnum)
+
+                # get nodata value (default to zero)
+                band_nodata = band.GetNoDataValue()
+                if band_nodata is None:
+                    logger.info("Defaulting band {} nodata value to zero".format(bandnum))
+                    band_nodata = 0.0
+
+                # read band as a numpy array
+                band_array = band.ReadAsArray(0,0,nx,ny)
+
+                # generate mask for nodata
+                band_nodata_mask = (band_array == band_nodata)
+                band_valid = band_array[~band_nodata_mask]
+                if band_valid.size != 0: 
+
+                    # calculate stats
+                    band_min = numpy.amin(band_valid)
+                    band_max = numpy.amax(band_valid)
+                    band_mean = numpy.mean(band_valid,dtype=numpy.float64)
+                    band_std = numpy.std(band_valid,dtype=numpy.float64)
+                    stats = numpy.array([band_min,band_max,band_mean,band_std],numpy.float64) 
+                else:
+                    logger.warning("Band {} contains no valid data".format(bandnum))
+                    stats = numpy.array([band_nodata,band_nodata,band_nodata,band_nodata],numpy.float64)
+                self.stat_dct[bandnum] = stats
+                self.datapixelcount_dct[bandnum] = band_valid.size
+                    
+                band_valid = None
+                band_nodata_mask = None
+                band_array = None
+
+            ds = None
+
         else:
-            ds = gdal.Open(self.srcfp)
-            if ds:
-    
-                #### get stats and store in dictionaries
-                for bandnum in range(1,self.bands+1):
-                    band = ds.GetRasterBand(bandnum)
-                    gdal.SetConfigOption('GDAL_PAM_ENABLED', 'YES')
-                    stats = band.ComputeStatistics(False)
-                    gdal.SetConfigOption('GDAL_PAM_ENABLED', 'NO')
-                    
-                    # If stats min is 1 and data type is unsigned integer, try to get the next largest value
-                    if self.datatype in [1, 2, 4]:
-                        dt_min = 0.5
-                        dt_max = stats[1] + 0.5
-                        dt_range = int(math.ceil(dt_max - dt_min))
-                        h = band.GetHistogram(dt_min, dt_max, dt_range, 0, 0)
-                        nz = numpy.nonzero(h)
-                        low_value = nz[0][1]
-                        if stats[0] <= 1:
-                            logger.info("Unsigned integer image stats min less than or equal to 1 (min = {}), using next lowest integer value: {}".format(stats[0],low_value))
-                            stats[0] = float(low_value)
-                    else:
-                        dt_min = stats[0] - 0.5
-                        dt_max = stats[1] + 0.5
-                        h = band.GetHistogram(dt_min, dt_max, 1, 0, 0)
-                    
-                    self.stat_dct[bandnum] = stats
-                    self.datapixelcount_dct[bandnum] = sum(h)
-                ds = None
-    
-            else:
-                logger.warning("Cannot open image: %s" %self.srcfp)
+            logger.warning("Cannot open image: %s" %self.srcfp)
+
+
+    def get_raster_median(self):
+        self.median = {}
+        ds = gdal.Open(self.srcfp)
+        if ds:
+
+            #### get median for each band
+            for bandnum in range(1,self.bands+1):
+                band = ds.GetRasterBand(bandnum)
+                band_nodata = band.GetNoDataValue()
+                # default nodata to zero
+                if band_nodata is None:
+                    logger.info("Defaulting band {} nodata to zero".format(bandnum))
+                    band_nodata = 0.0
+                band_array = numpy.array(band.ReadAsArray())
+                band_nodata_mask = (band_array==band_nodata)
+                band_valid = band_array[~band_nodata_mask]
+                if band_valid.size != 0:
+                    band_median = numpy.float64(numpy.median(band_valid))
+                else:
+                    logger.warning("Band {} contains no valid data".format(bandnum))
+                    band_median = numpy.float64(band_nodata)
+                self.median[bandnum] = band_median
+                logger.info("band {} median {}".format(bandnum,self.median[bandnum]))
+            ds = None
+        else:
+            logger.warning("Cannot open image: %s" %self.srcfp)
 
 
 class DemInfo:
@@ -608,13 +652,13 @@ class DemInfo:
             self.get_attributes_from_record(src,srs)
         else:
             logger.error("Image format must be RECORD or IMAGE")
- 
+        
         
     def get_attributes_from_record(self, feat, srs):
                 
         self.proj = srs.ExportToWkt()
-        
-        # Fields from DG archive index
+       
+        # Fields from DG archive index 
         i = feat.GetFieldIndex("AVSUNELEV")
         if i != -1:
             self.sunel = feat.GetFieldAsDouble(i)
@@ -641,7 +685,7 @@ class DemInfo:
         if i != -1:
             date_str = feat.GetFieldAsString(i)
             self.acqdate = datetime.strptime(date_str[:19],"%Y-%m-%d")
-        
+
         # Fields from SETSM indices
         i = feat.GetFieldIndex("DENSITY")
         if i != -1:
@@ -657,13 +701,13 @@ class DemInfo:
     def getScore(self, target_date=None):
         
         score = 0
-       
+      
         required_attribs1 = [
             self.sunel,
             self.cloudcover,
             self.sensor,
         ]
-        
+
         required_attribs2 = [
             self.density,
             self.dem_id,
@@ -673,9 +717,9 @@ class DemInfo:
         #### Test if all required values were found in metadata search
         status1 = [val is None for val in required_attribs1]
         status2 = [val is None for val in required_attribs2]
-        
+
         if sum(status1) != 0 and sum(status2) != 0:
-            logger.error("Cannot determine score for image {0}:\n  Sun elev\t{1}\n  Cloudcover\t{2}\n  Sensor\t{3}\n  Density\t{4}".format(self.pairname,self.sunel,self.cloudcover,self.sensor,self.density))
+            logger.error("Cannot determine score for image {0}:\n  Sun elev\t{1}\n  Cloudcover\t{2}\n  Sensor\t{3}\n  Density\t{4}".format(self.pairname,self.sunel,self.cloudcover,self.sensor,self.density)) 
             score = -1
             
         elif self.sensor == 'QB02':
@@ -733,7 +777,7 @@ class DemInfo:
                     score = ccwt * (1-self.cloudcover) + sunelwt * (self.sunel/90) + datediffwt * ((183 - self.date_diff)/183.0)
                 elif sum(status2) == 0:
                     score = densitywt * self.density + datediffwt * ((183 - self.date_diff)/183.0)
-
+        
         self.score = score
         return self.score
 
@@ -757,7 +801,7 @@ class TileParams:
 
 def filterMatchingImages(imginfo_list,params):
     imginfo_list2 = []
-    
+   
     for iinfo in imginfo_list:
         #print iinfo.srcfp, iinfo.proj
         isSame = True
@@ -767,7 +811,7 @@ def filterMatchingImages(imginfo_list,params):
         rp.ImportFromWkt(params.proj)
         if p.IsSame(rp) is False:
             isSame = False
-        if iinfo.bands != params.bands and not (params.force_pan_to_multi is True and iinfo.bands == 1):
+        if iinfo.bands != params.bands and not (params.force_pan_to_multi is True and iinfo.bands == 1) and not (params.include_all_ms is True): 
             isSame = False
         if iinfo.datatype != params.datatype:
             isSame = False
@@ -840,7 +884,11 @@ def getMosaicParameters(iinfo,options):
     	params.max_cc = 0.5
     
     params.force_pan_to_multi = True if params.bands > 1 and options.force_pan_to_multi else False # determine if force pan to multi is applicable and true
+
+    params.include_all_ms = options.include_all_ms
     
+    params.median_remove = options.median_remove
+
     return params
 
 

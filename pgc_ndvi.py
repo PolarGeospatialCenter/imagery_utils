@@ -1,6 +1,6 @@
 import os, string, sys, shutil, math, glob, re, tarfile, argparse, subprocess, logging
 from datetime import datetime, timedelta
-import gdal, ogr,osr, gdalconst
+import gdal, ogr,osr, gdalconst, numpy
 
 from lib import ortho_functions, utils
 
@@ -159,6 +159,13 @@ def main():
     
 def calc_ndvi(srcfp, dstfp, args):
 
+    # ndvi nodata value
+    ndvi_nodata = -9999
+
+    # tolerance for floating point equality
+    tol = 0.00001
+
+    # get basenames for src and dst files, get xml metadata filenames
     srcdir,srcfn = os.path.split(srcfp)
     dstdir,dstfn = os.path.split(dstfp)
     bn,ext = os.path.splitext(srcfn)
@@ -178,106 +185,215 @@ def calc_ndvi(srcfp, dstfp, args):
     logger.info("Working Dir: %s" %wd)
 
     print "Image: %s" %srcfn
-    
+   
+    ## copy source image to working directory
+    srcfp_local = os.path.join(wd,srcfn)
+    if not os.path.isfile(srcfp_local):
+        shutil.copy2(srcfp, srcfp_local)
+
     ## open image and get band numbers
-    ds = gdal.Open(srcfp)
-    
+    ds = gdal.Open(srcfp_local)
     if ds:
         bands = ds.RasterCount
-        datatype = ds.GetRasterBand(1).DataType
         if bands == 8:
-            red_band = 5
-            nir_band = 7
+            red_band_num = 5
+            nir_band_num = 7
         elif bands == 4:
-            red_band = 3
-            nir_band = 4
+            red_band_num = 3
+            nir_band_num = 4
         else:
-            logger.error("Cannot calcuclate NDVI from a {} band image: {}".format(bands, srcfp))
+            logger.error("Cannot calculate NDVI from a {} band image: {}".format(bands, srcfp_local))
             return 1
     else:
-        logger.error("Cannot open target image: {}".format(srcfp))
+        logger.error("Cannot open target image: {}".format(srcfp_local))
         return 1
-    ds = None
-                    
-    if not os.path.isfile(dstfp):
-        ## copy to wd
-        srcfp_local = os.path.join(wd,srcfn)
-        dstfp_local = os.path.join(wd,os.path.basename(dstfp))
-        if not os.path.isfile(srcfp_local):
-            shutil.copy2(srcfp, srcfp_local)
-        
-        ## check if source datatype is floating point.  If not, convert to Float32
-        if datatype in [6,7]: # Float32, Float 64
-            calc_src = srcfp_local
-        elif datatype in [1,2,3,4,5]: # Byte, UInt16, Int16, UInt32, Int32:
-            srcfp_float = os.path.join(wd, bn + '_float.tif')
-            if not os.path.isfile(srcfp_float):
-                cmd = 'gdal_translate -ot Float32 {} {}'.format(srcfp_local, srcfp_float)
-                utils.exec_cmd(cmd)
-            calc_src = srcfp_float
-        else:
-            logger.error("Cannot calculate NDVI for datatype {}: {}".format(gdal.GetDataTypeName(datatype), srcfp))
-            calc_src = None
-            return 1
-            
-        ## execute gdal_calc
-        if calc_src:
-            if os.path.isfile(calc_src) and not os.path.isfile(dstfp_local):
-                if args.outtype == 'Float32':
-                    calc = '"(A-B)/(A+B)"'
-                elif args.outtype == 'Int16':
-                    calc = '"(A-B)/(A+B)*1000"'
-                else:
-                    logger.error = ("Unupported output data type: {}".format(args.outtype))
-                    return 1
-                
-                cmd = 'gdal_calc.py --debug --calc {4} -A {0} --A_band {1} -B {0} --B_band {2} --NoDataValue 0 --type {5} --outfile {3} --co tiled=yes --co compress=lzw --co bigtiff=if_safer'.format(
-                    calc_src,
-                    nir_band,
-                    red_band,
-                    dstfp_local,
-                    calc,
-                    args.outtype
-                )
-                utils.exec_cmd(cmd)
-            
-                ## add pyramids
-                if os.path.isfile(dstfp_local):
-                    cmd = 'gdaladdo "%s" 2 4 8 16' %(dstfp_local)
-                    utils.exec_cmd(cmd)
-        
-        ## copy to dst
-        if wd <> dstdir:
-            if os.path.isfile(dstfp_local):
-                shutil.copy2(dstfp_local, dstfp)
-        
-    ## copy xml to dst
-    if os.path.isfile(dstfp) and not os.path.isfile(dst_xml):
-        shutil.copy2(src_xml, dst_xml)
-            
-    ## Delete Temp Files
-    temp_files = [
-        srcfp_local,
-        srcfp_float
-    ]
-    
-    wd_files = [
-        dstfp_local,
-    ]
 
-    if not args.save_temps:
-        for f in temp_files:
-            try:
-                os.remove(f)
-            except Exception, e:
-                logger.warning('Could not remove %s: %s' %(os.path.basename(f),e))
-                
-        if wd <> dstdir:
-            for f in wd_files:
-                try:
-                    os.remove(f)
-                except Exception, e:
-                    logger.warning('Could not remove %s: %s' %(os.path.basename(f),e))
+    ## check for input data type - must be float or int
+    datatype = ds.GetRasterBand(1).DataType
+    if not (datatype in [1,2,3,4,5,6,7]):
+        logger.error("Invalid input data type {}".format(datatype))
+        return 1 
+
+    ## get the raster dimensions
+    nx = ds.RasterXSize
+    ny = ds.RasterYSize
+
+    ## open output file for write and copy proj/geotransform info
+    if not os.path.isfile(dstfp):
+        dstfp_local = os.path.join(wd,os.path.basename(dstfp))
+        gtiff_options = ['TILED=YES','COMPRESS=LZW','BIGTIFF=IF_SAFER']
+        driver = gdal.GetDriverByName('GTiff')
+        out_ds = driver.Create(dstfp_local,nx,ny,1,gdal.GetDataTypeByName(args.outtype),gtiff_options)
+        if out_ds:
+            out_ds.SetGeoTransform(ds.GetGeoTransform())
+            out_ds.SetProjection(ds.GetProjection())
+            ndvi_band = out_ds.GetRasterBand(1)
+            ndvi_band.SetNoDataValue(float(ndvi_nodata))
+        else:
+            logger.error("Couldn't open for write: {}".format(dstfp_local))
+            return 1
+
+        ## for red and nir bands, get band data, nodata values, and natural block size
+        ## if NoData is None default it to zero.
+        red_band = ds.GetRasterBand(red_band_num)
+        if red_band == None:
+            logger.error("Can't load band {} from {}".format(red_band_num,srcfp_local))
+            return 1
+        red_nodata = red_band.GetNoDataValue()
+        if red_nodata is None:
+            logger.info("Defaulting red band nodata to zero")
+            red_nodata = 0.0
+        (red_xblocksize,red_yblocksize) = red_band.GetBlockSize()
+    
+        nir_band = ds.GetRasterBand(nir_band_num)
+        if nir_band == None:
+            logger.error("Can't load band {} from {}".format(nir_band_num,srcfp_local))
+            return 1
+        nir_nodata = nir_band.GetNoDataValue()
+        if nir_nodata is None:
+            logger.info("Defaulting nir band nodata to zero")
+            nir_nodata = 0.0
+        (nir_xblocksize,nir_yblocksize) = nir_band.GetBlockSize()
+
+        ## if different block sizes choose the smaller of the two
+        xblocksize = min([red_xblocksize,nir_xblocksize])
+        yblocksize = min([red_yblocksize,nir_yblocksize])
+
+        ## calculate the number of x and y blocks to read/write
+        nxblocks = int(math.floor(nx + xblocksize - 1)/xblocksize)
+        nyblocks = int(math.floor(ny + yblocksize - 1)/yblocksize)
+
+        ## blocks loop
+        yblockrange = range(nyblocks)
+        xblockrange = range(nxblocks)
+        for yblock in yblockrange:
+            ## y offset for ReadAsArray
+            yoff = yblock*yblocksize
+
+            ## get block actual y size in case of partial block at edge
+            if yblock<nyblocks-1:
+                block_ny=yblocksize
+            else:
+                block_ny = ny - (yblock*yblocksize)
+
+            for xblock in xblockrange:
+                ## x offset for ReadAsArray
+                xoff = xblock*xblocksize
+
+                ## get block actual x size in case of partial block at edge
+                if xblock<(nxblocks-1):
+                    block_nx = xblocksize
+                else:
+                    block_nx = nx - (xblock*xblocksize)
+
+                ## read a block from each band
+                red_array = red_band.ReadAsArray(xoff,yoff,block_nx,block_ny)
+                nir_array = nir_band.ReadAsArray(xoff,yoff,block_nx,block_ny)
+
+                ## generate mask for red nodata, nir nodata, and 
+                ## (red+nir) less than tol away from zero
+                red_mask = (red_array==red_nodata)
+                if red_array[red_mask] != []:
+                    nir_mask = (nir_array==nir_nodata)
+                    if nir_array[nir_mask] != []:
+                        divzero_mask = abs(nir_array + red_array) < tol
+                        if red_array[divzero_mask] != []:
+                            ndvi_mask = red_mask | nir_mask | divzero_mask
+                        else:
+                            ndvi_mask = red_mask | nir_mask
+                    else:
+                        divzero_mask = abs(nir_array + red_array) < tol
+                        if red_array[divzero_mask] != []:
+                            ndvi_mask = red_mask | divzero_mask
+                        else:
+                            ndvi_mask = red_mask
+                else:
+                    nir_mask = (nir_array==nir_nodata)
+                    if nir_array[nir_mask] != []:
+                        divzero_mask = abs(nir_array + red_array) < tol
+                        if red_array[divzero_mask] != []:
+                            ndvi_mask = nir_mask | divzero_mask
+                        else:
+                            ndvi_mask = nir_mask
+                    else:
+                        divzero_mask = abs(nir_array + red_array) < tol
+                        if red_array[divzero_mask] != []:
+                           ndvi_mask = divzero_mask
+                        else:
+                           ndvi_mask = numpy.full_like(red_array,fill_value=0,dtype=numpy.bool)
+
+                ## declare ndvi array, init to nodata value
+                ndvi_array = numpy.full_like(red_array,fill_value=ndvi_nodata,dtype=numpy.float32)
+                ## cast bands to float for calc
+                red_asfloat = numpy.array(red_array,dtype=numpy.float32)
+                red_array = None
+                nir_asfloat = numpy.array(nir_array,dtype=numpy.float32)
+                nir_array = None
+
+                ## calculate ndvi
+                if ndvi_array[~ndvi_mask] != []:
+                    ndvi_array[~ndvi_mask] = numpy.divide(numpy.subtract(nir_asfloat[~ndvi_mask],red_asfloat[~ndvi_mask]),numpy.add(nir_asfloat[~ndvi_mask],red_asfloat[~ndvi_mask]))
+                red_asfloat = None
+                nir_asfloat = None
+ 
+                ## scale and cast to int if outtype integer
+                if args.outtype == 'Int16':
+                    ndvi_scaled = numpy.full_like(ndvi_array,fill_value=ndvi_nodata,dtype=numpy.int16)
+                    if ndvi_scaled[~ndvi_mask] != []:
+                        ndvi_scaled[~ndvi_mask] = numpy.array(ndvi_array[~ndvi_mask]*1000.0,dtype=numpy.int16)
+                    ndvi_array = ndvi_scaled
+                    ndvi_scaled = None
+
+                ndvi_mask = None
+               
+                ## write valid portion of ndvi array to output file
+                ndvi_band.WriteArray(ndvi_array,xoff,yoff)
+                ndvi_array = None
+
+        out_ds = None
+        ds=None
+        
+        if os.path.isfile(dstfp_local):
+            ## add pyramids
+            cmd = 'gdaladdo "%s" 2 4 8 16' %(dstfp_local)
+            utils.exec_cmd(cmd)
+
+            ## copy to dst
+            if wd <> dstdir:
+                shutil.copy2(dstfp_local, dstfp)
+
+            ## copy xml to dst
+            if os.path.isfile(src_xml):
+                shutil.copy2(src_xml, dst_xml)
+            else:
+                logger.warning("xml {} not found".format(src_xml))
+        
+            ## Delete Temp Files
+            temp_files = [srcfp_local]
+            wd_files = [dstfp_local]
+            if not args.save_temps:
+                for f in temp_files:
+                    try:
+                        os.remove(f)
+                    except Exception, e:
+                        logger.warning('Could not remove %s: %s' %(os.path.basename(f),e))
+            if wd <> dstdir:
+                for f in wd_files:
+                    try:
+                        os.remove(f)
+                    except Exception, e:
+                        logger.warning('Could not remove %s: %s' %(os.path.basename(f),e))
+        else:
+            logger.error("pgc_ndvi.py: {} was not created".dstfp_local)
+            return 1 
+            
+    else:
+        logger.info("pgc_ndvi.py: file {} already exists".format(dstfp))
+        
+        ## copy xml to dst if missing
+        if not os.path.isfile(dst_xml):
+            shutil.copy2(src_xml, dst_xml)
+            
     return 0
 
 if __name__ == '__main__':
