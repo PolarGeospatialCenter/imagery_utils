@@ -7,12 +7,11 @@
 #SBATCH -c 2
 
 # job log path
-##SBATCH -o opath
-
-#SBATCH --mail-type=NONE
+#SBATCH -o slurm.%N.%j.out
+#SBATCH -o slurm.%N.%j.err
 
 # init gdal tools
-module load gdal/2.1.1
+source /opt/PGSC-2.1.0/init-gdal.sh
 
 echo $p1
 python $p1
