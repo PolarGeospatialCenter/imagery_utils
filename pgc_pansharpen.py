@@ -319,17 +319,35 @@ def main():
         logger.info("Submitting Tasks")
         if args.pbs:
             if args.l:
-                task_handler = utils.PBSTaskHandler(qsubpath, "-l {}".format(args.l))
+                l = "-l {}".format(args.l)
             else:
-                task_handler = utils.PBSTaskHandler(qsubpath)
-            if not args.dryrun:
-                task_handler.run_tasks(task_queue)
+                l = None
+            try:
+                task_handler = utils.PBSTaskHandler(qsubpath, l)
+            except RuntimeError, e:
+                logger.error(e)
+            else:
+                if not args.dryrun:
+                    task_handler.run_tasks(task_queue)
+                
+        elif args.slurm:
+            try:
+                task_handler = utils.SLURMTaskHandler(qsubpath)
+            except RuntimeError, e:
+                logger.error(e)
+            else:
+                if not args.dryrun:
+                    task_handler.run_tasks(task_queue)
             
         elif args.parallel_processes > 1:
-            task_handler = utils.ParallelTaskHandler(args.parallel_processes)
-            logger.info("Number of child processes to spawn: {0}".format(task_handler.num_processes))
-            if not args.dryrun:
-                task_handler.run_tasks(task_queue)
+            try:
+                task_handler = utils.ParallelTaskHandler(args.parallel_processes)
+            except RuntimeError, e:
+                logger.error(e)
+            else:
+                logger.info("Number of child processes to spawn: {0}".format(task_handler.num_processes))
+                if not args.dryrun:
+                    task_handler.run_tasks(task_queue)
     
         else:
             results = {}

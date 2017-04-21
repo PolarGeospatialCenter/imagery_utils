@@ -500,16 +500,35 @@ def main():
     if len(task_queue) > 0:
         if args.pbs:
             if args.l:
-                task_handler = utils.PBSTaskHandler(qsubpath, "-l {}".format(args.l))
+                l = "-l {}".format(args.l)
             else:
-                task_handler = utils.PBSTaskHandler(qsubpath)
-            task_handler.run_tasks(task_queue)
+                l = None
+            try:
+                task_handler = utils.PBSTaskHandler(qsubpath, l)
+            except RuntimeError, e:
+                logger.error(e)
+            else:
+                if not args.dryrun:
+                    task_handler.run_tasks(task_queue)
+                
+        elif args.slurm:
+            try:
+                task_handler = utils.SLURMTaskHandler(qsubpath)
+            except RuntimeError, e:
+                logger.error(e)
+            else:
+                if not args.dryrun:
+                    task_handler.run_tasks(task_queue)
             
         else:
-            task_handler = utils.ParallelTaskHandler(args.parallel_processes)
-            if task_handler.num_processes > 1:
-                logger.info("Number of child processes to spawn: {0}".format(task_handler.num_processes))
-            task_handler.run_tasks(task_queue)
+            try:
+                task_handler = utils.ParallelTaskHandler(args.parallel_processes)
+            except RuntimeError, e:
+                logger.error(e)
+            else:
+                if task_handler.num_processes > 1:
+                    logger.info("Number of child processes to spawn: {0}".format(task_handler.num_processes))
+                task_handler.run_tasks(task_queue)
             
         logger.info("Done")
         
