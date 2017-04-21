@@ -65,7 +65,7 @@ def main():
         if args.qsubscript is None:
             if args.pbs:
                 qsubpath = os.path.join(os.path.dirname(scriptpath),'qsub_ndvi.sh')
-            if args.slurm
+            if args.slurm:
                 qsubpath = os.path.join(os.path.dirname(scriptpath),'slurm_ndvi.sh')
         else:
             qsubpath = os.path.abspath(args.qsubscript)

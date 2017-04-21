@@ -233,7 +233,7 @@ def main():
         if args.qsubscript is None:
             if args.pbs:
                 qsubpath = os.path.join(os.path.dirname(scriptpath),'qsub_pansharpen.sh')
-            if args.slurm
+            if args.slurm:
                 qsubpath = os.path.join(os.path.dirname(scriptpath),'slurm_pansharpen.sh')
         else:
             qsubpath = os.path.abspath(args.qsubscript)

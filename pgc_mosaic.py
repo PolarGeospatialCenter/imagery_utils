@@ -36,6 +36,8 @@ def main():
                         help="GTiff compression type. Default=lzw (%s)"%(",".join(mosaic.GTIFF_COMPRESSIONS)))
     parser.add_argument("--pbs", action='store_true', default=False,
                         help="submit tasks to PBS")
+    parser.add_argument("--slurm", action='store_true', default=False,
+                        help="submit tasks to SLURM")
     parser.add_argument("--parallel-processes", type=int, default=1,
                         help="number of parallel processes to spawn (default 1)")
     parser.add_argument("--qsubscript",
@@ -56,16 +58,22 @@ def main():
     tile_builder_script = os.path.join(os.path.dirname(scriptpath),'pgc_mosaic_build_tile.py')
     
     ## Verify qsubscript
-    if args.qsubscript is None: 
-        qsubpath = os.path.join(os.path.dirname(scriptpath),default_qsub_script)
-    else:
-        qsubpath = os.path.abspath(args.qsubscript)
-    if not os.path.isfile(qsubpath):
-        parser.error("qsub script path is not valid: %s" %qsubpath)
+    if args.pbs or args.slurm:
+        if args.qsubscript is None:
+            if args.pbs:
+                qsubpath = os.path.join(os.path.dirname(scriptpath),'qsub_ortho.sh')
+            if args.slurm:
+                qsubpath = os.path.join(os.path.dirname(scriptpath),'slurm_ortho.sh')
+        else:
+            qsubpath = os.path.abspath(args.qsubscript)
+        if not os.path.isfile(qsubpath):
+            parser.error("qsub script path is not valid: %s" %qsubpath)
         
     ## Verify processing options do not conflict
-    if args.pbs and args.parallel_processes > 1:
-        parser.error("Options --pbs and --parallel-processes > 1 are mutually exclusive")
+    if args.pbs and args.slurm:
+        parser.error("Options --pbs and --slurm are mutually exclusive")
+    if (args.pbs or args.slurm) and args.parallel_processes > 1:
+        parser.error("HPC Options (--pbs or --slurm) and --parallel-processes > 1 are mutually exclusive")
 
     #### Validate Arguments
     if os.path.isfile(inpath):
@@ -328,6 +336,7 @@ def main():
             'extent',
             'resolution',
             'pbs',
+            'slurm',
             'wd'
         )
         shp_arg_str = utils.convert_optional_args_to_string(args, pos_arg_keys, arg_keys_to_remove)
@@ -375,6 +384,7 @@ def main():
         'resolution',
         'component_shp',
         'pbs',
+        'slurm',
         'wd'
     )
     shp_arg_str = utils.convert_optional_args_to_string(args, pos_arg_keys, arg_keys_to_remove)
@@ -418,7 +428,8 @@ def main():
         'resolution',
         'bands',
         'component_shp',
-        'pbs'
+        'pbs',
+        'slurm'
     )
     tile_arg_str = utils.convert_optional_args_to_string(args, pos_arg_keys, arg_keys_to_remove)
     
