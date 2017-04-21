@@ -87,7 +87,7 @@ class PBSTaskHandler(object):
 
         self.qsubscript = qsubscript
         if not qsubscript:
-            raise RuntimeError("PBS job submission resuires a valid qsub script")
+            raise RuntimeError("PBS job submission requires a valid qsub script")
         elif not os.path.isfile(qsubscript):
             raise RuntimeError("Qsub script does not exist: {}".format(qsubscript))
 
@@ -98,6 +98,37 @@ class PBSTaskHandler(object):
         for task in tasks:
             cmd = r'qsub {} -N {} -v p1="{}" "{}"'.format(
                 self.qsub_args,
+                task.abrv,
+                task.cmd,
+                self.qsubscript
+            )
+            subprocess.call(cmd, shell=True)
+            
+
+class SLURMTaskHandler(object):
+
+    def __init__(self, qsubscript, qsub_args=""):
+
+        ####  verify PBS is present by calling pbsnodes cmd
+        try:
+            cmd = "sinfo"
+            p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            so, se = p.communicate()
+        except OSError,e:
+            raise RuntimeError("SLURM job submission is not available on this system")
+
+        self.qsubscript = qsubscript
+        if not qsubscript:
+            raise RuntimeError("SLURM job submission requires a valid qsub script")
+        elif not os.path.isfile(qsubscript):
+            raise RuntimeError("Qsub script does not exist: {}".format(qsubscript))
+
+        self.qsub_args = qsub_args
+
+    def run_tasks(self, tasks):
+
+        for task in tasks:
+            cmd = r'sbatch -J {} --export=p1="{}" "{}"'.format(
                 task.abrv,
                 task.cmd,
                 self.qsubscript

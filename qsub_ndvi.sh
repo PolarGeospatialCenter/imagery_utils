@@ -12,7 +12,7 @@ echo $PBS_O_HOST
 echo $PBS_NODEFILE
 echo $a1
 
-module load gdal/2.1.0
+module load gdal/2.1.1
 
 echo $p1
 python $p1

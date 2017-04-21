@@ -194,13 +194,16 @@ def main():
         description="Run/Submit batch pansharpening in parallel"
     )
 
-    parser.add_argument("-l", help="PBS resources requested (mimicks qsub syntax)")
     parser.add_argument("--qsubscript",
                     help="qsub script to use in cluster job submission (default is qsub_pansharpen.sh in script root folder)")
     parser.add_argument("--pbs", action='store_true', default=False,
                     help="submit tasks to PBS")
+    parser.add_argument("--slurm", action='store_true', default=False,
+                    help="submit tasks to SLURM")
     parser.add_argument("--parallel-processes", type=int, default=1,
                     help="number of parallel processes to spawn (default 1)")
+    parser.add_argument("-l",
+                    help="PBS resources requested (mimicks qsub syntax, PBS only)")
     parser.add_argument("--dryrun", action="store_true", default=False,
                     help="print actions without executing")
 
@@ -225,17 +228,23 @@ def main():
     if not os.path.isdir(dstdir):
         parser.error("Error arg2 is not a valid file path: %s" %(dstdir))
 
-    ## Verify qsubscript
-    if args.qsubscript is None:
-        qsubpath = os.path.join(os.path.dirname(scriptpath),'qsub_pansharpen.sh')
-    else:
-        qsubpath = os.path.abspath(args.qsubscript)
-    if not os.path.isfile(qsubpath):
-        parser.error("qsub script path is not valid: %s" %qsubpath)
+    # Verify qsubscript
+    if args.pbs or args.slurm:
+        if args.qsubscript is None:
+            if args.pbs:
+                qsubpath = os.path.join(os.path.dirname(scriptpath),'qsub_pansharpen.sh')
+            if args.slurm
+                qsubpath = os.path.join(os.path.dirname(scriptpath),'slurm_pansharpen.sh')
+        else:
+            qsubpath = os.path.abspath(args.qsubscript)
+        if not os.path.isfile(qsubpath):
+            parser.error("qsub script path is not valid: %s" %qsubpath)
 
-    ## Verify processing options do not conflict
-    if args.pbs and args.parallel_processes > 1:
-        parser.error("Options --pbs and --parallel-processes > 1 are mutually exclusive")
+    ### Verify processing options do not conflict
+    if args.pbs and args.slurm:
+        parser.error("Options --pbs and --slurm are mutually exclusive")
+    if (args.pbs or args.slurm) and args.parallel_processes > 1:
+        parser.error("HPC Options (--pbs or --slurm) and --parallel-processes > 1 are mutually exclusive")
 
     #### Verify EPSG
     try:
@@ -259,7 +268,7 @@ def main():
     logger.addHandler(lso)
     
     #### Get args ready to pass to task handler
-    arg_keys_to_remove = ('l', 'qsubscript', 'dryrun', 'pbs', 'parallel_processes')
+    arg_keys_to_remove = ('l', 'qsubscript', 'dryrun', 'pbs', 'slurm', 'parallel_processes')
     arg_str_base = utils.convert_optional_args_to_string(args, pos_arg_keys, arg_keys_to_remove)
     
     ## Identify source images

@@ -6,6 +6,6 @@
 #PBS -k oe
 #PBS -j oe
 
-module load gdal/1.11.1
+module load gdal/2.1.1
 
 python $p1

@@ -205,8 +205,9 @@ def HandleTile(feature_id, feature_geom, stereo_index_path, dstdir, dstfn, aoi_s
             lyr = ds.GetLayerByName( shpbn )
             
             s_srs = lyr.GetSpatialRef()
-            #logger.debug(str(s_srs))
-            #logger.debug(str(feature_geom))
+            # logger.info(str(s_srs))
+            # logger.info(str(aoi_srs))
+            # logger.info(str(feature_geom))
         
             if not aoi_srs.IsSame(s_srs):
                 ict = osr.CoordinateTransformation(aoi_srs, s_srs)
@@ -221,10 +222,11 @@ def HandleTile(feature_id, feature_geom, stereo_index_path, dstdir, dstfn, aoi_s
                 
                 demInfo = mosaic.DemInfo(feat,"RECORD",srs=s_srs)
                 
-                if demInfo.geom is not None and demInfo.geom.GetGeometryType() == ogr.wkbPolygon:
+                if demInfo.geom is not None and demInfo.geom.GetGeometryType() in [ogr.wkbPolygon, ogr.wkbMultiPolygon]:
                     if not aoi_srs.IsSame(s_srs):
                         demInfo.geom.Transform(ct)
                     
+                    #logger.info(str(demInfo.geom))
                     if demInfo.geom.Intersect(feature_geom):
                         
                         if demInfo.pairname in exclude_list:
