@@ -41,7 +41,7 @@ def main():
     parser.add_argument("--parallel-processes", type=int, default=1,
                         help="number of parallel processes to spawn (default 1)")
     parser.add_argument("--qsubscript",
-                        help="qsub script to use in cluster job submission (default is <script_dir>/%s)" %default_qsub_script)
+            help="submission script to use in PBS/SLURM submission (PBS default is qsub_mosaic.sh, SLURM default is slurm_mosaic.py, in script root folder)")
     parser.add_argument("-l",
                         help="PBS resources requested (mimicks qsub syntax). Use only on HPC systems.")
     parser.add_argument("--log",
@@ -61,9 +61,9 @@ def main():
     if args.pbs or args.slurm:
         if args.qsubscript is None:
             if args.pbs:
-                qsubpath = os.path.join(os.path.dirname(scriptpath),'qsub_ortho.sh')
+                qsubpath = os.path.join(os.path.dirname(scriptpath),'qsub_mosaic.sh')
             if args.slurm:
-                qsubpath = os.path.join(os.path.dirname(scriptpath),'slurm_ortho.sh')
+                qsubpath = os.path.join(os.path.dirname(scriptpath),'slurm_mosaic.sh')
         else:
             qsubpath = os.path.abspath(args.qsubscript)
         if not os.path.isfile(qsubpath):
@@ -482,7 +482,7 @@ def main():
                 
                 task = utils.Task(
                     'Tile {0}'.format(os.path.basename(t.name)),
-                    'Mosaic{:04g}'.format(i),
+                    'Mos{:04g}'.format(i),
                     'python',
                     cmd
                 )

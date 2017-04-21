@@ -140,7 +140,7 @@ def main():
             i += 1
             task = utils.Task(
                 srcfn,
-                'Ortho{:04g}'.format(i),
+                'Or{:04g}'.format(i),
                 'python',
                 '{} {} {} {}'.format(scriptpath, arg_str_base, srcfp, dstdir),
                 ortho_functions.process_image,

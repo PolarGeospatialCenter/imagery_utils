@@ -33,9 +33,9 @@ def main():
                     help="submit tasks to SLURM")
     parser.add_argument("--parallel-processes", type=int, default=1,
                     help="number of parallel processes to spawn (default 1)")
-    parser.add_argument("-l", help="PBS resources requested (mimicks qsub syntax, PBS only)")
     parser.add_argument("--qsubscript",
-                    help="qsub script to use in cluster job submission (default is qsub_ndvi.sh in script root folder)")
+                    help="submission script to use in PBS/SLURM submission (PBS default is qsub_ndvi.sh, SLURM default is slurm_ndvi.py, in script root folder)")
+    parser.add_argument("-l", help="PBS resources requested (mimicks qsub syntax, PBS only)")
     parser.add_argument("--dryrun", action="store_true", default=False,
                     help="print actions without executing")
 

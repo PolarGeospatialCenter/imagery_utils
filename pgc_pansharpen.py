@@ -194,14 +194,14 @@ def main():
         description="Run/Submit batch pansharpening in parallel"
     )
 
-    parser.add_argument("--qsubscript",
-                    help="qsub script to use in cluster job submission (default is qsub_pansharpen.sh in script root folder)")
     parser.add_argument("--pbs", action='store_true', default=False,
                     help="submit tasks to PBS")
     parser.add_argument("--slurm", action='store_true', default=False,
                     help="submit tasks to SLURM")
     parser.add_argument("--parallel-processes", type=int, default=1,
                     help="number of parallel processes to spawn (default 1)")
+    parser.add_argument("--qsubscript",
+            help="submission script to use in PBS/SLURM submission (PBS default is qsub_pansharpen.sh, SLURM default is slurm_pansharpen.py, in script root folder)")
     parser.add_argument("-l",
                     help="PBS resources requested (mimicks qsub syntax, PBS only)")
     parser.add_argument("--dryrun", action="store_true", default=False,
@@ -304,7 +304,7 @@ def main():
             i+=1
             task = utils.Task(
                 image_pair.mul_srcfn,
-                'Pansh{:04g}'.format(i),
+                'Psh{:04g}'.format(i),
                 'python',
                 '{} {} {} {}'.format(scriptpath, arg_str_base, image_pair.mul_srcfp, dstdir),
                 exec_pansharpen,
