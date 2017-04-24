@@ -1,10 +1,11 @@
 USAGE
 -----
 
-pgc_ndvi.py [-h] [-t {Float32,Int16}] [-s] [--wd WD] [--pbs]
-    [--parallel-processes PARALLEL_PROCESSES] [-l L]
-    [--qsubscript QSUBSCRIPT] [--dryrun]
-    src dst
+pgc_ndvi.py [-h] [-t {Float32,Int16}] [-s] [--wd WD] [--pbs] [--slurm]
+	[--parallel-processes PARALLEL_PROCESSES]
+	[--qsubscript QSUBSCRIPT] [-l L] [--dryrun]
+	src dst
+
 
 
 DESCRIPTION
@@ -33,14 +34,17 @@ dst:
 --pbs:
     submit tasks to PBS
     
+--slurm
+    submit tasks to SLURM
+
 --parallel-processes PARALLEL_PROCESSES:
     number of parallel processes to spawn (default 1)
     
--l L:
-    PBS resources requested (mimicks qsub syntax)
-
 --qsubscript QSUBSCRIPT:
-    qsub script to use in cluster job submission (default is qsub_ndvi.sh in script root folder)
-    
+    submission script to use in PBS/SLURM submission (PBS default is qsub_ortho.sh, SLURM default is slurm_ortho.py, in script root folder)
+
+-l L:
+    PBS resources requested (mimicks qsub syntax, PBS only)
+
 --dryrun:
     print actions without executing

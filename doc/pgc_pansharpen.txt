@@ -1,22 +1,22 @@
 USAGE
 -----
 
-pgc_pansharpen_parallel.py [-h] [-f {HFA,JP2OpenJPEG,ENVI,GTiff}]
-	[--gtiff_compression {jpeg95,lzw}] -p EPSG
-	[-d DEM] [-t {Byte,UInt16,Float32}]
-	[-r RESOLUTION] [-c {ns,rf,mr,rd}]
+pgc_pansharpen.py [-h] [-f {HFA,JP2OpenJPEG,ENVI,GTiff}]
+	[--gtiff-compression {jpeg95,lzw}] -p EPSG [-d DEM]
+	[-t {Byte,UInt16,Float32}] [-r RESOLUTION]
+	[-c {ns,rf,mr,rd}]
 	[--resample {near,bilinear,cubic,cubicspline,lanczos}]
-	[--rgb] [--bgrn] [-s] [--wd WD]
-	[--skip_warp] [-l L]
-	[--qsubscript QSUBSCRIPT] [--dryrun]
+	[--rgb] [--bgrn] [-s] [--wd WD] [--skip-warp]
+	[--skip-dem-overlap-check] [--no-pyramids]
+	[--ortho-height ORTHO_HEIGHT] [--pbs] [--slurm]
+	[--parallel-processes PARALLEL_PROCESSES]
+	[--qsubscript QSUBSCRIPT] [-l L] [--dryrun]
 	src dst
-
 
 DESCRIPTION
 -----------
 
-The pgc_pansharpen utility runs batch image ortho, conversion, and pansharpening tasks or submits them to a Maui/Torque HPC cluster.  Each panchromatic/multispectral image pair image is allocated to a job.  The script also executes processing steps.
-
+The pgc_pansharpen utility runs batch image ortho, conversion, and pansharpening tasks or submits them to a PBS or SLURM HPC cluster.  Each panchromatic/multispectral image pair image is allocated to a job.  The script also executes orthorectification steps.
 
 src:
 	source image, text file, or directory
@@ -85,15 +85,18 @@ dst:
 	
 --pbs:
 	submit tasks to PBS
+
+--slurm
+	submit tasks to SLURM
 	
 --parallel-processes PARALLEL_PROCESSES:
 	number of parallel processes to spawn (default 1)
 	
 --qsubscript QSUBSCRIPT:
-	qsub script to use in cluster job submission (default is qsub_ortho.sh in script root folder)
-	
+	submission script to use in PBS/SLURM submission (PBS default is qsub_ortho.sh, SLURM default is slurm_ortho.py, in script root folder)
+
 -l L:
-	PBS resources requested (mimicks qsub syntax)
+	PBS resources requested (mimicks qsub syntax, PBS only)
 
 --dryrun:
 	print actions without executing

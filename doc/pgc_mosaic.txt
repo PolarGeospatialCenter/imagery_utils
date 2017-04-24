@@ -2,15 +2,17 @@ USAGE
 -----
 
 pgc_mosaic.py [-h] [-r RESOLUTION RESOLUTION]
-	[-e EXTENT EXTENT EXTENT EXTENT]
-	[-t TILESIZE TILESIZE] [--force_pan_to_multi]
-	[-b BANDS] [--tday TDAY] [--nosort]
-	[--use_exposure] [--exclude EXCLUDE]
-	[--mode {ALL,MOSAIC,SHP,TEST}] [--log LOG]
-	[--qsubscript QSUBSCRIPT] [-l L]
-	[--component_shp]
-	[--gtiff_compression {jpeg95,lzw}]
-	src mosaicname
+     [-e EXTENT EXTENT EXTENT EXTENT] [-t TILESIZE TILESIZE]
+     [--force-pan-to-multi] [-b BANDS] [--tday TDAY]
+     [--nosort] [--use-exposure] [--exclude EXCLUDE]
+     [--max-cc MAX_CC] [--include-all-ms] [--median-remove]
+     [--mode {ALL,MOSAIC,SHP,TEST}] [--wd WD]
+     [--component-shp] [--gtiff-compression {jpeg95,lzw}]
+     [--pbs] [--slurm]
+     [--parallel-processes PARALLEL_PROCESSES]
+     [--qsubscript QSUBSCRIPT] [-l L] [--log LOG]
+     src mosaicname
+
 
 DESCRIPTION
 -----------
@@ -55,34 +57,42 @@ mosaicname:
 	
 --max-cc MAX_CC
 	maximum fractional cloud cover (0.0-1.0, default 0.5)
-	
+
+--include-all-ms
+	include all multispectral imagery when querying a footprint, even if the imagery has differing numbers of bands
+
+--median-remove
+	subtract the median from each input image before forming the mosaic in order to correct for contrast
+
 --mode {ALL,MOSAIC,SHP,TEST}:
 	mode: ALL- all steps (default), SHP- create shapefiles, MOSAIC- create tiled tifs, TEST- create log only
 	
 --wd WD:
 	scratch space (default is mosaic directory)
-	
---log LOG:
-	file to log progress (default is <output_dir>\mosaic.log
 
---pbs:
-	submit tasks to PBS
-	
---parallel-processes PARALLEL_PROCESSES:
-	number of parallel processes to spawn (default 1)
-
---qsubscript QSUBSCRIPT:
-	qsub script to use in cluster job submission (default is <script_dir>/qsub_mosaic.sh)
-	
--l L:
-	PBS resources requested (mimics qsub syntax)
-	
 --component-shp:
 	create shp of all component images as well as cutline shp
 	
 --gtiff-compression {jpeg95,lzw}:
 	GTiff compression type (default=lzw). JPEG95 is jpeg compression at 95%.
 
+--pbs:
+	submit tasks to PBS
+	
+--slurm               
+	submit tasks to SLURM
+	
+--parallel-processes PARALLEL_PROCESSES:
+	number of parallel processes to spawn (default 1)
+
+--qsubscript QSUBSCRIPT:
+	submission script to use in PBS/SLURM submission (PBS default is qsub_mosaic.sh, SLURM default is slurm_mosaic.py, in script root folder)
+
+-l L:
+	PBS resources requested (mimics qsub syntax). Use only on HPC systems.
+
+--log LOG:
+	file to log progress (default is <output_dir>\mosaic.log
 	
 MOSAIC SCORING ALGORITHM
 ------------------------

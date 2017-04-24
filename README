@@ -8,6 +8,7 @@ PGC Imagery Utils is a collection of commercial satellite imagery manipulation t
 1) Correct for terrain and radiometry
 2) Mosaic several images into one set of tiles
 3) Pansharpen a multispectral image with its panchromatic partner
+4) Calculate an NDVI raster from a multispectral image.
 
 These tools are build on the GDAL/OGR image processing API using Python.  The code is built to run primarily on a Linux HPC cluster running Maui/Torque for queue management.  Some of the tools will work on a Windows platform.
 
@@ -15,7 +16,7 @@ The code is tightly coupled to the systems on which it was developed.  You shoul
 
 SCRIPT USAGE
 ------------
-Files starting with "qsub" are torque qsub submission scripts.  See the script-specific documenation for more details on usage.
+Files starting with "qsub" and "slurm" are PBS and SLURM submission scripts.  See the script-specific documenation for more details on usage.
 
 ORTHO
 
@@ -44,7 +45,7 @@ The pacharpening utility applies the orthorectification process to both the pan 
 
 NDVI
 
-The NDVI utility calculated NDVI from multispectral image(s).  The tool is designed to rn on data that have already been run through the pgc_ortho utility.
+The NDVI utility calculates NDVI from multispectral image(s).  The tool is designed to rn on data that have already been run through the pgc_ortho utility.
 
 INSTALLATION AND DEPENDANCIES
 -----------------------------
