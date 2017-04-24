@@ -1,4 +1,4 @@
-import unittest, os, sys, glob, shutil, argparse, logging
+import unittest, os, sys, glob, shutil, argparse, logging, math
 import gdal, ogr, osr, gdalconst
 
 script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
@@ -47,7 +47,8 @@ class TestMosaicImageInfo(unittest.TestCase):
         image_info.get_raster_stats()
         stat_dct = {1: [40.0, 200.0, 135.82811420290182, 33.54100534555833]}
         datapixelcount_dct = {1: 4435509}
-        self.assertEqual(image_info.stat_dct, stat_dct)
+        for i in range(len(image_info.stat_dct[1])):
+            self.assertAlmostEqual(image_info.stat_dct[1][i], stat_dct[1][i])
         self.assertEqual(image_info.datapixelcount_dct, datapixelcount_dct)
 
     def test_image_info_wv01(self):
@@ -77,8 +78,9 @@ class TestMosaicImageInfo(unittest.TestCase):
         image_info.get_raster_stats()
         stat_dct = {1: [24.0, 192.0, 60.0042506228806, 18.321626067645923]}
         datapixelcount_dct = {1: 1403559}
-        self.assertEqual(image_info.stat_dct, stat_dct)
-        self.assertEqual(image_info.datapixelcount_dct, datapixelcount_dct)  
+        for i in range(len(image_info.stat_dct[1])):
+            self.assertAlmostEqual(image_info.stat_dct[1][i], stat_dct[1][i])
+        self.assertEqual(image_info.datapixelcount_dct, datapixelcount_dct)
     
     def test_image_info_wv02_ndvi(self):
         srcdir = os.path.join(os.path.join(test_dir,'mosaic','ndvi'))
@@ -106,9 +108,9 @@ class TestMosaicImageInfo(unittest.TestCase):
         self.assertAlmostEqual(image_info.score, 78.555555555)
         
         image_info.get_raster_stats()
-        stat_dct = {}
-        datapixelcount_dct = {}
-        self.assertEqual(image_info.stat_dct, stat_dct)
+        datapixelcount_dct = {1: 102448}
+        for i in range(len(image_info.stat_dct[1])):
+            self.assertTrue(math.isnan(image_info.stat_dct[1][i]))
         self.assertEqual(image_info.datapixelcount_dct, datapixelcount_dct)
              
     def test_image_info_wv02_ndvi_int16(self):
@@ -139,7 +141,8 @@ class TestMosaicImageInfo(unittest.TestCase):
         image_info.get_raster_stats()
         stat_dct = {1: [-991.0, 996.0, 536.7883746333843, 250.83677803422484]}
         datapixelcount_dct = {1: 1202904}
-        self.assertEqual(image_info.stat_dct, stat_dct)
+        for i in range(len(image_info.stat_dct[1])):
+            self.assertAlmostEqual(image_info.stat_dct[1][i], stat_dct[1][i])
         self.assertEqual(image_info.datapixelcount_dct, datapixelcount_dct)  
     
     def test_image_info_multispectral_dg_ge01(self):
@@ -168,6 +171,7 @@ class TestMosaicImageInfo(unittest.TestCase):
         self.assertAlmostEqual(image_info.score, 78.462222222)
         
         image_info.get_raster_stats()
+        print image_info.stat_dct
         stat_dct = {
             1: [44.0, 180.0, 73.05224947061919, 13.760346025453206],
             2: [28.0, 182.0, 62.26321535738713, 16.410250286247617],
@@ -175,7 +179,8 @@ class TestMosaicImageInfo(unittest.TestCase):
             4: [7.0, 178.0, 57.128591347040505, 20.162025784223044]
         }
         datapixelcount_dct = {1: 287601, 2: 287601, 3: 287601, 4: 287601}
-        self.assertEqual(image_info.stat_dct, stat_dct)
+        for i in range(len(image_info.stat_dct[1])):
+            self.assertAlmostEqual(image_info.stat_dct[1][i], stat_dct[1][i])
         self.assertEqual(image_info.datapixelcount_dct, datapixelcount_dct) 
     
     def test_image_info_wv01_with_tday_and_exposure(self):
@@ -235,7 +240,8 @@ class TestMosaicImageInfo(unittest.TestCase):
         image_info.get_raster_stats()
         stat_dct =  {1: [80.0, 191.0, 185.7102777536714, 6.965814755751974]}
         datapixelcount_dct =  {1: 1152100}
-        self.assertEqual(image_info.stat_dct, stat_dct)
+        for i in range(len(image_info.stat_dct[1])):
+            self.assertAlmostEqual(image_info.stat_dct[1][i], stat_dct[1][i])
         self.assertEqual(image_info.datapixelcount_dct, datapixelcount_dct)
 
     def test_filter_images(self):
@@ -274,6 +280,8 @@ class MosaicArgs(object):
         self.tilesize = None
         self.max_cc = 0.5
         self.force_pan_to_multi = False
+        self.include_all_ms = False
+        self.median_remove = False
         
 
 if __name__ == '__main__':

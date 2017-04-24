@@ -84,9 +84,7 @@ def main():
         parser.error("Arg1 is not a valid file path or directory: %s" %inpath)    
     if not os.path.isdir(mosaic_dir):
         os.makedirs(mosaic_dir)
-    if not os.path.isfile(qsubpath):
-        parser.error("Arg3 is not a valid file path: %s" %qsubpath)
-        
+    
     #### Validate target day option
     if args.tday is not None:
         try:
