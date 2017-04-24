@@ -506,8 +506,7 @@ def main():
             except RuntimeError, e:
                 logger.error(e)
             else:
-                if not args.dryrun:
-                    task_handler.run_tasks(task_queue)
+                task_handler.run_tasks(task_queue)
                 
         elif args.slurm:
             try:
@@ -515,8 +514,7 @@ def main():
             except RuntimeError, e:
                 logger.error(e)
             else:
-                if not args.dryrun:
-                    task_handler.run_tasks(task_queue)
+                task_handler.run_tasks(task_queue)
             
         else:
             try:

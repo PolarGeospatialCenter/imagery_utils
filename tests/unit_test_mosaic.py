@@ -171,7 +171,7 @@ class TestMosaicImageInfo(unittest.TestCase):
         self.assertAlmostEqual(image_info.score, 78.462222222)
         
         image_info.get_raster_stats()
-        print image_info.stat_dct
+        #print image_info.stat_dct
         stat_dct = {
             1: [44.0, 180.0, 73.05224947061919, 13.760346025453206],
             2: [28.0, 182.0, 62.26321535738713, 16.410250286247617],
