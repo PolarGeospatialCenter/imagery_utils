@@ -8,7 +8,7 @@
 
 # job log path
 #SBATCH -o slurm.%N.%j.out
-#SBATCH -o slurm.%N.%j.err
+#SBATCH -e slurm.%N.%j.err
 
 # init gdal tools
 source /opt/PGSC-2.1.0/init-gdal.sh
