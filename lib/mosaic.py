@@ -930,15 +930,16 @@ def filterMatchingImages(imginfo_list,params):
         rp.ImportFromWkt(params.proj)
         if p.IsSame(rp) is False:
             isSame = False
+            logger.debug("Image projection differs from mosaic params: %s" %iinfo.srcfp)
         if iinfo.bands != params.bands and not (params.force_pan_to_multi is True and iinfo.bands == 1) and not (params.include_all_ms is True): 
             isSame = False
+            logger.debug("Image band count differs from mosaic params: %s" %iinfo.srcfp)
         if iinfo.datatype != params.datatype:
             isSame = False
+            logger.debug("Image datatype differs from mosaic params: %s" %iinfo.srcfp)
             
         if isSame is True:
             imginfo_list2.append(iinfo)
-        else:
-            logger.debug("Image does not match filter: %s" %iinfo.srcfp)
 
     return imginfo_list2
 

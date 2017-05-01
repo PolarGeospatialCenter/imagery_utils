@@ -146,7 +146,9 @@ def main():
     #### Get mosaic parameters
     logger.info("Setting mosaic parameters")
     params = mosaic.getMosaicParameters(imginfo_list[0],args)
-    
+    logger.info("Mosaic Params: band count={}, datatype={}".format(params.bands,params.datatype))
+    logger.info("Mosaic Params: projection={}".format(params.proj))
+     
     #### Remove images that do not match ref
     logger.info("Applying attribute filter")
     imginfo_list2 = mosaic.filterMatchingImages(imginfo_list,params)
