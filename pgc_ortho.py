@@ -157,7 +157,7 @@ def main():
             if args.l:
                 l = "-l {}".format(args.l)
             else:
-                l = None
+                l = ""
             try:
                 task_handler = utils.PBSTaskHandler(qsubpath, l)
             except RuntimeError, e:

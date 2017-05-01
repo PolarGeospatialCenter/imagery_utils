@@ -472,12 +472,12 @@ def calcStats(args,info):
                                     '   <ScaleOffset>0</ScaleOffset>'
                                     '   <ScaleRatio>1</ScaleRatio>'
                                     '   <LUT>%s</LUT>'
-                                    '   <NODATA>0</NODATA>'
                                     '   <SrcRect xOff="0" yOff="0" xSize="%d" ySize="%d"/>'
                                     '   <DstRect xOff="0" yOff="0" xSize="%d" ySize="%d"/>'
                                     '</ComplexSource>)' %(info.warpfile,band,LUT,xsize,ysize,xsize,ysize))
 
                 vds.GetRasterBand(band).SetMetadataItem("source_0", ComplexSourceXML, "new_vrt_sources")
+                vds.GetRasterBand(band).SetNoDataValue(0)
                 if vds.GetRasterBand(band).GetColorInterpretation() == gdalconst.GCI_AlphaBand:
                     vds.GetRasterBand(band).SetColorInterpretation(gdalconst.GCI_Undefined)
         else:
