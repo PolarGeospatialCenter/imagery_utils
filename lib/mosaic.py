@@ -27,40 +27,6 @@ GTIFF_COMPRESSIONS = ["jpeg95","lzw"]
 #        self.panfact = dAttribs["panfact"]
 
 
-def buildMosaicParentArgumentParser():
-    
-    #### Set Up Arguments 
-    parser = argparse.ArgumentParser(add_help=False)
-    
-    ####Optional Arguments
-    
-    parser.add_argument("-r", "--resolution", nargs=2, type=float,
-                        help="output pixel resolution -- xres yres (default is same as first input file)")
-    parser.add_argument("-e", "--extent", nargs=4, type=float,
-                        help="extent of output mosaic -- xmin xmax ymin ymax (default is union of all inputs)")
-    parser.add_argument("-t", "--tilesize", nargs=2, type=float,
-                        help="tile size in coordinate system units -- xsize ysize (default is 40,000 times output resolution)")
-    parser.add_argument("--force-pan-to-multi", action="store_true", default=False,
-                        help="if output is multiband, force script to also use 1 band images")
-    parser.add_argument("-b", "--bands", type=int,
-                        help="number of output bands( default is number of bands in the first image)")
-    parser.add_argument("--tday",
-                        help="month and day of the year to use as target for image suitability ranking -- 04-05")
-    parser.add_argument("--nosort", action="store_true", default=False,
-                        help="do not sort images by metadata. script uses the order of the input textfile or directory (first image is first drawn).  Not recommended if input is a directory; order will be random")
-    parser.add_argument("--use-exposure", action="store_true", default=False,
-                        help="use exposure settings in metadata to inform score")
-    parser.add_argument("--exclude",
-                        help="file of file name patterns (text only, no wildcards or regexs) to exclude")
-    parser.add_argument("--max-cc", type=float, default=0.5,
-                        help="maximum fractional cloud cover (0.0-1.0, default 0.5)")
-    parser.add_argument("--include-all-ms", action="store_true", default=False,
-                        help="include all multispectral imagery when querying a footprint, even if the imagery has differing numbers of bands")
-    parser.add_argument("--median-remove", action="store_true", default=False,
-                        help="subtract the median from each input image before forming the mosaic in order to correct for contrast")
-
-    return parser
-
 
 class ImageInfo:
     def __init__(self,src,frmt,srs=None):
@@ -160,10 +126,17 @@ class ImageInfo:
             tdi_list = tdi_str.split('|')
             self.tdi = None
             for item in tdi_list:
-                if 'pan' in item:
-                    self.tdi = int(item[4:])
-                if 'green' in item:
-                    self.tdi = int(item[6:])
+                try:
+                    if 'pan' in item:
+                        self.tdi = int(item[4:])
+                    if 'green' in item:
+                        self.tdi = int(item[6:])
+                    if 'BAND_P' in item:
+                        self.tdi = int(item[7:])
+                    if 'BAND_G' in item:
+                        self.tdi = int(item[7:])
+                except ValueError, e:
+                    pass                
         
         i = feat.GetFieldIndex("ACQ_TIME")
         if i != -1:
@@ -403,7 +376,7 @@ class ImageInfo:
                         else:
                             logger.debug("Unexpected number of TDI values and band count ( TDI: expected 1, 4, 5, or 8 - found %d ; Band cound, expected 1, 4, or 8 - found %d) %s" %(len(vallist), self.bands, metapath))
                     
-                    elif dTags[tag] == 'satid' and len(taglist) > 1:
+                    elif dTags[tag] == 'sensor' and len(taglist) > 1:
                         val = vallist[0]
                         dAttribs[dTags[tag]] = val
                     
@@ -918,6 +891,35 @@ class TileParams:
         self.geom = ogr.CreateGeometryFromWkt(poly_wkt)
         
 
+def determine_contributors(imginfo_list, tile_geom):
+        
+    # set highest scoring image as seed geom
+    imginfo_list.reverse() # highest score first
+    union_geom = ogr.Geometry(ogr.wkbPolygon)
+    contribs = []
+    
+    # add lower scoring images in turn, if they add new area
+    for i in xrange(len(imginfo_list)):
+        iinfo = imginfo_list[i]
+        diff = iinfo.geom.Difference(union_geom)
+        if diff is None:
+            logger.info("Function Error: %s" %iinfo.srcfp)
+        elif diff.IsEmpty():
+            logger.debug("Removing non-contributing image: %s" %iinfo.srcfp)
+        else:
+            ## test if contributing area is within tile extent
+            if not diff.Intersects(tile_geom):
+                logger.debug("Removing non-contributing image: %s" %iinfo.srcfp)
+            else:
+                contrib_geom = diff.Intersection(tile_geom)
+                union_geom = union_geom.Union(iinfo.geom)
+                contribs.append((iinfo,contrib_geom))
+    
+    # reverse list so highest score is last
+    contribs.reverse()
+    return contribs
+    
+
 def filterMatchingImages(imginfo_list,params):
     imginfo_list2 = []
    
@@ -1006,7 +1008,6 @@ def getMosaicParameters(iinfo,options):
     params.force_pan_to_multi = True if params.bands > 1 and options.force_pan_to_multi else False # determine if force pan to multi is applicable and true
 
     params.include_all_ms = options.include_all_ms
-    
     params.median_remove = options.median_remove
 
     return params
@@ -1022,48 +1023,39 @@ def GetExactTrimmedGeom(image, step=2, tolerance=1):
         if ds.RasterCount > 0:
             
             inband = ds.GetRasterBand(1)
-            
             nd = inband.GetNoDataValue()
             if nd is None:
                 nd = 0
             
             #print ("Image NoData Value: %d" %nd )
-            
             gtf = ds.GetGeoTransform()
-        
             pixelst = []
             pixelsb = []
             pts = []
             
             #### For every other line, find first and last data pixel
             lines = xrange(0, inband.YSize, step)
-            
             xsize = inband.XSize
             
             try:
-                lines_flatnonzero = [flatnonzero(inband.ReadAsArray(0,l,xsize,1) != nd) for l in lines]
-                    
+                lines_flatnonzero = [flatnonzero(inband.ReadAsArray(0,l,xsize,1) != nd) for l in lines]    
             except AttributeError, e:
                 logger.error("Error reading image block.  Check image for corrupt data.")
             
             else:
-                
+                #print lines_flatnonzero
                 i = 0
-                
                 for nz in lines_flatnonzero:
-                    
                     nzmin = nz[0] if nz.size > 0 else 0
                     nzmax = nz[-1] if nz.size > 0 else 0
-                    
                     if nz.size > 0:
                         pixelst.append((nzmax+1,i))
                         pixelsb.append((nzmin,i))           
                     i += step
-                    
                 pixelsb.reverse()
                 pixels = pixelst + pixelsb
                 
-                #print len(pixels)
+                #print "Pixel Array length:", len(pixels)
                 
                 for px in pixels:
                     x,y = pl2xy(gtf,inband,px[0],px[1])
@@ -1089,8 +1081,6 @@ def GetExactTrimmedGeom(image, step=2, tolerance=1):
                     #logger.debug("Simplification tolerance: %.10f" %tolerance)
                     if geom is not None:
                         geom2  = geom.Simplify(tolerance)
-                
-            
         ds = None
 
     return geom2,xs,ys 

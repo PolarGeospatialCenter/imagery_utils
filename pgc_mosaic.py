@@ -16,9 +16,7 @@ default_logfile = "mosaic.log"
 def main():
 
     #### Set Up Arguments 
-    parent_parser = mosaic.buildMosaicParentArgumentParser()
     parser = argparse.ArgumentParser(
-        parents=[parent_parser],
         description="Sumbit/run batch mosaic tasks"
     )
     
@@ -26,12 +24,40 @@ def main():
     parser.add_argument("mosaicname", help="output mosaic name excluding extension")
     pos_arg_keys = ["src","mosaicname"]
 
+    parser.add_argument("-r", "--resolution", nargs=2, type=float,
+                        help="output pixel resolution -- xres yres (default is same as first input file)")
+    parser.add_argument("-e", "--extent", nargs=4, type=float,
+                        help="extent of output mosaic -- xmin xmax ymin ymax (default is union of all inputs)")
+    parser.add_argument("-t", "--tilesize", nargs=2, type=float,
+                        help="tile size in coordinate system units -- xsize ysize (default is 40,000 times output resolution)")
+    parser.add_argument("--force-pan-to-multi", action="store_true", default=False,
+                        help="if output is multiband, force script to also use 1 band images")
+    parser.add_argument("-b", "--bands", type=int,
+                        help="number of output bands( default is number of bands in the first image)")
+    parser.add_argument("--tday",
+                        help="month and day of the year to use as target for image suitability ranking -- 04-05")
+    parser.add_argument("--nosort", action="store_true", default=False,
+                        help="do not sort images by metadata. script uses the order of the input textfile or directory (first image is first drawn).  Not recommended if input is a directory; order will be random")
+    parser.add_argument("--use-exposure", action="store_true", default=False,
+                        help="use exposure settings in metadata to inform score")
+    parser.add_argument("--exclude",
+                        help="file of file name patterns (text only, no wildcards or regexs) to exclude")
+    parser.add_argument("--max-cc", type=float, default=0.5,
+                        help="maximum fractional cloud cover (0.0-1.0, default 0.5)")
+    parser.add_argument("--include-all-ms", action="store_true", default=False,
+                        help="include all multispectral imagery, even if the imagery has differing numbers of bands")
+    parser.add_argument("--median-remove", action="store_true", default=False,
+                        help="subtract the median from each input image before forming the mosaic in order to correct for contrast")
     parser.add_argument("--mode", choices=mosaic.MODES , default="ALL",
                         help=" mode: ALL- all steps (default), SHP- create shapefiles, MOSAIC- create tiled tifs, TEST- create log only")
     parser.add_argument("--wd",
                         help="scratch space (default is mosaic directory)")
     parser.add_argument("--component-shp", action="store_true", default=False,
                         help="create shp of all componenet images")
+    parser.add_argument("--cutline-step", type=int, default=2,
+                       help="cutline calculator pixel skip interval (default=2)")
+    parser.add_argument("--calc-stats", action="store_true", default=False,
+                       help="calculate image stats and record them in the index")
     parser.add_argument("--gtiff-compression", choices=mosaic.GTIFF_COMPRESSIONS, default="lzw",
                         help="GTiff compression type. Default=lzw (%s)"%(",".join(mosaic.GTIFF_COMPRESSIONS)))
     parser.add_argument("--pbs", action='store_true', default=False,
@@ -41,7 +67,7 @@ def main():
     parser.add_argument("--parallel-processes", type=int, default=1,
                         help="number of parallel processes to spawn (default 1)")
     parser.add_argument("--qsubscript",
-            help="submission script to use in PBS/SLURM submission (PBS default is qsub_mosaic.sh, SLURM default is slurm_mosaic.py, in script root folder)")
+                        help="submission script to use in PBS/SLURM submission (PBS default is qsub_mosaic.sh, SLURM default is slurm_mosaic.py, in script root folder)")
     parser.add_argument("-l",
                         help="PBS resources requested (mimicks qsub syntax). Use only on HPC systems.")
     parser.add_argument("--log",
@@ -322,70 +348,24 @@ def main():
      
     ## Build tasks
     task_queue = []
-    
-    ####  Create task for shapefile of mosaic components
-    if args.component_shp is True:
-        
-        arg_keys_to_remove = (
-            'l',
-            'qsubscript',
-            'parallel_processes',
-            'log',
-            'gtiff_compression',
-            'mode',
-            'extent',
-            'resolution',
-            'pbs',
-            'slurm',
-            'wd'
-        )
-        shp_arg_str = utils.convert_optional_args_to_string(args, pos_arg_keys, arg_keys_to_remove)
-        
-        comp_shp = mosaicname + "_components.shp"
-        if os.path.isfile(comp_shp):
-            logger.info("Components shapefile already exists: %s" %os.path.basename(comp_shp))
-        else:
-            logger.info("Processing components: %s" %os.path.basename(comp_shp))
             
-            ## Make task and add to queue
-            cmd = '{} --cutline-step 512 {} -e {} {} {} {} {} {}'.format(
-                cutline_builder_script,
-                shp_arg_str,
-                params.xmin,
-                params.xmax,
-                params.ymin,
-                params.ymax,
-                comp_shp,
-                aitpath
-            )
-            
-            task = utils.Task(
-                'Components',
-                'Components',
-                'python',
-                cmd
-            )
-            
-            if args.mode == "ALL" or args.mode == "SHP":
-                logger.debug(cmd)
-                task_queue.append(task)
-            
-    ####  Create task for shapefile of image cutlines
+    ####  Create task for shapefile of image cutlines/components
     shp = mosaicname + "_cutlines.shp"
     
     arg_keys_to_remove = (
         'l',
+        'wd',
         'qsubscript',
         'parallel_processes',
         'log',
         'gtiff_compression',
         'mode',
         'extent',
-        'resolution',
-        'component_shp',
+        'tilesize',
+        'exclude',
+        'nosort',
         'pbs',
-        'slurm',
-        'wd'
+        'slurm'
     )
     shp_arg_str = utils.convert_optional_args_to_string(args, pos_arg_keys, arg_keys_to_remove)
     
@@ -427,7 +407,11 @@ def main():
         'extent',
         'resolution',
         'bands',
+        'max_cc',
+        'exclude',
+        'nosort',
         'component_shp',
+        'cutline_step',
         'pbs',
         'slurm'
     )

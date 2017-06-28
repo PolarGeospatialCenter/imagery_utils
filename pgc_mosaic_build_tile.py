@@ -15,7 +15,6 @@ logger.setLevel(logging.DEBUG)
 gdal.SetConfigOption('GDAL_PAM_ENABLED','NO')
 
 
-    
 def main():
     
     #########################################################
@@ -23,15 +22,25 @@ def main():
     #########################################################
 
     #### Set Up Arguments 
-    parent_parser = mosaic.buildMosaicParentArgumentParser()
     parser = argparse.ArgumentParser(
-        parents=[parent_parser],
         description="Create mosaic subtile"
-	)
+    )
     
     parser.add_argument("tile", help="output tile name")
     parser.add_argument("src", help="textfile of input rasters (tif only)")
     
+    parser.add_argument("-r", "--resolution", nargs=2, type=float,
+                        help="output pixel resolution -- xres yres (default is same as first input file)")
+    parser.add_argument("-e", "--extent", nargs=4, type=float,
+                        help="extent of output mosaic -- xmin xmax ymin ymax (default is union of all inputs)")
+    parser.add_argument("-t", "--tilesize", nargs=2, type=float,
+                        help="tile size in coordinate system units -- xsize ysize (default is 40,000 times output resolution)")
+    parser.add_argument("--force-pan-to-multi", action="store_true", default=False,
+                        help="if output is multiband, force script to also use 1 band images")
+    parser.add_argument("-b", "--bands", type=int,
+                        help="number of output bands( default is number of bands in the first image)")
+    parser.add_argument("--median-remove", action="store_true", default=False,
+                        help="subtract the median from each input image before forming the mosaic in order to correct for contrast")
     parser.add_argument("--wd",
                         help="scratch space (default is mosaic directory)")
     parser.add_argument("--gtiff-compression", choices=mosaic.GTIFF_COMPRESSIONS, default="lzw",

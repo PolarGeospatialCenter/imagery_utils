@@ -64,11 +64,11 @@ class ImagePair(object):
                 mul_extent = self._get_image_info(self.mul_srcfp, spatial_ref)
                 pan_extent = self._get_image_info(self.pan_srcfp, spatial_ref)
                 self.intersection_geom = mul_extent.Intersection(pan_extent)
-                print mul_extent
-                print mul_extent.Contains(pan_extent)
-                print pan_extent
-                print pan_extent.Contains(mul_extent)
-                print self.intersection_geom
+                # print mul_extent
+                # print mul_extent.Contains(pan_extent)
+                # print pan_extent
+                # print pan_extent.Contains(mul_extent)
+                # print self.intersection_geom
                 
         else:
             raise RuntimeError("Image does not match multispectral name pattern: {}".format(self.mul_srcfn))
@@ -177,7 +177,7 @@ class ImagePair(object):
             #### Transform geoms to target srs
             if not s_srs.IsSame(t_srs):
                 extent_geom.Transform(st_ct)
-            logger.info("Projected extent: %s" %str(extent_geom))
+            #logger.info("Projected extent: %s" %str(extent_geom))
             return extent_geom
                    
         else:

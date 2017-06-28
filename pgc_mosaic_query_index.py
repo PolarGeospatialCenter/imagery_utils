@@ -12,17 +12,31 @@ EPSG_WGS84 = 4326
 def main():
     
     #### Set Up Arguments 
-    parent_parser = mosaic.buildMosaicParentArgumentParser()
     parser = argparse.ArgumentParser(
-        parents=[parent_parser],
         description="query PGC index for images contributing to a mosaic"
-	)
+    )
     
     parser.add_argument("index", help="PGC index shapefile")
     parser.add_argument("tile_csv", help="tile schema csv")
     parser.add_argument("dstdir", help="textfile output directory")
     #pos_arg_keys = ["index","tile_csv","dstdir"]
     
+    parser.add_argument("-e", "--extent", nargs=4, type=float,
+                        help="extent of output mosaic -- xmin xmax ymin ymax (default is union of all inputs)")
+    parser.add_argument("--force-pan-to-multi", action="store_true", default=False,
+                        help="if output is multiband, force script to also use 1 band images")
+    parser.add_argument("-b", "--bands", type=int,
+                        help="number of output bands( default is number of bands in the first image)")
+    parser.add_argument("--tday",
+                        help="month and day of the year to use as target for image suitability ranking -- 04-05")
+    parser.add_argument("--use-exposure", action="store_true", default=False,
+                        help="use exposure settings in metadata to inform score")
+    parser.add_argument("--exclude",
+                        help="file of file name patterns (text only, no wildcards or regexs) to exclude")
+    parser.add_argument("--max-cc", type=float, default=0.5,
+                        help="maximum fractional cloud cover (0.0-1.0, default 0.5)")
+    parser.add_argument("--include-all-ms", action="store_true", default=False,
+                        help="include all multispectral imagery, even if the imagery has differing numbers of bands")
     parser.add_argument("--log",
                       help="output log file (default is queryFP.log in the output folder)")
     parser.add_argument("--ttile",
@@ -37,7 +51,6 @@ def main():
                       help="limit search to those records where status = online and image is found on the file system")
     parser.add_argument("--require-pan", action='store_true', default=False,
                       help="limit search to imagery with both a multispectral and a panchromatic component") 
-    
  
     #### Parse Arguments
     args = parser.parse_args()
@@ -185,11 +198,14 @@ def HandleTile(t,shp,dstdir,csvpath,args,exclude_list):
                 
                 iinfo = mosaic.ImageInfo(feat,"RECORD",srs=s_srs)
                 
-                if iinfo.geom is not None and iinfo.geom.GetGeometryType() == ogr.wkbPolygon:
+                if iinfo.geom is not None and (iinfo.geom.GetGeometryType() == ogr.wkbPolygon or iinfo.geom.GetGeometryType() == ogr.wkbMultiPolygon):
                     if not t_srs.IsSame(s_srs):
                         iinfo.geom.Transform(ct)
+                        ## fix self-intersection errors caused by reprojecting over 180
+                        temp = iinfo.geom.Buffer(0.1) # assumes a projected coordinate system with meters or feet as units
+                        iinfo.geom = temp
                     
-                    if iinfo.geom.Intersect(t.geom):
+                    if iinfo.geom.Intersects(t.geom):
                         
                         if iinfo.scene_id in exclude_list:
                             logger.debug("Scene in exclude list, excluding: %s" %iinfo.srcfp)
@@ -237,19 +253,20 @@ def HandleTile(t,shp,dstdir,csvpath,args,exclude_list):
             logger.info("Number of intersects in tile %s: %i" %(t.name,len(imginfo_list1)))
             
             if len(imginfo_list1) > 0:
-                if args.nosort is False:
                 
-                    #### Get mosaic parameters
-                    logger.debug("Getting mosaic parameters")
-                    params = mosaic.getMosaicParameters(imginfo_list1[0],args)
+                
+                #### Get mosaic parameters
+                logger.info("Getting mosaic parameters")
+                params = mosaic.getMosaicParameters(imginfo_list1[0],args)
+                
+                #### Remove images that do not match ref
+                logger.info("Setting image pattern filter")
+                imginfo_list2 = mosaic.filterMatchingImages(imginfo_list1,params)
+                logger.info("Number of images matching filter: %i" %(len(imginfo_list2)))
                     
-                    #### Remove images that do not match ref
-                    logger.debug("Setting image pattern filter")
-                    imginfo_list2 = mosaic.filterMatchingImages(imginfo_list1,params)
-                    logger.info("Number of images matching filter: %i" %(len(imginfo_list2)))
-                    
+                if args.nosort is False:    
                     #### Sort by quality
-                    logger.debug("Sorting images by quality")
+                    logger.info("Sorting images by quality")
                     imginfo_list3 = []
                     for iinfo in imginfo_list2:
                         
@@ -257,7 +274,19 @@ def HandleTile(t,shp,dstdir,csvpath,args,exclude_list):
                         if iinfo.score > 0:
                             imginfo_list3.append(iinfo)
                     
+                    # sort so highest score is last
                     imginfo_list3.sort(key=lambda x: x.score)
+                    
+                else:
+                    imginfo_list3 = list(imginfo_list2)
+                    
+                ####  Overlay geoms and remove non-contributors
+                logger.info("Overlaying images to determine contributors")
+                contribs = mosaic.determine_contributors(imginfo_list3,t.geom)
+                                            
+                logger.info("Number of contributing images: %i" %(len(contribs)))      
+            
+                if len(contribs) > 0:
                     
                     if args.build_shp:
                         
@@ -288,7 +317,6 @@ def HandleTile(t,shp,dstdir,csvpath,args,exclude_list):
                         shpd, shpn = os.path.split(shp)
                         shpbn, shpe = os.path.splitext(shpn)
                         
-                        
                         lyr = vds.CreateLayer(shpbn, t_srs, ogr.wkbPolygon)
                         if lyr is None:
                             logger.debug("ERROR: Failed to create layer: %s" % shpbn)
@@ -301,7 +329,7 @@ def HandleTile(t,shp,dstdir,csvpath,args,exclude_list):
                             if lyr.CreateField(field_defn) != 0:
                                 logger.debug("ERROR: Failed to create field: %s" % fld)
                         
-                        for iinfo in imginfo_list3:
+                        for iinfo, geom in contribs:
                         
                             logger.debug("Image: %s" %(iinfo.srcfn))
                             
@@ -310,52 +338,13 @@ def HandleTile(t,shp,dstdir,csvpath,args,exclude_list):
                             feat.SetField("IMAGENAME",iinfo.srcfn)
                             feat.SetField("SCORE",iinfo.score)
     
-                            feat.SetGeometry(iinfo.geom)
+                            feat.SetGeometry(geom)
                             if lyr.CreateFeature(feat) != 0:
                                 logger.debug("ERROR: Could not create feature for image %s" % iinfo.srcfn)
                             else:
                                 logger.debug("Created feature for image: %s" %iinfo.srcfn)
                                 
                             feat.Destroy()
-                    
-                    
-                    ####  Overlay geoms and remove non-contributors
-                    logger.debug("Overlaying images to determine contributors")
-                    contribs = []
-                    
-                    for i in xrange(0,len(imginfo_list3)):
-                        iinfo = imginfo_list3[i]
-                        basegeom = iinfo.geom
-    
-                        for j in range(i+1,len(imginfo_list3)):
-                            iinfo2 = imginfo_list3[j]
-                            geom2 = iinfo2.geom
-                            
-                            if basegeom.Intersects(geom2):
-                                basegeom = basegeom.Difference(geom2)
-                                if basegeom is None or basegeom.IsEmpty():
-                                    #logger.debug("Broke after %i comparisons" %j)
-                                    break
-                                    
-                        if basegeom is None:
-                            logger.debug("Function Error: %s" %iinfo.srcfp)
-                        elif basegeom.IsEmpty():
-                            logger.debug("Removing non-contributing image: %s" %iinfo.srcfp)
-                        else:
-                            basegeom = basegeom.Intersection(t.geom)
-                            if basegeom is None:
-                                logger.debug("Function Error: %s" %iinfo.srcfp)
-                            elif basegeom.IsEmpty():
-                                logger.debug("Removing non-contributing image: %s" %iinfo.srcfp)
-                            else:
-                                contribs.append(iinfo.srcfp)
-                                                
-                elif args.nosort is True:
-                    contribs = image_list
-            
-                logger.info("Number of contributing images: %i" %(len(contribs)))      
-            
-                if len(contribs) > 0:
                     
                     #### Write textfiles
                     if not os.path.isdir(dstdir):
@@ -366,14 +355,14 @@ def HandleTile(t,shp,dstdir,csvpath,args,exclude_list):
                     otxt = open(otxtpath,'w')
                     mtxt = open(mtxtpath,'w')
                     
-                    for contrib in contribs:
+                    for iinfo, geom in contribs:
                         
-                        if not os.path.isfile(contrib):
-                            logger.warning("Image does not exist: %s" %(contrib))
+                        if not os.path.isfile(iinfo.srcfp):
+                            logger.warning("Image does not exist: %s" %(iinfo.srcfp))
                             
-                        otxt.write("%s\n" %contrib)
+                        otxt.write("%s\n" %iinfo.srcfp)
                         m_fn = "{0}_u08{1}{2}.tif".format(
-                            os.path.splitext(os.path.basename(contrib))[0],
+                            os.path.splitext(iinfo.srcfn)[0],
                             args.stretch,
                             t.epsg
                         )
