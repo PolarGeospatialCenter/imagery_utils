@@ -350,13 +350,13 @@ def stackIkBands(dstfp, members):
         cmd = 'gdalbuildvrt -separate "%s" "%s"' %(vrt,'" "'.join(members))
 
         #
-        (err,so,se) = utils.exec_cmd(cmd)
+        (err,so,se) = taskhandler.exec_cmd(cmd)
         if err == 1:
             rc = 1
 
         cmd = 'gdal_translate -a_srs "%s" -of NITF -co "IC=NC" %s %s "%s" "%s"' %(s_srs_proj4,string.join(m_list, " "), string.join(tre_list, " "), vrt, dstfp )
 
-        (err,so,se) = utils.exec_cmd(cmd)
+        (err,so,se) = taskhandler.exec_cmd(cmd)
         if err == 1:
             rc = 1
 
@@ -527,7 +527,7 @@ def calcStats(args,info):
         info.localdst
         ))
 
-    (err,so,se) = utils.exec_cmd(cmd)
+    (err,so,se) = taskhandler.exec_cmd(cmd)
     if err == 1:
         rc = 1
 
@@ -536,7 +536,7 @@ def calcStats(args,info):
         if args.format in ["GTiff"]:
             if os.path.isfile(info.localdst):
                 cmd = ('gdaladdo "%s" 2 4 8 16' %(info.localdst))
-                (err,so,se) = utils.exec_cmd(cmd)
+                (err,so,se) = taskhandler.exec_cmd(cmd)
                 if err == 1:
                     rc = 1
 
@@ -1055,7 +1055,7 @@ def WarpImage(args,info):
 
         #### convert to VRT and modify 4th band
         cmd = 'gdal_translate -of VRT "{0}" "{1}"'.format(info.localsrc,info.rawvrt)
-        (err,so,se) = utils.exec_cmd(cmd)
+        (err,so,se) = taskhandler.exec_cmd(cmd)
         if err == 1:
             rc = 1
 
@@ -1100,7 +1100,7 @@ def WarpImage(args,info):
                     info.warpfile
                     )
 
-                (err,so,se) = utils.exec_cmd(cmd)
+                (err,so,se) = taskhandler.exec_cmd(cmd)
                 #print err
                 if err == 1:
                     rc = 1
@@ -1117,7 +1117,7 @@ def WarpImage(args,info):
                 info.warpfile
                 )
 
-            (err,so,se) = utils.exec_cmd(cmd)
+            (err,so,se) = taskhandler.exec_cmd(cmd)
             #print err
             if err == 1:
                 rc = 1

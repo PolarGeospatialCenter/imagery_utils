@@ -4,7 +4,7 @@ from xml.etree import cElementTree as ET
 import gdal, ogr, osr, gdalconst
 import numpy
 
-from lib import mosaic, utils
+from lib import mosaic, utils, taskhandler
 
 ### Create Logger
 logger = logging.getLogger("logger")
@@ -367,7 +367,7 @@ def main():
         'pbs',
         'slurm'
     )
-    shp_arg_str = utils.convert_optional_args_to_string(args, pos_arg_keys, arg_keys_to_remove)
+    shp_arg_str = taskhandler.convert_optional_args_to_string(args, pos_arg_keys, arg_keys_to_remove)
     
     if os.path.isfile(shp):
         logger.info("Cutlines shapefile already exists: %s" %os.path.basename(shp))
@@ -386,7 +386,7 @@ def main():
             aitpath
         )
         
-        task = utils.Task(
+        task = taskhandler.Task(
             'Cutlines',
             'Cutlines',
             'python',
@@ -415,7 +415,7 @@ def main():
         'pbs',
         'slurm'
     )
-    tile_arg_str = utils.convert_optional_args_to_string(args, pos_arg_keys, arg_keys_to_remove)
+    tile_arg_str = taskhandler.convert_optional_args_to_string(args, pos_arg_keys, arg_keys_to_remove)
     
     logger.debug("Identifying components of {0} subtiles".format(num_tiles))
     i = 0
@@ -464,7 +464,7 @@ def main():
                     itpath
                 )
                 
-                task = utils.Task(
+                task = taskhandler.Task(
                     'Tile {0}'.format(os.path.basename(t.name)),
                     'Mos{:04g}'.format(i),
                     'python',
@@ -488,7 +488,7 @@ def main():
             else:
                 l = ""
             try:
-                task_handler = utils.PBSTaskHandler(qsubpath, l)
+                task_handler = taskhandler.PBSTaskHandler(qsubpath, l)
             except RuntimeError, e:
                 logger.error(e)
             else:
@@ -496,7 +496,7 @@ def main():
                 
         elif args.slurm:
             try:
-                task_handler = utils.SLURMTaskHandler(qsubpath)
+                task_handler = taskhandler.SLURMTaskHandler(qsubpath)
             except RuntimeError, e:
                 logger.error(e)
             else:
@@ -504,7 +504,7 @@ def main():
             
         else:
             try:
-                task_handler = utils.ParallelTaskHandler(args.parallel_processes)
+                task_handler = taskhandler.ParallelTaskHandler(args.parallel_processes)
             except RuntimeError, e:
                 logger.error(e)
             else:

@@ -2,7 +2,7 @@ import os, string, sys, shutil, math, glob, re, tarfile, argparse, subprocess, l
 from datetime import datetime, timedelta
 import gdal, ogr,osr, gdalconst, numpy
 
-from lib import ortho_functions, utils
+from lib import ortho_functions, utils, taskhandler
 
 #### Create Loggers
 logger = logging.getLogger("logger")
@@ -87,7 +87,7 @@ def main():
 
     #### Get args ready to pass to task handler
     arg_keys_to_remove = ('l', 'qsubscript', 'pbs', 'slurm', 'parallel_processes', 'dryrun')
-    arg_str = utils.convert_optional_args_to_string(args, pos_arg_keys, arg_keys_to_remove)
+    arg_str = taskhandler.convert_optional_args_to_string(args, pos_arg_keys, arg_keys_to_remove)
     
     ## Identify source images
     if srctype == 'dir':
@@ -108,7 +108,7 @@ def main():
         
         if not os.path.isfile(dstfp):
             i+=1
-            task = utils.Task(
+            task = taskhandler.Task(
                 srcfn,
                 'NDVI{:04g}'.format(i),
                 'python',
@@ -129,7 +129,7 @@ def main():
             else:
                 l = ""
             try:
-                task_handler = utils.PBSTaskHandler(qsubpath, l)
+                task_handler = taskhandler.PBSTaskHandler(qsubpath, l)
             except RuntimeError, e:
                 logger.error(e)
             else:
@@ -138,7 +138,7 @@ def main():
                 
         elif args.slurm:
             try:
-                task_handler = utils.SLURMTaskHandler(qsubpath)
+                task_handler = taskhandler.SLURMTaskHandler(qsubpath)
             except RuntimeError, e:
                 logger.error(e)
             else:
@@ -147,7 +147,7 @@ def main():
             
         elif args.parallel_processes > 1:
             try:
-                task_handler = utils.ParallelTaskHandler(args.parallel_processes)
+                task_handler = taskhandler.ParallelTaskHandler(args.parallel_processes)
             except RuntimeError, e:
                 logger.error(e)
             else:
@@ -382,7 +382,7 @@ def calc_ndvi(srcfp, dstfp, args):
         if os.path.isfile(dstfp_local):
             ## add pyramids
             cmd = 'gdaladdo "%s" 2 4 8 16' %(dstfp_local)
-            utils.exec_cmd(cmd)
+            taskhandler.exec_cmd(cmd)
 
             ## copy to dst
             if wd <> dstdir:

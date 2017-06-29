@@ -5,7 +5,7 @@ from subprocess import *
 from math import *
 from xml.etree import cElementTree as ET
 
-from lib import mosaic, utils
+from lib import mosaic, utils, taskhandler
 import numpy
 import gdal, ogr,osr, gdalconst
     
@@ -129,7 +129,7 @@ def main():
             if srcbands == 1:
                 mergefile = os.path.join(wd,os.path.basename(img)[:-4])+"_merge.tif"
                 cmd = 'gdal_merge.py -ps %s %s -separate -o "%s" "%s"' %(ref_xres, ref_yres, mergefile, string.join(([img] * bands),'" "'))
-                utils.exec_cmd(cmd)
+                taskhandler.exec_cmd(cmd)
         srcnodata = string.join(([str(srcnodata_val)] * bands)," ")
 
         if args.median_remove is True:
@@ -154,11 +154,11 @@ def main():
                 status = 1
                 break
             cmd = 'gdalwarp %s -srcnodata "%s" -dstnodata "%s" "%s" "%s"' %(dims,srcnodata,srcnodata,mergefile,localtile1)
-            utils.exec_cmd(cmd)
+            taskhandler.exec_cmd(cmd)
             
         else:
             cmd = 'gdalwarp -srcnodata "%s" "%s" "%s"' %(srcnodata,mergefile,localtile1)
-            utils.exec_cmd(cmd)
+            taskhandler.exec_cmd(cmd)
             
         c += 1
        
@@ -176,12 +176,12 @@ def main():
                 compress_option =  '-co "compress=jpeg" -co "jpeg_quality=95"'
                 
             cmd = 'gdal_translate -stats -of GTiff %s -co "PHOTOMETRIC=MINISBLACK" -co "TILED=YES" -co "BIGTIFF=IF_SAFER" "%s" "%s"' %(compress_option,localtile1,localtile2)
-            utils.exec_cmd(cmd)
+            taskhandler.exec_cmd(cmd)
         
         ####  Build Pyramids        
         if os.path.isfile(localtile2):
             cmd = 'gdaladdo "%s" 2 4 8 16 30' %(localtile2)
-            utils.exec_cmd(cmd)
+            taskhandler.exec_cmd(cmd)
         
         #### Copy tile to destination
         if os.path.isfile(localtile2):
@@ -274,7 +274,7 @@ def BandSubtractMedian(srcfp,dstfp):
 
                 ## redo pyramids
                 cmd = 'gdaladdo "%s" 2 4 8 16' %(srcfp)
-                utils.exec_cmd(cmd)
+                taskhandler.exec_cmd(cmd)
 
             else:
                 logger.info("BandSubtractMedian(): {} exists".format(dstfp))

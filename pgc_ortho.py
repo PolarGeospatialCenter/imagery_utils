@@ -4,7 +4,7 @@ from xml.dom import minidom
 from xml.etree import cElementTree as ET
 import gdal, ogr,osr, gdalconst
 
-from lib import ortho_functions, utils
+from lib import ortho_functions, utils, taskhandler
 
 #### Create Loggers
 logger = logging.getLogger("logger")
@@ -95,7 +95,7 @@ def main():
 
     #### Get args ready to pass to task handler
     arg_keys_to_remove = ('l', 'qsubscript', 'dryrun', 'pbs', 'slurm', 'parallel_processes')
-    arg_str_base = utils.convert_optional_args_to_string(args, pos_arg_keys, arg_keys_to_remove)
+    arg_str_base = taskhandler.convert_optional_args_to_string(args, pos_arg_keys, arg_keys_to_remove)
 
     ## Identify source images
     if srctype == 'dir':
@@ -138,7 +138,7 @@ def main():
         done = os.path.isfile(dstfp)
         if done is False:
             i += 1
-            task = utils.Task(
+            task = taskhandler.Task(
                 srcfn,
                 'Or{:04g}'.format(i),
                 'python',
@@ -159,7 +159,7 @@ def main():
             else:
                 l = ""
             try:
-                task_handler = utils.PBSTaskHandler(qsubpath, l)
+                task_handler = taskhandler.PBSTaskHandler(qsubpath, l)
             except RuntimeError, e:
                 logger.error(e)
             else:
@@ -168,7 +168,7 @@ def main():
                 
         elif args.slurm:
             try:
-                task_handler = utils.SLURMTaskHandler(qsubpath)
+                task_handler = taskhandler.SLURMTaskHandler(qsubpath)
             except RuntimeError, e:
                 logger.error(e)
             else:
@@ -177,7 +177,7 @@ def main():
             
         elif args.parallel_processes > 1:
             try:
-                task_handler = utils.ParallelTaskHandler(args.parallel_processes)
+                task_handler = taskhandler.ParallelTaskHandler(args.parallel_processes)
             except RuntimeError, e:
                 logger.error(e)
             else:
@@ -186,8 +186,6 @@ def main():
                     task_handler.run_tasks(task_queue)
     
         else:
-            # task_handler = utils.SerialTaskHandler(method)
-            # results = task_handler.run_tasks(task_queue)
             
             results = {}
             for task in task_queue:
