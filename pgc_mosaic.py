@@ -46,6 +46,8 @@ def main():
                         help="maximum fractional cloud cover (0.0-1.0, default 0.5)")
     parser.add_argument("--include-all-ms", action="store_true", default=False,
                         help="include all multispectral imagery, even if the imagery has differing numbers of bands")
+    parser.add_argument("--min-contribution-area", type=int, default=20000000,
+                      help="minimum area contribution threshold in target projection units (default=20000000). Higher values remove more image slivers from the resulting mosaic") 
     parser.add_argument("--median-remove", action="store_true", default=False,
                         help="subtract the median from each input image before forming the mosaic in order to correct for contrast")
     parser.add_argument("--mode", choices=mosaic.MODES , default="ALL",
@@ -225,8 +227,7 @@ def main():
     logger.info("Reading image metadata and determining sort order")
     for iinfo in imginfo_list3:
         iinfo.getScore(params)
-            
-    ####  Sort by score
+       
     if not args.nosort:
         imginfo_list3.sort(key=lambda x: x.score)
     
@@ -412,6 +413,7 @@ def main():
         'nosort',
         'component_shp',
         'cutline_step',
+        'min_contribution_area',
         'pbs',
         'slurm'
     )

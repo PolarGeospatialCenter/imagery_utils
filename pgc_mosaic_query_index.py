@@ -29,6 +29,8 @@ def main():
                         help="number of output bands( default is number of bands in the first image)")
     parser.add_argument("--tday",
                         help="month and day of the year to use as target for image suitability ranking -- 04-05")
+    parser.add_argument("--nosort", action="store_true", default=False,
+                        help="do not sort images by metadata. script uses the order of the input textfile or directory (first image is first drawn).  Not recommended if input is a directory; order will be random")
     parser.add_argument("--use-exposure", action="store_true", default=False,
                         help="use exposure settings in metadata to inform score")
     parser.add_argument("--exclude",
@@ -37,6 +39,8 @@ def main():
                         help="maximum fractional cloud cover (0.0-1.0, default 0.5)")
     parser.add_argument("--include-all-ms", action="store_true", default=False,
                         help="include all multispectral imagery, even if the imagery has differing numbers of bands")
+    parser.add_argument("--min-contribution-area", type=int, default=20000000,
+                      help="minimum area contribution threshold in target projection units (default=20000000). Higher values remove more image slivers from the resulting mosaic") 
     parser.add_argument("--log",
                       help="output log file (default is queryFP.log in the output folder)")
     parser.add_argument("--ttile",
@@ -50,7 +54,7 @@ def main():
     parser.add_argument("--online-only", action='store_true', default=False,
                       help="limit search to those records where status = online and image is found on the file system")
     parser.add_argument("--require-pan", action='store_true', default=False,
-                      help="limit search to imagery with both a multispectral and a panchromatic component") 
+                      help="limit search to imagery with both a multispectral and a panchromatic component")
  
     #### Parse Arguments
     args = parser.parse_args()
@@ -256,17 +260,17 @@ def HandleTile(t,shp,dstdir,csvpath,args,exclude_list):
                 
                 
                 #### Get mosaic parameters
-                logger.info("Getting mosaic parameters")
+                logger.debug("Getting mosaic parameters")
                 params = mosaic.getMosaicParameters(imginfo_list1[0],args)
                 
                 #### Remove images that do not match ref
-                logger.info("Setting image pattern filter")
+                logger.debug("Setting image pattern filter")
                 imginfo_list2 = mosaic.filterMatchingImages(imginfo_list1,params)
                 logger.info("Number of images matching filter: %i" %(len(imginfo_list2)))
                     
                 if args.nosort is False:    
                     #### Sort by quality
-                    logger.info("Sorting images by quality")
+                    logger.debug("Sorting images by quality")
                     imginfo_list3 = []
                     for iinfo in imginfo_list2:
                         
@@ -281,8 +285,8 @@ def HandleTile(t,shp,dstdir,csvpath,args,exclude_list):
                     imginfo_list3 = list(imginfo_list2)
                     
                 ####  Overlay geoms and remove non-contributors
-                logger.info("Overlaying images to determine contributors")
-                contribs = mosaic.determine_contributors(imginfo_list3,t.geom)
+                logger.debug("Overlaying images to determine contributors")
+                contribs = mosaic.determine_contributors(imginfo_list3,t.geom,args.min_contribution_area)
                                             
                 logger.info("Number of contributing images: %i" %(len(contribs)))      
             

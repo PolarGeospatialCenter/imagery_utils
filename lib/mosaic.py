@@ -891,29 +891,49 @@ class TileParams:
         self.geom = ogr.CreateGeometryFromWkt(poly_wkt)
         
 
-def determine_contributors(imginfo_list, tile_geom):
+def determine_contributors(imginfo_list, tile_geom, contribution_threshold):
         
     # set highest scoring image as seed geom
     imginfo_list.reverse() # highest score first
     union_geom = ogr.Geometry(ogr.wkbPolygon)
     contribs = []
+    area_threshold_images = []
     
     # add lower scoring images in turn, if they add new area
-    for i in xrange(len(imginfo_list)):
-        iinfo = imginfo_list[i]
+    for iinfo in imginfo_list:
         diff = iinfo.geom.Difference(union_geom)
         if diff is None:
-            logger.info("Function Error: %s" %iinfo.srcfp)
+            logger.info("Function Error: {}".format(iinfo.srcfp))
         elif diff.IsEmpty():
-            logger.debug("Removing non-contributing image: %s" %iinfo.srcfp)
+            logger.debug("Non-contributing image: {}".format(iinfo.srcfp))
         else:
             ## test if contributing area is within tile extent
             if not diff.Intersects(tile_geom):
-                logger.debug("Removing non-contributing image: %s" %iinfo.srcfp)
+                logger.debug("Non-contributing image: {}".format(iinfo.srcfp))
             else:
                 contrib_geom = diff.Intersection(tile_geom)
-                union_geom = union_geom.Union(iinfo.geom)
-                contribs.append((iinfo,contrib_geom))
+                
+                ## Filter based on contribution area
+                if contrib_geom.Area() >= contribution_threshold:                
+                    union_geom = union_geom.Union(iinfo.geom)
+                    contribs.append((iinfo,contrib_geom))
+                else:
+                    logger.debug("Image below minimum area threshold: {}".format(iinfo.srcfp))
+                    area_threshold_images.append(iinfo)
+                    
+    # after first round, check if any of the images below the min area threshold fill a gap
+    if len(area_threshold_images) > 0:
+        for iinfo in area_threshold_images:
+            diff = iinfo.geom.Difference(union_geom)
+            if diff is None:
+                logger.info("Function Error: {}".format(iinfo.srcfp))
+            elif not diff.IsEmpty():
+                ## test if contributing area is within tile extent
+                if diff.Intersects(tile_geom):
+                    contrib_geom = diff.Intersection(tile_geom)
+                    union_geom = union_geom.Union(iinfo.geom)
+                    contribs.append((iinfo,contrib_geom))
+                    logger.debug("Adding image with contribution area below threshold to fill a gap: {}".format(iinfo.srcfp))
     
     # reverse list so highest score is last
     contribs.reverse()
@@ -963,13 +983,17 @@ def getMosaicParameters(iinfo,options):
     
     params = MosaicParams()
     
-    if options.resolution is not None:
-        params.xres = options.resolution[0]
-        params.yres = options.resolution[1]
-    else:
+    try:
+        if options.resolution is not None:
+            params.xres = options.resolution[0]
+            params.yres = options.resolution[1]
+        else:
+            params.xres = iinfo.xres
+            params.yres = iinfo.yres
+    except AttributeError:
         params.xres = iinfo.xres
         params.yres = iinfo.yres
-    
+       
     params.bands = options.bands if options.bands is not None else iinfo.bands
     params.proj = iinfo.proj
     params.datatype = iinfo.datatype
@@ -989,16 +1013,19 @@ def getMosaicParameters(iinfo,options):
         params.ymax = options.extent[3]
         poly_wkt = 'POLYGON (( %f %f, %f %f, %f %f, %f %f, %f %f ))' %(params.xmin,params.ymin,params.xmin,params.ymax,params.xmax,params.ymax,params.xmax,params.ymin,params.xmin,params.ymin)
         params.extent_geom = ogr.CreateGeometryFromWkt(poly_wkt)
-        
-    if options.tilesize is not None:
-        params.xtilesize = options.tilesize[0]
-        params.ytilesize = options.tilesize[1]
-    elif params.xres is not None:
-        params.xtilesize = params.xres * 40000
-        params.ytilesize = params.yres * 40000
-    else:
-        params.xtilesize = None
-        params.ytilesize = None
+    
+    try:
+        if options.tilesize is not None:
+            params.xtilesize = options.tilesize[0]
+            params.ytilesize = options.tilesize[1]
+            
+    except AttributeError:
+        if params.xres is not None:
+            params.xtilesize = params.xres * 40000
+            params.ytilesize = params.yres * 40000
+        else:
+            params.xtilesize = None
+            params.ytilesize = None
         
     if options.max_cc is not None:
     	params.max_cc = options.max_cc
@@ -1008,7 +1035,11 @@ def getMosaicParameters(iinfo,options):
     params.force_pan_to_multi = True if params.bands > 1 and options.force_pan_to_multi else False # determine if force pan to multi is applicable and true
 
     params.include_all_ms = options.include_all_ms
-    params.median_remove = options.median_remove
+    
+    try:
+        params.median_remove = options.median_remove
+    except AttributeError:
+        params.median_remove = None
 
     return params
 

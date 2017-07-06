@@ -46,6 +46,8 @@ def main():
                         help="subtract the median from each input image before forming the mosaic in order to correct for contrast")
     parser.add_argument("--include-all-ms", action="store_true", default=False,
                         help="include all multispectral imagery, even if the imagery has differing numbers of bands")
+    parser.add_argument("--min-contribution-area", type=int, default=20000000,
+                      help="minimum area contribution threshold in target projection units (default=20000000). Higher values remove more image slivers from the resulting mosaic") 
     parser.add_argument("--cutline-step", type=int, default=2,
                        help="cutline calculator pixel skip interval (default=2)")
     parser.add_argument("--component-shp", action="store_true", default=False,
@@ -175,11 +177,13 @@ def main():
             # Build cutlines index                    
             ####  Overlay geoms and remove non-contributors
             logger.info("Overlaying images to determine contribution geom")
-            contribs = mosaic.determine_contributors(imginfo_list2,extent_geom)
+            contribs = mosaic.determine_contributors(imginfo_list2,extent_geom,args.min_contribution_area)
             
-            logger.info("Number of contributors: %d" %len(contribs))       
-            # for iinfo, geom in contribs:
-            #     logger.info("Image: %s" %(iinfo.srcfn))
+            logger.info("Number of contributors: %d" %len(contribs))
+            fh = open(os.path.splitext(shp)[0]+'_intersects.txt','w')
+            for iinfo, geom in contribs:
+                fh.write("{}\n".format(iinfo.srcfp))
+            fh.close()
             
             logger.info("Building cutlines index")
             if len(contribs) > 0:

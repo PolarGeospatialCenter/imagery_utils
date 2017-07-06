@@ -1,7 +1,7 @@
 import os, string, sys, shutil, math, glob, re, tarfile, logging, platform, argparse
 from datetime import datetime, timedelta
 
-from lib import utils
+from lib import utils, taskhandler
 from xml.dom import minidom
 from xml.etree import cElementTree as ET
 
