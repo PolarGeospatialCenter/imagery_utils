@@ -56,8 +56,8 @@ def main():
                         help="scratch space (default is mosaic directory)")
     parser.add_argument("--component-shp", action="store_true", default=False,
                         help="create shp of all componenet images")
-    parser.add_argument("--cutline-step", type=int, default=2,
-                       help="cutline calculator pixel skip interval (default=2)")
+    parser.add_argument("--cutline-step", type=int, default=4,
+                       help="cutline calculator pixel skip interval (default=4)")
     parser.add_argument("--calc-stats", action="store_true", default=False,
                        help="calculate image stats and record them in the index")
     parser.add_argument("--gtiff-compression", choices=mosaic.GTIFF_COMPRESSIONS, default="lzw",
@@ -252,7 +252,6 @@ def main():
     ait.close()
 
     ## Create tiles
-    logger.info("Creating tiles")
     tiles = []
     
     xtiledim = math.ceil((params.xmax-params.xmin)/params.xtilesize)
@@ -346,7 +345,11 @@ def main():
                 if lyr.CreateFeature(feat) != 0:
                     logger.error("ERROR: Could not create feature for tile %s" % tile)
                 feat.Destroy()
-     
+    
+    ## TODO: make mosaic a task and submit
+    
+    
+    ## TODO, split off contribution determination from cutlines and tile tasks in new function
     ## Build tasks
     task_queue = []
             
@@ -518,6 +521,11 @@ def main():
         
     else:
         logger.info("No tasks to process")
+        
+
+        
+
+
 
 if __name__ == '__main__':
     main()

@@ -157,6 +157,7 @@ class ImageInfo:
             self.ysize = ds.RasterYSize
             self.proj = ds.GetProjectionRef() if ds.GetProjectionRef() != '' else ds.GetGCPProjection()
             self.bands = ds.RasterCount
+            self.nodatavalue = [ds.GetRasterBand(b).GetNoDataValue() for b in range(1,self.bands+1)]
             self.datatype = ds.GetRasterBand(1).DataType
             self.datatype_readable = gdal.GetDataTypeName(self.datatype)
 
@@ -526,9 +527,11 @@ class ImageInfo:
         return self.score
 
 
-    def get_raster_stats(self):
+    def get_raster_stats(self,get_stats=True,get_median=True):
+        
         self.stat_dct = {}
         self.datapixelcount_dct = {}
+        self.median = {}
         ds = gdal.Open(self.srcfp)
         if ds:
    
@@ -549,25 +552,42 @@ class ImageInfo:
                     band_nodata = 0.0
 
                 # read band as a numpy array
+                logger.debug("Reading band {} ".format(bandnum))
                 band_array = band.ReadAsArray(0,0,nx,ny)
 
                 # generate mask for nodata
+                logger.debug("Calculating band {} no data mask".format(bandnum))
                 band_nodata_mask = (band_array == band_nodata)
                 band_valid = band_array[~band_nodata_mask]
-                if band_valid.size != 0: 
-
-                    # calculate stats
-                    band_min = numpy.amin(band_valid)
-                    band_max = numpy.amax(band_valid)
-                    band_mean = numpy.mean(band_valid,dtype=numpy.float64)
-                    band_std = numpy.std(band_valid,dtype=numpy.float64)
-                    stats = numpy.array([band_min,band_max,band_mean,band_std],numpy.float64) 
-                else:
-                    logger.warning("Band {} contains no valid data".format(bandnum))
-                    stats = numpy.array([band_nodata,band_nodata,band_nodata,band_nodata],numpy.float64)
-                self.stat_dct[bandnum] = stats
                 self.datapixelcount_dct[bandnum] = band_valid.size
-                    
+                
+                ## initialize arrays
+                stats = numpy.array([band_nodata,band_nodata,band_nodata,band_nodata],numpy.float64)
+                band_median = numpy.float64(band_nodata)
+                if band_valid.size == 0: 
+                    logger.warning("Band {} contains no valid data".format(bandnum))
+                
+                ## calc stats  
+                else:
+                    if get_stats:
+                        logger.debug("Calculating band {} min".format(bandnum))
+                        band_min = numpy.amin(band_valid)
+                        logger.debug("Calculating band {} max".format(bandnum))
+                        band_max = numpy.amax(band_valid)
+                        logger.debug("Calculating band {} mean".format(bandnum))
+                        band_mean = numpy.mean(band_valid,dtype=numpy.float64)
+                        logger.debug("Calculating band {} stdev".format(bandnum))
+                        band_std = numpy.std(band_valid,dtype=numpy.float64)
+                        stats = numpy.array([band_min,band_max,band_mean,band_std],numpy.float64)
+                               
+                    if get_median:
+                        logger.debug("Calculating band {} median".format(bandnum))
+                        band_median = numpy.float64(numpy.median(band_valid))
+                                    
+                logger.info("band {} median {}".format(bandnum,band_median))    
+                self.median[bandnum] = band_median
+                self.stat_dct[bandnum] = stats
+                
                 band_valid = None
                 band_nodata_mask = None
                 band_array = None
@@ -576,34 +596,11 @@ class ImageInfo:
 
         else:
             logger.warning("Cannot open image: %s" %self.srcfp)
-
-
-    def get_raster_median(self):
-        self.median = {}
-        ds = gdal.Open(self.srcfp)
-        if ds:
-
-            #### get median for each band
-            for bandnum in range(1,self.bands+1):
-                band = ds.GetRasterBand(bandnum)
-                band_nodata = band.GetNoDataValue()
-                # default nodata to zero
-                if band_nodata is None:
-                    logger.info("Defaulting band {} nodata to zero".format(bandnum))
-                    band_nodata = 0.0
-                band_array = numpy.array(band.ReadAsArray())
-                band_nodata_mask = (band_array==band_nodata)
-                band_valid = band_array[~band_nodata_mask]
-                if band_valid.size != 0:
-                    band_median = numpy.float64(numpy.median(band_valid))
-                else:
-                    logger.warning("Band {} contains no valid data".format(bandnum))
-                    band_median = numpy.float64(band_nodata)
-                self.median[bandnum] = band_median
-                logger.info("band {} median {}".format(bandnum,self.median[bandnum]))
-            ds = None
-        else:
-            logger.warning("Cannot open image: %s" %self.srcfp)
+            
+    def set_raster_median(self, median):
+        self.median = median
+        
+        
 
 
 class DemInfo:
@@ -1043,8 +1040,7 @@ def getMosaicParameters(iinfo,options):
 
     return params
 
-
-def GetExactTrimmedGeom(image, step=2, tolerance=1):
+def GetExactTrimmedGeom(image, step=4, tolerance=1):
     
     geom2 = None
     geom = None
