@@ -22,7 +22,7 @@ class TestConvertArgs(unittest.TestCase):
     def test_args(self):
         positional_arg_keys = ['positional']
         arg_keys_to_remove = ['toremove', 'to_remove']
-        arg_str = utils.convert_optional_args_to_string(self.args, positional_arg_keys, arg_keys_to_remove)
+        arg_str = taskhandler.convert_optional_args_to_string(self.args, positional_arg_keys, arg_keys_to_remove)
         self.assertIn('--tuple item1 item2', arg_str)
         self.assertIn('--list item1 item2', arg_str)
         self.assertIn('--boolean', arg_str)

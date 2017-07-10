@@ -76,10 +76,28 @@ def main():
         localpath = os.path.dirname(tile)
     
     intersects = []
+    
     if os.path.isfile(inpath):
         t = open(inpath,'r')
         for line in t.readlines():
-            intersects.append(line.rstrip('\n').rstrip('\r'))
+            line = line.strip('\n').strip('\r')
+            
+            if ',' in line:
+                image, median_string = line.split(',')
+                iinfo = mosaic.ImageInfo(image,"IMAGE")
+                median = {}
+                for stat in median_string.split(";"):
+                    k,v = stat.split(":")
+                    median[int(k)] = float(v)
+                if len(median) == iinfo.bands:
+                    iinfo.set_raster_median(median)
+                else:
+                    logger.warning("Median dct length ({}) does not match band count ({})".format(len(median),iinfo.bands))
+            
+            else:
+                iinfo = mosaic.ImageInfo(line,"IMAGE")
+            
+            intersects.append(iinfo)
         t.close()
     else:
         logger.error("Intersecting image file does not exist: {}".format(inpath))
@@ -95,52 +113,34 @@ def main():
     localtile1 = localtile2.replace(".tif","_temp.tif")
     
     del_images = []
-    final_intersects = []
     images = {}
-    
-    for image in intersects:
-        ds = gdal.Open(image)
-        if ds is not None:
-            srcbands = ds.RasterCount
-            srcnodata_val = ds.GetRasterBand(1).GetNoDataValue()
-            images[image] = (srcbands, srcnodata_val)
-            final_intersects.append(image)
-            logger.info("%s" %(os.path.basename(image)))
-        else:
-            logger.error("Cannot open image: {}".format(image))
-    
-        ds = None
-    
-    logger.info("Number of images: %i" %(len(final_intersects)))
-    
-    
+        
     #### Get Extent geometry 
     poly_wkt = 'POLYGON (( %s %s, %s %s, %s %s, %s %s, %s %s ))' %(xmin,ymin,xmin,ymax,xmax,ymax,xmax,ymin,xmin,ymin)
     tile_geom = ogr.CreateGeometryFromWkt(poly_wkt)
     
     c = 0
-    for img in final_intersects:
+    for iinfo in intersects:
             
         #### Check if bands number is correct
-        mergefile = img
-        srcbands, srcnodata_val = images[img]
+        mergefile = iinfo.srcfp
 
-        if args.force_pan_to_multi is True and bands > 1:
-            if srcbands == 1:
-                mergefile = os.path.join(wd,os.path.basename(img)[:-4])+"_merge.tif"
-                cmd = 'gdal_merge.py -ps %s %s -separate -o "%s" "%s"' %(ref_xres, ref_yres, mergefile, string.join(([img] * bands),'" "'))
+        if args.force_pan_to_multi and iinfo.bands > 1:
+            if iinfo.bands == 1:
+                mergefile = os.path.join(wd,os.path.basename(iinfo.srcfp)[:-4])+"_merge.tif"
+                cmd = 'gdal_merge.py -ps %s %s -separate -o "%s" "%s"' %(ref_xres, ref_yres, mergefile, string.join(([iinfo.srcfp] * iinfo.bands),'" "'))
                 taskhandler.exec_cmd(cmd)
-        srcnodata = string.join(([str(srcnodata_val)] * bands)," ")
+        srcnodata = " ".join([str(ndv) for ndv in iinfo.nodatavalue])
 
-        if args.median_remove is True:
+        if args.median_remove:
             src = mergefile
             dst = os.path.join(wd,os.path.basename(mergefile)[:-4])+"_median_removed.tif"
-            status = BandSubtractMedian(src,dst)
+            status = BandSubtractMedian(iinfo,dst)
             if status == 1:
                 logger.error("BandSubtractMedian() failed on {}".format(mergefile))
                 sys.exit(1)
             ds = gdal.Open(dst)
-            if ds is not None:
+            if ds:
                 srcnodata_val = ds.GetRasterBand(1).GetNoDataValue()
                 srcnodata = string.join(([str(srcnodata_val)] * bands)," ")
                 mergefile = dst
@@ -162,7 +162,7 @@ def main():
             
         c += 1
        
-        if not mergefile == img:
+        if not mergefile == iinfo.srcfp:
             del_images.append(mergefile)
             
     del_images.append(localtile1)        
@@ -198,94 +198,93 @@ def main():
     logger.info("Done")
 
 
-def BandSubtractMedian(srcfp,dstfp):
+def BandSubtractMedian(iinfo,dstfp):
     # Subtract the median from each band of srcfp and write the result
     # to dstfp.
     # Band types byte, uint16 and int16 will be output as int16 with nodata -32768.
     # Band types uint32 and int32 will be output as int32 with nodata -2147483648.
 
-    if os.path.isfile(srcfp):
-        ds = gdal.Open(srcfp)
-        if ds:
-            datatype = ds.GetRasterBand(1).DataType
-            if not (datatype in [1,2,3,4,5]):
-                logger.error("BandSubtractMedian only works on integer data types")
-                return 1
-            elif (datatype in [1,2,3]):
-                out_datatype = 3
-                out_nodataval = -32768
-                out_min = -32767
-            else:
-                out_datatype = 5
-                out_nodataval = -2147483648
-                out_min = -2147483647
-            nbands = ds.RasterCount
-            nx = ds.RasterXSize
-            ny = ds.RasterYSize
-            if not os.path.isfile(dstfp):
-                gtiff_options = ['TILED=YES','COMPRESS=LZW','BIGTIFF=IF_SAFER']
-                driver = gdal.GetDriverByName('GTiff')
-                out_ds = driver.Create(dstfp,nx,ny,nbands,out_datatype,gtiff_options)
-                if out_ds:
-                    out_ds.SetGeoTransform(ds.GetGeoTransform())
-                    out_ds.SetProjection(ds.GetProjection())
-                    iinfo = mosaic.ImageInfo(srcfp,"IMAGE")
-                    iinfo.get_raster_median()
-                    keys = iinfo.median.keys()
-                    keys.sort()
-                    for band in keys:
-                        band_median = iinfo.median[band]
-                        if band_median is not None:
-                            band_data = ds.GetRasterBand(band)
-                            band_nodata = band_data.GetNoDataValue()
-                            # default nodata to zero
-                            if band_nodata is None:
-                                logger.info("Defaulting band {} nodata to zero".format(band))
-                                band_nodata = 0.0 
-                            band_array = numpy.array(band_data.ReadAsArray())
-                            nodata_mask = (band_array==band_nodata)
-                   
-                            if out_datatype == 3:
-                                band_corrected = numpy.full_like(band_array,fill_value=out_nodataval,dtype=numpy.int16)
-                            else:
-                                band_corrected = numpy.full_like(band_array,fill_value=out_nodataval,dtype=numpy.int32)  
-                            band_valid = band_array[~nodata_mask]
-                            if band_valid.size != 0:          
-                                band_min = numpy.min(band_valid)
-                                corr_min = numpy.subtract(float(band_min),float(band_median))
-                                if( corr_min < float(out_min) ):
-                                    logger.error("BandSubtractMedian() returns min out of range for {} band {}".format(srcfp,band))
-                                    return 1
-                                band_corrected[~nodata_mask] = numpy.subtract(band_array[~nodata_mask],band_median)
-                            else:
-                                logger.warning("Band {} has no valid data".format(band))
-                            out_band = out_ds.GetRasterBand(band)
-                            out_band.WriteArray(band_corrected)
-                            out_band.SetNoDataValue(out_nodataval)
-
-                        else:
-                            logger.error("BandSubtractMedian(): iinfo.median[{}] is None, image {}".format(band,srcfp))
-                            return 1
-                else:
-                    logger.error("BandSubtractMedian(): !driver.Create({})".format(dstfp))
-                    return 1
-                ds = None
-                out_ds = None
-
-                ## redo pyramids
-                cmd = 'gdaladdo "%s" 2 4 8 16' %(srcfp)
-                taskhandler.exec_cmd(cmd)
-
-            else:
-                logger.info("BandSubtractMedian(): {} exists".format(dstfp))
-
-        else:
-            logger.error("BandSubtractMedian(): !gdal.Open({})".format(srcfp))
-            return 1
-        return 0
-    else:
-        logger.error("BandSubtractMedian(): !os.path.isfile({})".format(srcfp))
+    
+    if not (iinfo.datatype in [1,2,3,4,5]):
+        logger.error("BandSubtractMedian only works on integer data types")
         return 1
+    elif (iinfo.datatype in [1,2,3]):
+        out_datatype = 3
+        out_nodataval = -32768
+        out_min = -32767
+    else:
+        out_datatype = 5
+        out_nodataval = -2147483648
+        out_min = -2147483647
+    
+    if not os.path.isfile(dstfp):
+        gtiff_options = ['TILED=YES','COMPRESS=LZW','BIGTIFF=IF_SAFER']
+        driver = gdal.GetDriverByName('GTiff')
+        out_ds = driver.Create(dstfp,iinfo.xsize,iinfo.ysize,iinfo.bands,out_datatype,gtiff_options)
+        if not out_ds:
+            logger.error("BandSubtractMedian(): !driver.Create({})".format(dstfp))
+            return 1
+        
+        ds = gdal.Open(iinfo.srcfp)
+        if not ds:
+            logger.error("BandSubtractMedian(): !gdal.Open({})".format(iinfo.srcfp))
+            return 1
+        
+        out_ds.SetGeoTransform(ds.GetGeoTransform())
+        out_ds.SetProjection(ds.GetProjectionRef())
+        
+        ## check if median was passed in, calculate if not
+        try:
+            keys = iinfo.median.keys()
+        except KeyError:
+            iinfo.get_raster_median()
+            keys = iinfo.median.keys()
+        
+        keys.sort()
+        for band in keys:
+            band_median = iinfo.median[band]
+            if band_median is not None:
+                band_data = ds.GetRasterBand(band)
+                band_nodata = band_data.GetNoDataValue()
+                # default nodata to zero
+                if band_nodata is None:
+                    logger.info("Defaulting band {} nodata to zero".format(band))
+                    band_nodata = 0.0 
+                band_array = numpy.array(band_data.ReadAsArray())
+                nodata_mask = (band_array==band_nodata)
+       
+                if out_datatype == 3:
+                    band_corrected = numpy.full_like(band_array,fill_value=out_nodataval,dtype=numpy.int16)
+                else:
+                    band_corrected = numpy.full_like(band_array,fill_value=out_nodataval,dtype=numpy.int32)  
+                band_valid = band_array[~nodata_mask]
+                if band_valid.size != 0:          
+                    band_min = numpy.min(band_valid)
+                    corr_min = numpy.subtract(float(band_min),float(band_median))
+                    if( corr_min < float(out_min) ):
+                        logger.error("BandSubtractMedian() returns min out of range for {} band {}".format(iinfo.srcfp,band))
+                        return 1
+                    band_corrected[~nodata_mask] = numpy.subtract(band_array[~nodata_mask],band_median)
+                else:
+                    logger.warning("Band {} has no valid data".format(band))
+                out_band = out_ds.GetRasterBand(band)
+                out_band.WriteArray(band_corrected)
+                out_band.SetNoDataValue(out_nodataval)
+
+            else:
+                logger.error("BandSubtractMedian(): iinfo.median[{}] is None, image {}".format(band,iinfo.srcfp))
+                return 1
+        ds = None
+        out_ds = None
+
+    # ## redo pyramids -- WHY?
+    # cmd = 'gdaladdo "%s" 2 4 8 16' %(srcfp)
+    # taskhandler.exec_cmd(cmd)
+
+    else:
+        logger.info("BandSubtractMedian(): {} exists".format(dstfp))
+
+    return 0
 
 
 if __name__ == '__main__':

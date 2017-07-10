@@ -112,6 +112,7 @@ class TestMosaicImageInfo(unittest.TestCase):
         for i in range(len(image_info.stat_dct[1])):
             self.assertTrue(math.isnan(image_info.stat_dct[1][i]))
         self.assertEqual(image_info.datapixelcount_dct, datapixelcount_dct)
+        self.assertTrue(math.isnan(image_info.median[1]))
              
     def test_image_info_wv02_ndvi_int16(self):
         srcdir = os.path.join(os.path.join(test_dir,'mosaic','pansh_ndvi'))
