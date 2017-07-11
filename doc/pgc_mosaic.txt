@@ -74,7 +74,7 @@ mosaicname:
 	create shp of all component images as well as cutline shp
 	
 --cutline-step CUTLINE_STEP
-    cutline calculator pixel skip interval (default=4)
+    cutline calculator pixel skip interval (default=2)
 
 --calc-stats
     calculate image stats and record them in the index

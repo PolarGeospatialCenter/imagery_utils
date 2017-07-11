@@ -56,8 +56,8 @@ def main():
                         help="scratch space (default is mosaic directory)")
     parser.add_argument("--component-shp", action="store_true", default=False,
                         help="create shp of all componenet images")
-    parser.add_argument("--cutline-step", type=int, default=4,
-                       help="cutline calculator pixel skip interval (default=4)")
+    parser.add_argument("--cutline-step", type=int, default=2,
+                       help="cutline calculator pixel skip interval (default=2)")
     parser.add_argument("--calc-stats", action="store_true", default=False,
                        help="calculate image stats and record them in the index")
     parser.add_argument("--gtiff-compression", choices=mosaic.GTIFF_COMPRESSIONS, default="lzw",
