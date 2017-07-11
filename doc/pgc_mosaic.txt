@@ -17,7 +17,7 @@ pgc_mosaic.py [-h] [-r RESOLUTION RESOLUTION]
 DESCRIPTION
 -----------
 
-The pgc_mosaic utility runs mosaic tasks pr submits them to an HPC cluster.  This script invokes pgc_mosaic_build_tile.py and pgc_mosaic_build_cutlines.py.
+The pgc_mosaic utility runs mosaic tasks pr submits them to an HPC cluster.  This script invokes pgc_mosaic_build_tile.py.  Use the --pbs or --slurm options to submit the job to an HPC system.  You may need to modify the applicable submission file.  Use the --parallel-processes option to leverage multi-processing either within or without an HPC job.
 
 src:
 	text file or directory of input rasters.  Only tif images are considered for inclusion.
@@ -58,8 +58,8 @@ mosaicname:
 --max-cc MAX_CC
 	maximum fractional cloud cover (0.0-1.0, default 0.5)
 
---include-all-ms
-	include all multispectral imagery when querying a footprint, even if the imagery has differing numbers of bands
+--min-contribution-area MIN_CONTRIBUTION_AREA
+    minimum area contribution threshold in target projection units (default=20000000). Higher values remove more image slivers from the resulting mosaic
 
 --median-remove
 	subtract the median from each input image before forming the mosaic in order to correct for contrast
@@ -72,6 +72,12 @@ mosaicname:
 
 --component-shp:
 	create shp of all component images as well as cutline shp
+	
+--cutline-step CUTLINE_STEP
+    cutline calculator pixel skip interval (default=4)
+
+--calc-stats
+    calculate image stats and record them in the index
 	
 --gtiff-compression {jpeg95,lzw}:
 	GTiff compression type (default=lzw). JPEG95 is jpeg compression at 95%.
@@ -119,14 +125,14 @@ The user has the option to exclude images with high exposure settings (--use-exp
 For panchromatic images, the pan TDI is used.  For multispectral images, the green band TDI is used.  Sensor-band threshold values were derived empirically:
 
 Sensor		Band	Threshold Value
-WorldView-1	Pan	1400
-WorldView-2	Pan	1400
+WorldView-1	Pan		1400
+WorldView-2	Pan		1400
 WorldView-2	Green	400
-WorldView-3	Pan	1400
+WorldView-3	Pan		1400
 WorldView-3	Green	400
-Quickbird	Pan	500
+Quickbird	Pan		500
 Quickbird	Green	25
-Geoeye-1	Pan	None
+Geoeye-1	Pan		None
 Geoeye-1	Green	170
 
 
