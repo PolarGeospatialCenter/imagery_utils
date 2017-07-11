@@ -579,12 +579,15 @@ class ImageInfo:
                         logger.debug("Calculating band {} stdev".format(bandnum))
                         band_std = numpy.std(band_valid,dtype=numpy.float64)
                         stats = numpy.array([band_min,band_max,band_mean,band_std],numpy.float64)
+                        logger.info("band {} min {}, max {}, mean {}, stdev {}".format(
+                            bandnum,band_min,band_max,band_mean,band_std
+                        ))
                                
                     if get_median:
                         logger.debug("Calculating band {} median".format(bandnum))
                         band_median = numpy.float64(numpy.median(band_valid))
-                                    
-                logger.info("band {} median {}".format(bandnum,band_median))    
+                        logger.info("band {} median {}".format(bandnum,band_median))                
+                
                 self.median[bandnum] = band_median
                 self.stat_dct[bandnum] = stats
                 
@@ -596,13 +599,12 @@ class ImageInfo:
 
         else:
             logger.warning("Cannot open image: %s" %self.srcfp)
+  
             
     def set_raster_median(self, median):
         self.median = median
         
         
-
-
 class DemInfo:
     def __init__(self,src,frmt,srs=None):
         

@@ -413,7 +413,6 @@ def run_mosaic(tile_builder_script, inpath, mosaicname, mosaic_dir, args, pos_ar
     if args.mode == "ALL" or args.mode == "SHP":
         build_tiles_shp(mosaicname, tiles, params)
        
-   
     ## Build tile tasks
     task_queue = []
             
@@ -448,19 +447,21 @@ def run_mosaic(tile_builder_script, inpath, mosaicname, mosaic_dir, args, pos_ar
         logger.debug("Running intersect with imagery")       
         
         intersects = []
-        for iinfo in imginfo_list4:
-            if args.median_remove:
-                ## parse median dct into text
-                median_string = ";".join(["{}:{}".format(k,v) for k,v in iinfo.median.iteritems()])
-                intersects.append("{},{}".format(iinfo.srcfp, median_string))
-            else:
-                intersects.append(iinfo.srcfp)
+        for iinfo, contrib_geom in contribs:
+            if contrib_geom.Intersects(t.geom):
+                if args.median_remove:
+                    ## parse median dct into text
+                    median_string = ";".join(["{}:{}".format(k,v) for k,v in iinfo.median.iteritems()])
+                    intersects.append("{},{}".format(iinfo.srcfp, median_string))
+                else:
+                    intersects.append(iinfo.srcfp)
                                 
         ####  If any images are in the tile, mosaic them
-        ## TODO: add median to intersects file if calculated
         if len(intersects) > 0:
             
+                        
             tile_basename = os.path.basename(os.path.splitext(t.name)[0])                                    
+            logger.info("Number of contributors to subtile {}: {}".format(tile_basename,len(intersects)))
             itpath = os.path.join(mosaic_dir,tile_basename+"_intersects.txt")
             it = open(itpath,"w")
             it.write(string.join(intersects,"\n"))
@@ -639,11 +640,9 @@ def build_shp(contribs, shp, args, params):
             median_list = []
             keys = iinfo.median.keys()
             keys.sort()
-            for band in keys:
-                band_median = iinfo.median[band]
-                median_list.append(str(band_median))
+            median_list = [str(iinfo.median[band]) for band in keys]
             feat.SetField("MEDIAN", ",".join(median_list))
-            logger.info("median = {}".format(",".join(median_list)))
+            #logger.info("median = {}".format(",".join(median_list)))
             
         feat.SetGeometry(geom)
         

@@ -51,14 +51,30 @@ class TestMosaicFunc(unittest.TestCase):
         self.assertTrue(os.path.isfile(mosaicname + '_cutlines.shp'))
         self.assertTrue(os.path.isfile(mosaicname + '_components.shp'))
         self.assertTrue(os.path.isfile(mosaicname + '_tiles.shp'))
+        
+        ## test if intersects files have correct number of files
+        intersects_files = {
+            mosaicname+'_1_1_intersects.txt':2,
+            mosaicname+'_2_1_intersects.txt':3,
+            mosaicname+'_1_2_intersects.txt':2,
+            mosaicname+'_2_2_intersects.txt':2,
+        }
+        
+        for f,cnt in intersects_files.iteritems():
+            fh = open(f)
+            lines = fh.readlines()
+            self.assertEqual(len(lines),cnt)
+            
+        ## TODO test if culines does not have stats and median
+            
     
     #@unittest.skip("skipping")
-    def test_bgrn_mosaic(self):   
+    def test_bgrn_mosaic_with_stats(self):   
         # extent = -3260000, -3240000, 520000, 540000
         # tilesize = 10000, 10000
         # bands = 4
         mosaicname = os.path.join(self.dstdir, 'testmosaic2')
-        args = '--component-shp -e -3260000 -3240000 520000 540000 -t 10000 10000 -b 4'
+        args = '--component-shp -e -3260000 -3240000 520000 540000 -t 10000 10000 -b 4 --calc-stats --median-remove'
         cmd = 'python {} {} {} {}'.format(
             self.scriptpath,
             self.srcdir,
@@ -77,6 +93,8 @@ class TestMosaicFunc(unittest.TestCase):
         self.assertTrue(os.path.isfile(mosaicname + '_cutlines.shp'))
         self.assertTrue(os.path.isfile(mosaicname + '_components.shp'))
         self.assertTrue(os.path.isfile(mosaicname + '_tiles.shp'))
+        
+        ## TODO test if culines has stats and median
     
     #@unittest.skip("skipping")    
     def test_ndvi_pansh_mosaic(self):   
@@ -105,8 +123,37 @@ class TestMosaicFunc(unittest.TestCase):
         self.assertTrue(os.path.isfile(mosaicname + '_components.shp'))
         self.assertTrue(os.path.isfile(mosaicname + '_tiles.shp'))
         
-    def tearDown(self):
-        shutil.rmtree(self.dstdir)
+    
+    #@unittest.skip("skipping")    
+    def test_ndvi_pansh_mosaic_with_stats(self):   
+        # extent = -3260000, -3240000, 520000, 540000
+        # tilesize = 10000, 10000
+        # bands = 1
+        srcdir = os.path.join(os.path.join(test_dir,'mosaic','pansh_ndvi'))
+        mosaicname = os.path.join(self.dstdir, 'testmosaic4')
+        args = '--component-shp -e -3260000 -3240000 520000 540000 -t 10000 10000 -b 1 --calc-stats --median-remove'
+        cmd = 'python {} {} {} {}'.format(
+            self.scriptpath,
+            srcdir,
+            mosaicname,
+            args
+        )
+        p = subprocess.Popen(cmd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell=True)
+        se,so = p.communicate()
+        # print so
+        # print se
+        
+        self.assertTrue(os.path.isfile(mosaicname + '_1_1.tif'))
+        self.assertTrue(os.path.isfile(mosaicname + '_1_2.tif'))
+        self.assertTrue(os.path.isfile(mosaicname + '_2_1.tif'))
+        self.assertTrue(os.path.isfile(mosaicname + '_2_2.tif'))
+        self.assertTrue(os.path.isfile(mosaicname + '_cutlines.shp'))
+        self.assertTrue(os.path.isfile(mosaicname + '_components.shp'))
+        self.assertTrue(os.path.isfile(mosaicname + '_tiles.shp'))
+        
+        
+    # def tearDown(self):
+    #     shutil.rmtree(self.dstdir)
         
     
     ## test_mosaic_pbs

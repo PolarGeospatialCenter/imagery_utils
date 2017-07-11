@@ -4,7 +4,7 @@
 #SBATCH -N 1
 
 # number of cpus per task
-#SBATCH -c 4
+#SBATCH -c 32
 
 # job log path
 #SBATCH -o slurm.%N.%j.out
