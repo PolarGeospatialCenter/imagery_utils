@@ -180,14 +180,9 @@ def main():
             
         else:
             try:
-                task_handler = taskhandler.ParallelTaskHandler(args.parallel_processes)
+                run_mosaic(tile_builder_script, inpath, mosaicname, mosaic_dir, args, pos_arg_keys)
             except RuntimeError, e:
                 logger.error(e)
-            else:
-                try:
-                    run_mosaic(tile_builder_script, inpath, mosaicname, mosaic_dir, args, pos_arg_keys)
-                except RuntimeError, e:
-                    logger.error(e)
             
         
     else:
