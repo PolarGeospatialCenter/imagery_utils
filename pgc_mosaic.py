@@ -159,10 +159,7 @@ def main():
     #logger.info(task_queue)
     if len(task_queue) > 0:
         if args.pbs:
-            if args.l:
-                l = "-l {}".format(args.l)
-            else:
-                l = ""
+            l = "-l {}".format(args.l) if args.l else ""
             try:
                 task_handler = taskhandler.PBSTaskHandler(qsubpath, l)
             except RuntimeError, e:
@@ -186,7 +183,7 @@ def main():
             
         
     else:
-        print("No tasks to process")
+        logger.info("No tasks to process")
         
 
 def run_mosaic(tile_builder_script, inpath, mosaicname, mosaic_dir, args, pos_arg_keys):

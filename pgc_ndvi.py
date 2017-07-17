@@ -124,10 +124,7 @@ def main():
     if len(task_queue) > 0:
         logger.info("Submitting Tasks")
         if args.pbs:
-            if args.l:
-                l = "-l {}".format(args.l)
-            else:
-                l = ""
+            l = "-l {}".format(args.l) if args.l else ""
             try:
                 task_handler = taskhandler.PBSTaskHandler(qsubpath, l)
             except RuntimeError, e:
