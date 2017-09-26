@@ -407,4 +407,18 @@ def getIKMetadataAsXml(metafile):
     return ET.ElementTree(root)
 
 
+def get_source_names(src_fp):
+    """Get the source footprint name and layer name, if provided"""
+
+    if src_fp.lower().endswith(".shp"):
+        src_dsp = src_fp
+        src_lyr = os.path.splitext(os.path.basename(src_fp))[0]
+    elif ".gdb" in src_fp.lower() and not src_fp.lower().endswith(".gdb"):
+        src_dsp, src_lyr = re.split(r"(?<=\.gdb)/", src_fp, re.I)
+    else:
+        msg = "The source {} does not appear to be a shapefile or File GDB".format(src_fp)
+        raise RuntimeError(msg)
+
+    return (src_dsp, src_lyr)
+
 

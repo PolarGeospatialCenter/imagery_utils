@@ -59,25 +59,37 @@ class ImageInfo:
      
         
     def get_attributes_from_record(self, feat, srs):
-                
-        i = feat.GetFieldIndex("S_FILEPATH")
-        if i == -1:
-            i = feat.GetFieldIndex("O_FILEPATH")
-        elif len(feat.GetFieldAsString(i)) == 0:
-            i = feat.GetFieldIndex("O_FILEPATH")
-        path = feat.GetFieldAsString(i)
         
-        if len(path) > 1:
-            if r"V:/pgc/agic/private" in path:
-                srcfp = path.replace(r"V:/pgc",r'/mnt/agic/storage00')
-            elif r"/pgc/agic/private" in path:
-                srcfp = path.replace(r"/pgc",r'/mnt/agic/storage00')
-            elif r"V:/pgc/data" in path:
-                srcfp = path.replace(r"V:/pgc/data",r'/mnt/pgc/data')
-            elif r"/pgc/data" in path:
-                srcfp = path.replace(r"/pgc/data",r'/mnt/pgc/data')
-            else:
-                srcfp = path
+        i = feat.GetFieldIndex("S_FILEPATH")
+        if i <> -1:
+            spath = feat.GetFieldAsString(i)
+        else:
+            logger.error("S_FILEPATH fields does not exist in record")
+            spath = None
+            
+        i = feat.GetFieldIndex("O_FILEPATH")
+        if i <> -1:
+            opath = feat.GetFieldAsString(i)
+        else:
+            logger.error("O_FILEPATH fields does not exist in record")
+            opath = None
+        
+        if spath and len(spath) > 1:
+            path = spath
+        elif opath and len(opath) > 1:
+            path = opath
+        else: path = ""
+        
+        if r"V:/pgc/agic/private" in path:
+            srcfp = path.replace(r"V:/pgc",r'/mnt/agic/storage00')
+        elif r"/pgc/agic/private" in path:
+            srcfp = path.replace(r"/pgc",r'/mnt/agic/storage00')
+        elif r"V:/pgc/data" in path:
+            srcfp = path.replace(r"V:/pgc/data",r'/mnt/pgc/data')
+        elif r"/pgc/data" in path:
+            srcfp = path.replace(r"/pgc/data",r'/mnt/pgc/data')
+        else:
+            srcfp = path
             
         self.srcfp = srcfp
         self.srcdir, self.srcfn = os.path.split(srcfp)
@@ -136,7 +148,7 @@ class ImageInfo:
                     if 'BAND_G' in item:
                         self.tdi = int(item[7:])
                 except ValueError, e:
-                    pass                
+                    logger.error("cannot parse TDI field for {}: {}".format(self.scene_id,tdi_str))
         
         i = feat.GetFieldIndex("ACQ_TIME")
         if i != -1:
@@ -443,7 +455,7 @@ class ImageInfo:
             #### Test if TDI is needed, get exposure factor
             if params.useExposure is True:
                 if self.tdi is None:
-                    logger.error("Cannot get tdi for image to determine exposure settings: {0}".format(self.srcfn))
+                    logger.error("Cannot get tdi for image to determine exposure settings: {0}".format(self.srcfp))
                     self.exposure_factor = None
                 else:
                     exfact = self.tdi * self.sunel

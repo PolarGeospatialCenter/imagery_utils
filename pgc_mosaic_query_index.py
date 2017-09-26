@@ -19,6 +19,7 @@ def main():
     parser.add_argument("index", help="PGC index shapefile")
     parser.add_argument("tile_csv", help="tile schema csv")
     parser.add_argument("dstdir", help="textfile output directory")
+    parser.add_argument("mosaic", help="mosaic name without extension")
     #pos_arg_keys = ["index","tile_csv","dstdir"]
     
     parser.add_argument("-e", "--extent", nargs=4, type=float,
@@ -35,8 +36,8 @@ def main():
                         help="use exposure settings in metadata to inform score")
     parser.add_argument("--exclude",
                         help="file of file name patterns (text only, no wildcards or regexs) to exclude")
-    parser.add_argument("--max-cc", type=float, default=0.5,
-                        help="maximum fractional cloud cover (0.0-1.0, default 0.5)")
+    parser.add_argument("--max-cc", type=float, default=0.2,
+                        help="maximum fractional cloud cover (0.0-1.0, default 0.2)")
     parser.add_argument("--include-all-ms", action="store_true", default=False,
                         help="include all multispectral imagery, even if the imagery has differing numbers of bands")
     parser.add_argument("--min-contribution-area", type=int, default=20000000,
@@ -51,8 +52,6 @@ def main():
                       help="stretch abbreviation used in image processing (default=rf)")
     parser.add_argument("--build-shp", action='store_true', default=False,
                       help="build shapefile of intersecting images (only invoked if --no_sort is not used)")
-    parser.add_argument("--online-only", action='store_true', default=False,
-                      help="limit search to those records where status = online and image is found on the file system")
     parser.add_argument("--require-pan", action='store_true', default=False,
                       help="limit search to imagery with both a multispectral and a panchromatic component")
  
@@ -60,13 +59,15 @@ def main():
     args = parser.parse_args()
     scriptpath = os.path.abspath(sys.argv[0])
 
-    shp = os.path.abspath(args.index)
+    src = os.path.abspath(args.index)
     csvpath = os.path.abspath(args.tile_csv)
     dstdir = os.path.abspath(args.dstdir)
     
     #### Validate Required Arguments
-    if not os.path.isfile(shp):
-        parser.error("Arg1 is not a valid file path: %s" %shp)
+    try:
+        dsp, lyrn = utils.get_source_names(src)
+    except RuntimeError, e:
+        parser.error(e)
     if not os.path.isfile(csvpath):
         parser.error("Arg2 is not a valid file path: %s" %csvpath)
     
@@ -145,7 +146,10 @@ def main():
                 if t.status == "0":
                     logger.error("Tile status indicates it should not be created: %s, %s" %(ttile,t.status))
                 else:
-                    HandleTile(t,shp,dstdir,csvpath,args,exclude_list)
+                    try:
+                        HandleTile(t,src,dstdir,csvpath,args,exclude_list)
+                    except RuntimeError,e:
+                        logger.error(e)
     
     else:
         keys = tiles.keys()
@@ -153,10 +157,13 @@ def main():
         for tile in keys:
             t = tiles[tile]
             if t.status == "1":
-                HandleTile(t,shp,dstdir,csvpath,args,exclude_list)   
+                try:
+                    HandleTile(t,src,dstdir,csvpath,args,exclude_list)
+                except RuntimeError,e:
+                    logger.error(e)
         
         
-def HandleTile(t,shp,dstdir,csvpath,args,exclude_list):
+def HandleTile(t,src,dstdir,csvpath,args,exclude_list):
     
     
     otxtpath = os.path.join(dstdir,"%s_%s_orig.txt" %(os.path.basename(csvpath)[:-4],t.name))
@@ -165,92 +172,94 @@ def HandleTile(t,shp,dstdir,csvpath,args,exclude_list):
     if os.path.isfile(otxtpath) and os.path.isfile(mtxtpath) and args.overwrite is False:
         logger.info("Tile %s processing files already exist" %t.name)
     else:
-        logger.debug("Tile %s" %(t.name))
+        logger.info("Tile %s" %(t.name))
     
         t_srs = osr.SpatialReference()
         t_srs.ImportFromEPSG(t.epsg)
         
-        #### Open Shp
-        shpd, shpn = os.path.split(shp)
-        shpbn, shpe = os.path.splitext(shpn)
+        #### Open mfp
+        dsp, lyrn = utils.get_source_names(src)
         
-        ds = ogr.Open(shp)
+        ds = ogr.Open(dsp)
         if ds is None:
-            logger.warning("Open failed")
+            logger.error("Open failed")
             
         else:
-            lyr = ds.GetLayerByName( shpbn )
+            lyr = ds.GetLayerByName( lyrn )
             
-            #### attribute filter for online images
-            if args.online_only:
-                lyr.SetAttributeFilter('STATUS = "online"')
-            
-            s_srs = lyr.GetSpatialRef()
-            #logger.debug(str(s_srs))
-            logger.debug(str(t.geom))
-        
-            if not t_srs.IsSame(s_srs):
-                ict = osr.CoordinateTransformation(t_srs, s_srs)
-                ct = osr.CoordinateTransformation(s_srs, t_srs)
-            
-            lyr.ResetReading()
-            feat = lyr.GetNextFeature()
-            
-            imginfo_list1 = []
-            
-            while feat:
+            if not lyr:
+                raise RuntimeError("Layer {} does not exist in dataset {}".format(lyrn, dsp))
+            else:
+
+                s_srs = lyr.GetSpatialRef()
+                #logger.debug(str(s_srs))
+                #logger.debug(str(t.geom))
                 
-                iinfo = mosaic.ImageInfo(feat,"RECORD",srs=s_srs)
+                tile_geom_in_s_srs = t.geom.Clone()
+                if not t_srs.IsSame(s_srs):
+                    ict = osr.CoordinateTransformation(t_srs, s_srs)
+                    ct = osr.CoordinateTransformation(s_srs, t_srs)
+                    tile_geom_in_s_srs.Transform(ict)
                 
-                if iinfo.geom is not None and (iinfo.geom.GetGeometryType() == ogr.wkbPolygon or iinfo.geom.GetGeometryType() == ogr.wkbMultiPolygon):
-                    if not t_srs.IsSame(s_srs):
-                        iinfo.geom.Transform(ct)
-                        ## fix self-intersection errors caused by reprojecting over 180
-                        temp = iinfo.geom.Buffer(0.1) # assumes a projected coordinate system with meters or feet as units
-                        iinfo.geom = temp
-                    
-                    if iinfo.geom.Intersects(t.geom):
-                        
-                        if iinfo.scene_id in exclude_list:
-                            logger.debug("Scene in exclude list, excluding: %s" %iinfo.srcfp)
-                            
-                        elif args.online_only and not os.path.isfile(iinfo.srcfp):
-                            logger.warning("Scene does not exist, excluding: {0}".format(iinfo.srcfp))
-                        elif args.require_pan:
-                            srcfp = iinfo.srcfp
-                            srcdir, mul_name = os.path.split(srcfp)
-                            if iinfo.sensor in ["WV02","WV03","QB02"]:
-                                 pan_name = mul_name.replace("-M","-P")
-                            elif iinfo.sensor == "GE01":
-                                 if "_5V" in mul_name:
-                                      pan_name_base = srcfp[:-24].replace("M0","P0")
-                                      candidates = glob.glob(pan_name_base + "*")
-                                      candidates2 = [f for f in candidates if f.endswith(('.ntf','.NTF','.tif','.TIF'))]
-                                      if len(candidates2) == 0:
-                                          pan_name = ''
-                                      elif len(candidates2) == 1:
-                                          pan_name = os.path.basename(candidates2[0])
-                                      else:
-                                          pan_name = ''
-                                          logger.error('{} panchromatic images match the multispectral image name {}'.format(len(candidates2),mul_name))
-                                 else:
-                                      pan_name = mul_name.replace("-M","-P")
-                            elif sensor == "IK01":
-                                 pan_name = mul_name.replace("blu","pan")
-                                 pan_name = mul_name.replace("msi","pan")
-                                 pan_name = mul_name.replace("bgrn","pan")    
-                            pan_srcfp = os.path.join(srcdir,pan_name)
-                            if not os.path.isfile(pan_srcfp):
-                                 logger.debug("Image does not have a panchromatic component, excluding: %s" %iinfo.srcfp)
-                            else:
-                                 logger.debug( "Intersect %s, %s: %s" %(iinfo.scene_id, iinfo.srcfp, str(iinfo.geom)))
-                                 imginfo_list1.append(iinfo)
-                            
-                        else:
-                            logger.debug( "Intersect %s, %s: %s" %(iinfo.scene_id, iinfo.srcfp, str(iinfo.geom)))
-                            imginfo_list1.append(iinfo)                                
-                            
+                lyr.ResetReading()
+                lyr.SetSpatialFilter(tile_geom_in_s_srs)
                 feat = lyr.GetNextFeature()
+                
+                imginfo_list1 = []
+                
+                while feat:
+                    
+                    iinfo = mosaic.ImageInfo(feat,"RECORD",srs=s_srs)
+                    
+                    if iinfo.geom is not None and iinfo.geom.GetGeometryType() in (ogr.wkbPolygon,ogr.wkbMultiPolygon):
+                        if not t_srs.IsSame(s_srs):
+                            iinfo.geom.Transform(ct)
+                            ## fix self-intersection errors caused by reprojecting over 180
+                            temp = iinfo.geom.Buffer(0.1) # assumes a projected coordinate system with meters or feet as units
+                            iinfo.geom = temp
+                        
+                        if iinfo.geom.Intersects(t.geom):
+                            
+                            if iinfo.scene_id in exclude_list:
+                                logger.debug("Scene in exclude list, excluding: %s" %iinfo.srcfp)
+                                
+                            elif not os.path.isfile(iinfo.srcfp):
+                                logger.warning("Scene path is invalid, excluding {} (path = {})".format(iinfo.scene_id,iinfo.srcfp))
+                            elif args.require_pan:
+                                srcfp = iinfo.srcfp
+                                srcdir, mul_name = os.path.split(srcfp)
+                                if iinfo.sensor in ["WV02","WV03","QB02"]:
+                                     pan_name = mul_name.replace("-M","-P")
+                                elif iinfo.sensor == "GE01":
+                                     if "_5V" in mul_name:
+                                          pan_name_base = srcfp[:-24].replace("M0","P0")
+                                          candidates = glob.glob(pan_name_base + "*")
+                                          candidates2 = [f for f in candidates if f.endswith(('.ntf','.NTF','.tif','.TIF'))]
+                                          if len(candidates2) == 0:
+                                              pan_name = ''
+                                          elif len(candidates2) == 1:
+                                              pan_name = os.path.basename(candidates2[0])
+                                          else:
+                                              pan_name = ''
+                                              logger.error('{} panchromatic images match the multispectral image name {}'.format(len(candidates2),mul_name))
+                                     else:
+                                          pan_name = mul_name.replace("-M","-P")
+                                elif sensor == "IK01":
+                                     pan_name = mul_name.replace("blu","pan")
+                                     pan_name = mul_name.replace("msi","pan")
+                                     pan_name = mul_name.replace("bgrn","pan")    
+                                pan_srcfp = os.path.join(srcdir,pan_name)
+                                if not os.path.isfile(pan_srcfp):
+                                     logger.debug("Image does not have a panchromatic component, excluding: %s" %iinfo.srcfp)
+                                else:
+                                     logger.debug( "Intersect %s, %s: %s" %(iinfo.scene_id, iinfo.srcfp, str(iinfo.geom)))
+                                     imginfo_list1.append(iinfo)
+                                
+                            else:
+                                logger.debug( "Intersect %s, %s: %s" %(iinfo.scene_id, iinfo.srcfp, str(iinfo.geom)))
+                                imginfo_list1.append(iinfo)                                
+                                
+                    feat = lyr.GetNextFeature()
             
             ds = None
         
@@ -297,7 +306,7 @@ def HandleTile(t,shp,dstdir,csvpath,args,exclude_list):
                         #######################################################
                         #### Create Shp
                         
-                        shp = os.path.join(dstdir,"%s_%s_imagery.shp" %(os.path.basename(csvpath)[:-4],t.name))
+                        shp = os.path.join(dstdir,"%s_%s_imagery.shp" %(args.mosaic,t.name))
                    
                         logger.debug("Creating shapefile of geoms: %s" %shp)
                     
@@ -354,8 +363,8 @@ def HandleTile(t,shp,dstdir,csvpath,args,exclude_list):
                     if not os.path.isdir(dstdir):
                         os.makedirs(dstdir)
                     
-                    otxtpath = os.path.join(dstdir,"%s_%s_orig.txt" %(os.path.basename(csvpath)[:-4],t.name))
-                    mtxtpath = os.path.join(dstdir,"%s_%s_ortho.txt" %(os.path.basename(csvpath)[:-4],t.name))
+                    otxtpath = os.path.join(dstdir,"%s_%s_orig.txt" %(args.mosaic,t.name))
+                    mtxtpath = os.path.join(dstdir,"%s_%s_ortho.txt" %(args.mosaic,t.name))
                     otxt = open(otxtpath,'w')
                     mtxt = open(mtxtpath,'w')
                     
@@ -371,7 +380,7 @@ def HandleTile(t,shp,dstdir,csvpath,args,exclude_list):
                             t.epsg
                         )
                         
-                        mtxt.write(os.path.join(dstdir,'orthos',t.name,m_fn)+"\n")
+                        mtxt.write(os.path.join(dstdir,'ortho',t.name,m_fn)+"\n")
  
                     otxt.close()
 

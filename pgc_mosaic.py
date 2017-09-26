@@ -42,7 +42,7 @@ def main():
                         help="use exposure settings in metadata to inform score")
     parser.add_argument("--exclude",
                         help="file of file name patterns (text only, no wildcards or regexs) to exclude")
-    parser.add_argument("--max-cc", type=float, default=0.5,
+    parser.add_argument("--max-cc", type=float, default=0.2,
                         help="maximum fractional cloud cover (0.0-1.0, default 0.5)")
     parser.add_argument("--include-all-ms", action="store_true", default=False,
                         help="include all multispectral imagery, even if the imagery has differing numbers of bands")
