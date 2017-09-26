@@ -145,7 +145,6 @@ def main():
         inpath,
         mosaicname
     )
-    print(cmd) 
     
     task = taskhandler.Task(
         'Mosaic {}'.format(os.path.basename(mosaicname)),
