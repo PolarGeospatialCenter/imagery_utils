@@ -8,7 +8,7 @@ pgc_mosaic_query_index.py [-h] [-r RESOLUTION RESOLUTION]
 	[--use_exposure] [--exclude EXCLUDE]
 	[--log LOG] [--ttile TTILE] [--overwrite]
 	[--stretch STRETCH] [-d]
-	index tile_csv dstdir
+	index tile_csv dstdir mosaic
 
 
 DESCRIPTION
@@ -24,6 +24,9 @@ tile_csv:
 	
 dstdir:
 	output directory for generated textfiles and shp
+	
+mosaic:
+	mosaic name without extension
 
 -h, --help:
 	show this help message and exit
