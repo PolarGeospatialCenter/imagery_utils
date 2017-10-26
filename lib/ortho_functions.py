@@ -232,7 +232,7 @@ def process_image(srcfp,dstfp,args,target_extent_geom=None):
         info, rc = GetImageStats(args,info,target_extent_geom)
         if rc == 1:
             err = 1
-            logger.errpr("Error in stats calculation")
+            logger.error("Error in stats calculation")
 
     #### Check that DEM overlaps image
     if not err == 1:
