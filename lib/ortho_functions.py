@@ -141,11 +141,14 @@ def process_image(srcfp,dstfp,args,target_extent_geom=None):
     logger.info("Working Dir: %s" %wd)
 
     #### Derive names
-    info.localsrc = os.path.join(wd,info.srcfn)
+    if args.wd:
+        info.localsrc = os.path.join(wd,info.srcfn)
+    else:
+        info.localsrc = info.srcfp
     info.localdst = os.path.join(wd,info.dstfn)
-    info.rawvrt = os.path.splitext(info.localsrc)[0] + "_raw.vrt"
-    info.warpfile = os.path.splitext(info.localsrc)[0] + "_warp.tif"
-    info.vrtfile = os.path.splitext(info.localsrc)[0] + "_vrt.vrt"
+    info.rawvrt = os.path.splitext(info.localdst)[0] + "_raw.vrt"
+    info.warpfile = os.path.splitext(info.localdst)[0] + "_warp.tif"
+    info.vrtfile = os.path.splitext(info.localdst)[0] + "_vrt.vrt"
 
     #### Verify EPSG
     try:
@@ -194,6 +197,7 @@ def process_image(srcfp,dstfp,args,target_extent_geom=None):
     #### Check If Image is IKONOS msi that does not exist, if so, stack to dstdir, else, copy srcfn to dstdir
     if not err == 1:
         if "IK01" in info.srcfn and "msi" in info.srcfn and not os.path.isfile(info.srcfp):
+            info.localsrc = os.path.join(wd,info.srcfn)
             logger.info("Converting IKONOS band images to composite image")
             members = [os.path.join(info.srcdir,info.srcfn.replace("msi",b)) for b in ikMsiBands]
             status = [os.path.isfile(member) for member in members]
@@ -208,7 +212,7 @@ def process_image(srcfp,dstfp,args,target_extent_geom=None):
                     logger.error("Error building merged Ikonos image: %s" %info.srcfp)
                     err = 1
 
-        else:
+        elif args.wd:
             if os.path.isfile(info.srcfp):
                 logger.info("Copying image to working directory")
                 copy_list = glob.glob("%s.*" %os.path.splitext(info.srcfp)[0])
@@ -279,10 +283,16 @@ def process_image(srcfp,dstfp,args,target_extent_geom=None):
     if err == 1:
         logger.error("Processing failed: %s" %info.srcfn)
         if not args.save_temps:
-            utils.delete_temp_files([dstfp,info.rawvrt,info.warpfile,info.vrtfile,info.localsrc])
+            if args.wd:
+                utils.delete_temp_files([info.dstfp,info.rawvrt,info.warpfile,info.vrtfile,info.localsrc])
+            else:
+                utils.delete_temp_files([info.dstfp,info.rawvrt,info.warpfile,info.vrtfile])
 
     elif not args.save_temps:
-        utils.delete_temp_files([info.rawvrt,info.warpfile,info.vrtfile,info.localsrc])
+        if args.wd:
+            utils.delete_temp_files([info.rawvrt,info.warpfile,info.vrtfile,info.localsrc])
+        else:
+            utils.delete_temp_files([info.rawvrt,info.warpfile,info.vrtfile])
 
     #### Calculate Total Time
     endtime = datetime.today()
