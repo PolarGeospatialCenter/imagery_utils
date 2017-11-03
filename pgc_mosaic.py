@@ -1,5 +1,5 @@
 import os, string, sys, shutil, glob, re, tarfile, logging, argparse, subprocess, math
-from datetime import datetime, timedelta
+from datetime import datetime, date, timedelta
 from xml.etree import cElementTree as ET
 import gdal, ogr, osr, gdalconst
 import numpy
