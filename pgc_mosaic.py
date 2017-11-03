@@ -216,7 +216,7 @@ def run_mosaic(tile_builder_script, inpath, mosaicname, mosaic_dir, args, pos_ar
     #### Get exclude list if specified
     if args.exclude is not None:
         if not os.path.isfile(args.exclude):
-            parser.error("Value for option --exclude-list is not a valid file")
+            logger.error("Value for option --exclude-list is not a valid file")
         
         f = open(args.exclude, 'r')
         exclude_list = set([line.rstrip() for line in f.readlines()])
