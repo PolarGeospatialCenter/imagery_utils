@@ -244,7 +244,7 @@ def HandleTile(t,src,dstdir,csvpath,args,exclude_list):
                                               logger.error('{} panchromatic images match the multispectral image name {}'.format(len(candidates2),mul_name))
                                      else:
                                           pan_name = mul_name.replace("-M","-P")
-                                elif sensor == "IK01":
+                                elif iinfo.sensor == "IK01":
                                      pan_name = mul_name.replace("blu","pan")
                                      pan_name = mul_name.replace("msi","pan")
                                      pan_name = mul_name.replace("bgrn","pan")    
