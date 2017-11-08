@@ -558,7 +558,7 @@ class ImageInfo:
                         
             if not score == -1:
                 rawscore = ccwt * (1-self.cloudcover) + sunelwt * (self.sunel/90) + onawt * ((90-self.ona)/90.0) + \
-                           datediffwt * ((183 - self.date_diff)/183.0) + yeardiffwt * (1.0 / self.year_diff + 1)
+                           datediffwt * ((183 - self.date_diff)/183.0) + yeardiffwt * (1.0 / (self.year_diff + 1))
                 score = rawscore * self.panfactor  
         
         self.score = score
