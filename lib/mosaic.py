@@ -516,7 +516,32 @@ class ImageInfo:
                 sunelwt = 28
                 onawt = 24
                 datediffwt = 0
-                
+
+            if params.y != 0:
+                if self.acqdate is None:
+                    logger.error("Cannot get acqdate for image to determine date-based score: {0}".format(self.srcfn))
+                    self.year_diff = -9999
+
+                else:
+                    #### find year difference
+                    ydeltas = []
+                    for yr in params.y:
+                        ## if perfect match, no need to check others
+                        if yr == self.acqdate:
+                            ydeltas = [0]
+                            continue
+                        else:
+                            ydeltas.append(abs(yr - self.acqdate))
+
+                    if len(ydeltas) > 1:
+                        self.year_diff = min(ydeltas)
+                    else:
+                        self.year_diff = ydeltas[0]
+
+                #### Assign weight
+                yeardiffwt = 55
+            else:
+                yeardiffwt = 0
                 
             #### Handle nonesense or nodata cloud cover values
             if self.cloudcover < 0 or self.cloudcover > 1:
@@ -532,7 +557,8 @@ class ImageInfo:
                 score = -1
                         
             if not score == -1:
-                rawscore = ccwt * (1-self.cloudcover) + sunelwt * (self.sunel/90) + onawt * ((90-self.ona)/90.0) + datediffwt * ((183 - self.date_diff)/183.0)
+                rawscore = ccwt * (1-self.cloudcover) + sunelwt * (self.sunel/90) + onawt * ((90-self.ona)/90.0) + \
+                           datediffwt * ((183 - self.date_diff)/183.0) + yeardiffwt * (1.0 / self.year_diff + 1)
                 score = rawscore * self.panfactor  
         
         self.score = score
@@ -1017,6 +1043,11 @@ def getMosaicParameters(iinfo,options):
         params.m = 0
         params.d = 0
     
+    if options.tyear is not None:
+        params.y = options.tyear
+    else:
+        params.y = 0
+
     if options.extent is not None: # else set after geoms are collected
         params.xmin = options.extent[0]
         params.ymin = options.extent[2]
