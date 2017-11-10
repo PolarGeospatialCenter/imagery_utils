@@ -541,6 +541,7 @@ class ImageInfo:
                 #### Assign weight
                 yeardiffwt = 55
             else:
+                self.year_diff = -9999
                 yeardiffwt = 0
                 
             #### Handle nonesense or nodata cloud cover values
