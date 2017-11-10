@@ -133,8 +133,6 @@ def main():
             except ValueError:
                 parser.error("Supplied year {0} is not valid".format(args.tyear))
                 sys.exit(1)
-            else:
-                args.tyear = [args.tyear]
 
         elif len(str(args.tyear)) == 9:
             if '-' in args.tyear:
@@ -148,10 +146,9 @@ def main():
                         parser.error("Supplied year {0} in range {1} is not valid".format(yy, args.tyear))
                         sys.exit(1)
 
-                args.tyear = yrs_range
-
             else:
-                parser.error("Supplied year range {0} is not valid; should be like: 2015-2017".format(args.tyear))
+                parser.error("Supplied year range {0} is not valid; should be like: 2015 OR 2015-2017"
+                             .format(args.tyear))
                 sys.exit(1)
 
         else:

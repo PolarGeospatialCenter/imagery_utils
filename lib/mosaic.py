@@ -527,11 +527,11 @@ class ImageInfo:
                     ydeltas = []
                     for yr in params.y:
                         ## if perfect match, no need to check others
-                        if yr == self.acqdate:
+                        if yr == self.acqdate.year:
                             ydeltas = [0]
                             continue
                         else:
-                            ydeltas.append(abs(yr - self.acqdate))
+                            ydeltas.append(abs(yr - self.acqdate.year))
 
                     if len(ydeltas) > 1:
                         self.year_diff = min(ydeltas)
@@ -1044,7 +1044,12 @@ def getMosaicParameters(iinfo,options):
         params.d = 0
     
     if options.tyear is not None:
-        params.y = options.tyear
+        ## build out list of year(s)
+        if len(str(options.tyear)) == 4:
+            params.y = [options.tyear]
+        else:
+            yrs = options.tyear.split('-')
+            params.y = range(int(yrs[0]), int(yrs[1]) + 1)
     else:
         params.y = 0
 
