@@ -42,6 +42,7 @@ class TestMosaicImageInfo(unittest.TestCase):
         self.assertEqual(image_info.panfactor ,1)
         #self.assertEqual(image_info.exposure_factor, 0)
         self.assertEqual(image_info.date_diff, -9999)
+        self.assertEqual(image_info.year_diff, -9999)
         self.assertAlmostEqual(image_info.score, 79.1422222)
         
         image_info.get_raster_stats()
@@ -73,6 +74,7 @@ class TestMosaicImageInfo(unittest.TestCase):
         self.assertEqual(image_info.panfactor ,1)
         #self.assertEqual(image_info.exposure_factor, 0)
         self.assertEqual(image_info.date_diff, -9999)
+        self.assertEqual(image_info.year_diff, -9999)
         self.assertAlmostEqual(image_info.score, 79.2)
         
         image_info.get_raster_stats()
@@ -105,6 +107,7 @@ class TestMosaicImageInfo(unittest.TestCase):
         self.assertEqual(image_info.panfactor ,1)
         #self.assertEqual(image_info.exposure_factor, 0)
         self.assertEqual(image_info.date_diff, -9999)
+        self.assertEqual(image_info.year_diff, -9999)
         self.assertAlmostEqual(image_info.score, 78.555555555)
         
         image_info.get_raster_stats()
@@ -137,6 +140,7 @@ class TestMosaicImageInfo(unittest.TestCase):
         self.assertEqual(image_info.panfactor ,1)
         #self.assertEqual(image_info.exposure_factor, 0)
         self.assertEqual(image_info.date_diff, -9999)
+        self.assertEqual(image_info.year_diff, -9999)
         self.assertAlmostEqual(image_info.score, 78.555555555)
         
         image_info.get_raster_stats()
@@ -169,6 +173,7 @@ class TestMosaicImageInfo(unittest.TestCase):
         self.assertEqual(image_info.panfactor ,1)
         #self.assertEqual(image_info.exposure_factor, 0)
         self.assertEqual(image_info.date_diff, -9999)
+        self.assertEqual(image_info.year_diff, -9999)
         self.assertAlmostEqual(image_info.score, 78.462222222)
         
         image_info.get_raster_stats()
@@ -208,11 +213,38 @@ class TestMosaicImageInfo(unittest.TestCase):
         self.assertEqual(image_info.ona, 18.5)
         self.assertEqual(image_info.cloudcover, 0.0)
         self.assertEqual(image_info.tdi, 16.0)
-        self.assertEqual(image_info.panfactor ,1)
+        self.assertEqual(image_info.panfactor, 1)
         #self.assertEqual(image_info.exposure_factor, 0)
         self.assertEqual(image_info.date_diff, 24)
+        self.assertEqual(image_info.year_diff, -9999)
         self.assertAlmostEqual(image_info.score, 86.0924408)
-    
+
+    def test_image_info_wv01_with_tyear(self):
+        image = 'WV01_20080807153945_1020010003A5AC00_08AUG07153945-P1BS-052060421010_01_P011_u08mr3413.tif'
+        image_info = mosaic.ImageInfo(os.path.join(self.srcdir,image), 'IMAGE')
+
+        self.assertEqual(image_info.xres, 16.0)
+        self.assertEqual(image_info.yres, 16.0)
+        self.assertEqual(image_info.proj, 'PROJCS["unnamed",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433],AUTHORITY["EPSG","4326"]],PROJECTION["Polar_Stereographic"],PARAMETER["latitude_of_origin",70],PARAMETER["central_meridian",-45],PARAMETER["scale_factor",1],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]]]')
+        self.assertEqual(image_info.bands, 1)
+        self.assertEqual(image_info.datatype, 1)
+
+        mosaic_args = MosaicArgs()
+        mosaic_args.tyear = 2008
+        mosaic_params = mosaic.getMosaicParameters(image_info, mosaic_args)
+
+        image_info.getScore(mosaic_params)
+        self.assertEqual(image_info.sensor, 'WV01')
+        self.assertEqual(image_info.sunel, 39.0)
+        self.assertEqual(image_info.ona, 18.5)
+        self.assertEqual(image_info.cloudcover, 0.0)
+        self.assertEqual(image_info.tdi, 16.0)
+        self.assertEqual(image_info.panfactor, 1)
+        #self.assertEqual(image_info.exposure_factor, 0)
+        self.assertEqual(image_info.date_diff, -9999)
+        self.assertEqual(image_info.year_diff, 0)
+        self.assertAlmostEqual(image_info.score, 134.2)
+
     def test_image_info_wv02_with_cc_max(self):
         image = 'WV02_20110504155551_103001000BA45E00_11MAY04155551-P1BS-500085264180_01_P002_u08mr3413.tif'
         image_info = mosaic.ImageInfo(os.path.join(self.srcdir,image), 'IMAGE')
@@ -236,6 +268,7 @@ class TestMosaicImageInfo(unittest.TestCase):
         self.assertEqual(image_info.panfactor ,1)
         #self.assertEqual(image_info.exposure_factor, 0)
         self.assertEqual(image_info.date_diff, -9999)
+        self.assertEqual(image_info.year_diff, -9999)
         self.assertAlmostEqual(image_info.score, -1)
         
         image_info.get_raster_stats()
@@ -277,6 +310,7 @@ class MosaicArgs(object):
         self.bands = None
         self.use_exposure = False
         self.tday = None
+        self.tyear = None
         self.extent = None
         self.tilesize = None
         self.max_cc = 0.5
