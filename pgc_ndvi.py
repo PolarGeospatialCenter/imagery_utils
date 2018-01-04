@@ -168,6 +168,9 @@ def main():
                 
                 if not args.dryrun:
                     results[task.name] = task.method(srcfp, dstfp, task_arg_obj)
+                    
+                #### remove existing file handler
+                logger.removeHandler(lfh)
             
             #### Print Images with Errors    
             for k,v in results.iteritems():

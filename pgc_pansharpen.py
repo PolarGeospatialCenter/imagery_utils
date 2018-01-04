@@ -1,4 +1,4 @@
-import os, string, sys, shutil, math, glob, re, tarfile, argparse, subprocess, logging
+import os, string, sys, shutil, math, glob, re, tarfile, argparse, subprocess, logging, platform
 from datetime import datetime, timedelta
 import gdal, ogr,osr, gdalconst
 
@@ -348,6 +348,7 @@ def main():
     
         else:
             results = {}
+            lfh = None
             for task in task_queue:
                            
                 src, dstfp, task_arg_obj = task.method_arg_list
@@ -363,6 +364,9 @@ def main():
                 if not args.dryrun:
                     results[task.name] = task.method(src, dstfp, task_arg_obj)
             
+                #### remove existing file handler
+                logger.removeHandler(lfh)
+                
             #### Print Images with Errors    
             for k,v in results.iteritems():
                 if v != 0:
@@ -435,10 +439,16 @@ def exec_pansharpen(image_pair, pansh_dstfp, args):
         shutil.copy2(mul_dstfp, mul_local_dstfp)
 
     ####  Pansharpen
+    ## get system info for program extension
+    if platform.system() == 'Windows':
+        py_ext = ''
+    else:
+        py_ext = '.py'
+    
     logger.info("Pansharpening multispectral image")
     if os.path.isfile(pan_local_dstfp) and os.path.isfile(mul_local_dstfp):
         if not os.path.isfile(pansh_local_dstfp):
-            cmd = 'gdal_pansharpen.py -co BIGTIFF=IF_SAFER -co COMPRESS=LZW -co TILED=YES "{}" "{}" "{}"'.format(pan_local_dstfp, mul_local_dstfp, pansh_local_dstfp)
+            cmd = 'gdal_pansharpen{} -co BIGTIFF=IF_SAFER -co COMPRESS=LZW -co TILED=YES "{}" "{}" "{}"'.format(py_ext, pan_local_dstfp, mul_local_dstfp, pansh_local_dstfp)
             taskhandler.exec_cmd(cmd)
     else:
         print "Pan or Multi warped image does not exist\n\t%s\n\t%s" %(pan_local_dstfp,mul_local_dstfp)
