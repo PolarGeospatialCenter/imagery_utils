@@ -230,11 +230,17 @@ def HandleTile(t,src,dstdir,csvpath,args,exclude_list):
                 #logger.debug(str(t.geom))
                 
                 tile_geom_in_s_srs = t.geom.Clone()
+
                 if not t_srs.IsSame(s_srs):
                     ict = osr.CoordinateTransformation(t_srs, s_srs)
                     ct = osr.CoordinateTransformation(s_srs, t_srs)
                     tile_geom_in_s_srs.Transform(ict)
-                
+
+                # if the geometry crosses meridian, split it into multipolygon (else this breaks SetSpatialFilter)
+                if utils.doesCross180(tile_geom_in_s_srs):
+                    logger.debug("tile_geom_in_s_srs crosses 180 meridian; splitting to multiple polygons...")
+                    tile_geom_in_s_srs = utils.getWrappedGeometry(tile_geom_in_s_srs)
+
                 lyr.ResetReading()
                 lyr.SetSpatialFilter(tile_geom_in_s_srs)
                 feat = lyr.GetNextFeature()
