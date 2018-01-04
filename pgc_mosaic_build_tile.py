@@ -7,7 +7,7 @@ from xml.etree import cElementTree as ET
 
 from lib import mosaic, utils, taskhandler
 import numpy
-import gdal, ogr,osr, gdalconst
+import gdal, ogr, osr, gdalconst
     
 logger = logging.getLogger("logger")
 logger.setLevel(logging.DEBUG)

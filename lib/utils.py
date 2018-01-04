@@ -422,3 +422,104 @@ def get_source_names(src_fp):
     return (src_dsp, src_lyr)
 
 
+def doesCross180(geom):
+    """
+    Returns true if the geometry's polygon crosses 180 longitude
+
+    :param geom: <osgeo.ogr.Geometry>
+    :return: <bool>
+    """
+    result = False
+    _mat = re.findall(r"-?\d+\.\d+", geom.ExportToWkt())
+    if _mat:
+        x_coords = [float(lng) for (lng, lat) in [_mat[i:i+2] for i in range(0, len(_mat), 2)]]
+        result = (max(x_coords) - min(x_coords)) > 180.0
+
+    return result
+
+
+def getWrappedGeometry(src_geom):
+    """
+    Change a single-polygon extent to multipart if it crosses 180 latitude
+    Author: Claire Porter
+
+    :param src_geom: <osgeo.ogr.Geometry>
+    :return: <osgeo.ogr.Geometry> type wkbMultiPolygon
+    """
+
+    def calc_y_intersection_with_180(pt1, pt2):
+        """
+        Find y where x is 180 longitude
+
+        :param pt1: <list> coordinate pair, as int or float
+        :param pt2: <list> coordinate pair, int or float
+        :return: <float>
+        """
+        # Add 360 to negative x coordinates
+        pt1_x = pt1[0] + 360.0 if pt1[0] < 0.0 else pt1[0]
+        pt2_x = pt2[0] + 360.0 if pt2[0] < 0.0 else pt2[0]
+
+        rise = pt2[1] - pt1[1]      # Difference in y
+        run = pt2_x - pt1_x         # Difference in x
+        run_prime = 180.0 - pt1_x   # Difference in x to 180
+
+        try:
+            pt3_y = ((run_prime * rise) / run) + pt1[1]
+        except ZeroDivisionError as err:
+            raise RuntimeError(err)
+
+        return pt3_y
+
+    # Points lists for west and east components
+    west_points = []
+    east_points = []
+
+    # Assume a single polygon, deconstruct to points, skipping last one
+    ring_geom = src_geom.GetGeometryRef(0)
+    for i in xrange(0, ring_geom.GetPointCount() - 1):
+        pt1 = ring_geom.GetPoint(i)
+        pt2 = ring_geom.GetPoint(i + 1)
+
+        # Add point to appropriate bin (points on 0.0 go to east)
+        if pt1[0] < 0.0:
+            west_points.append(pt1)
+        else:
+            east_points.append(pt1)
+
+        # Test if segment to next point crosses 180 (x is opposite sign)
+        if cmp(pt1[0], 0) != cmp(pt2[0], 0):
+
+            # If segment crosses, calculate y for the intersection point
+            pt3_y = calc_y_intersection_with_180(pt1, pt2)
+
+            # Add the intersection point to both bins (change 180 to -180 for west)
+            west_points.append((-180.0, pt3_y))
+            east_points.append((180.0, pt3_y))
+
+    # Build a multipart polygon from the new point sets (repeat first point to close polygon)
+    mp_geometry = ogr.Geometry(ogr.wkbMultiPolygon)
+
+    for ring_points in (west_points, east_points):
+
+        if len(ring_points) > 0:
+
+            # Create the basic objects
+            poly = ogr.Geometry(ogr.wkbPolygon)
+            ring = ogr.Geometry(ogr.wkbLinearRing)
+
+            # Add the points to the ring
+            for pt in ring_points:
+                ring.AddPoint(pt[0], pt[1])
+
+            # Repeat the first point to close the ring
+            ring.AddPoint(ring_points[0][0], ring_points[0][1])
+
+            # Add the ring to the polygon and the polygon to the geometry
+            poly.AddGeometry(ring)
+            mp_geometry.AddGeometry(poly)
+
+            # Clean up memory
+            del poly
+            del ring
+
+    return mp_geometry

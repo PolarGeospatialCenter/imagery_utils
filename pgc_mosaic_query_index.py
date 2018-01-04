@@ -30,6 +30,8 @@ def main():
                         help="number of output bands( default is number of bands in the first image)")
     parser.add_argument("--tday",
                         help="month and day of the year to use as target for image suitability ranking -- 04-05")
+    parser.add_argument("--tyear",
+                        help="year (or year range) to use as target for image suitability ranking -- 2017 or 2015-2017")
     parser.add_argument("--nosort", action="store_true", default=False,
                         help="do not sort images by metadata. script uses the order of the input textfile or directory (first image is first drawn).  Not recommended if input is a directory; order will be random")
     parser.add_argument("--use-exposure", action="store_true", default=False,
@@ -84,7 +86,39 @@ def main():
     else:
         m = 0
         d = 0
-    
+
+    #### Validate target year/year range option
+    if args.tyear is not None:
+        if len(str(args.tyear)) == 4:
+            ## ensure single year is valid
+            try:
+                tyear_test = datetime(year=args.tyear, month=1, day=1)
+            except ValueError:
+                parser.error("Supplied year {0} is not valid".format(args.tyear))
+                sys.exit(1)
+
+        elif len(str(args.tyear)) == 9:
+            if '-' in args.tyear:
+                ## decouple range and build year
+                yrs = args.tyear.split('-')
+                yrs_range = range(int(yrs[0]), int(yrs[1]) + 1)
+                for yy in yrs_range:
+                    try:
+                        tyear_test = datetime(year=yy, month=1, day=1)
+                    except ValueError:
+                        parser.error("Supplied year {0} in range {1} is not valid".format(yy, args.tyear))
+                        sys.exit(1)
+
+            else:
+                parser.error("Supplied year range {0} is not valid; should be like: 2015 OR 2015-2017"
+                             .format(args.tyear))
+                sys.exit(1)
+
+        else:
+            parser.error("Supplied year {0} is not valid, or its format is incorrect; should be 4 digits for single "
+                         "year (e.g., 2017), eight digits and dash for range (e.g., 2015-2017)".format(args.tyear))
+            sys.exit(1)
+
     ##### Configure Logger
     if args.log is not None:
         logfile = os.path.abspath(args.log)
@@ -196,11 +230,17 @@ def HandleTile(t,src,dstdir,csvpath,args,exclude_list):
                 #logger.debug(str(t.geom))
                 
                 tile_geom_in_s_srs = t.geom.Clone()
+
                 if not t_srs.IsSame(s_srs):
                     ict = osr.CoordinateTransformation(t_srs, s_srs)
                     ct = osr.CoordinateTransformation(s_srs, t_srs)
                     tile_geom_in_s_srs.Transform(ict)
-                
+
+                # if the geometry crosses meridian, split it into multipolygon (else this breaks SetSpatialFilter)
+                if utils.doesCross180(tile_geom_in_s_srs):
+                    logger.debug("tile_geom_in_s_srs crosses 180 meridian; splitting to multiple polygons...")
+                    tile_geom_in_s_srs = utils.getWrappedGeometry(tile_geom_in_s_srs)
+
                 lyr.ResetReading()
                 lyr.SetSpatialFilter(tile_geom_in_s_srs)
                 feat = lyr.GetNextFeature()
@@ -244,7 +284,7 @@ def HandleTile(t,src,dstdir,csvpath,args,exclude_list):
                                               logger.error('{} panchromatic images match the multispectral image name {}'.format(len(candidates2),mul_name))
                                      else:
                                           pan_name = mul_name.replace("-M","-P")
-                                elif sensor == "IK01":
+                                elif iinfo.sensor == "IK01":
                                      pan_name = mul_name.replace("blu","pan")
                                      pan_name = mul_name.replace("msi","pan")
                                      pan_name = mul_name.replace("bgrn","pan")    
