@@ -107,7 +107,7 @@ def buildParentArgumentParser():
                       help="skip warping step")
     parser.add_argument("--skip-dem-overlap-check", action='store_true', default=False,
                       help="skip verification of image-DEM overlap")
-    parser.add_argument("--no-pyramids", action='store_true', default=False, help='suppress calculation of output image pyramids and stats')
+    parser.add_argument("--no-pyramids", action='store_true', default=False, help='suppress calculation of output image pyramids')
     parser.add_argument("--ortho-height", type=long, help='constant elevation to use for orthorectification (value should be in meters above the wgs84 ellipoid)')
 
 
@@ -510,10 +510,7 @@ def calcStats(args,info):
     else:
         config_options = ''
 
-    if args.no_pyramids:
-        base_cmd = 'gdal_translate'
-    else:
-        base_cmd = 'gdal_translate -stats'
+    base_cmd = 'gdal_translate -stats'
 
     cmd = ('%s %s -ot %s -a_srs "%s" %s%s-of %s "%s" "%s"' %(
         base_cmd,
