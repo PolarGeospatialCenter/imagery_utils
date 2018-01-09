@@ -108,6 +108,7 @@ def buildParentArgumentParser():
     parser.add_argument("--skip-dem-overlap-check", action='store_true', default=False,
                       help="skip verification of image-DEM overlap")
     parser.add_argument("--no-pyramids", action='store_true', default=False, help='suppress calculation of output image pyramids')
+    parser.add_argument("--pyramid-type", choices=['near','cubic'], default='near', help='pyramid resampling strategy')
     parser.add_argument("--ortho-height", type=long, help='constant elevation to use for orthorectification (value should be in meters above the wgs84 ellipoid)')
 
 
@@ -542,7 +543,7 @@ def calcStats(args,info):
     if not args.no_pyramids:
         if args.format in ["GTiff"]:
             if os.path.isfile(info.localdst):
-                cmd = ('gdaladdo "%s" 2 4 8 16' %(info.localdst))
+                cmd = ('gdaladdo -r {} "{}" 2 4 8 16' %(args.pyramid_type, info.localdst))
                 (err,so,se) = taskhandler.exec_cmd(cmd)
                 if err == 1:
                     rc = 1
