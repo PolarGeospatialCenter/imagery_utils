@@ -688,7 +688,6 @@ def build_tiles_shp(mosaicname, tiles, params):
         fields = [('ROW', ogr.OFTInteger, 4),
                 ('COL', ogr.OFTInteger, 4),
                 ("TILENAME", ogr.OFTString, 100),
-                ('TILEPATH', ogr.OFTString, 254),
                 ('XMIN', ogr.OFTReal, 0),
                 ('XMAX', ogr.OFTReal, 0),
                 ('YMIN', ogr.OFTReal, 0),
@@ -728,7 +727,6 @@ def build_tiles_shp(mosaicname, tiles, params):
         for t in tiles:
             feat = ogr.Feature(lyr.GetLayerDefn())
             feat.SetField("TILENAME",os.path.basename(t.name))
-            feat.SetField("TILEPATH",t.name)
             feat.SetField("ROW",t.j)
             feat.SetField("COL",t.i)
             feat.SetField("XMIN",t.xmin)

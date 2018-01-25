@@ -455,8 +455,8 @@ def exec_pansharpen(image_pair, pansh_dstfp, args):
 
     #### Make pyramids
     if os.path.isfile(pansh_local_dstfp):
-       cmd = 'gdaladdo "%s" 2 4 8 16' %(pansh_local_dstfp)
-       taskhandler.exec_cmd(cmd)
+        cmd = 'gdaladdo -r {} "{}" 2 4 8 16'.format(args.pyramid_type, pansh_local_dstfp)
+        taskhandler.exec_cmd(cmd)
        
     ## Copy warped multispectral xml to pansharpened output
     shutil.copy2(mul_xmlfp,pansh_xmlfp)

@@ -92,7 +92,7 @@ def buildParentArgumentParser():
     parser.add_argument("-r", "--resolution", type=float,
                       help="output pixel resolution in units of the projection")
     parser.add_argument("-c", "--stretch", choices=stretches, default="rf",
-                      help="stretch type [ns: nostretch, rf: reflectance (default), mr: modified reflectance, rd: absolute radiance]")
+                      help="stretch type [ns: nostretch, rf: reflectance (default), mr: modified reflectance, rd: absolute radiance, au: automatically set]")
     parser.add_argument("--resample", choices=resamples, default="near",
                       help="resampling strategy - mimicks gdalwarp options")
     parser.add_argument("--rgb", action="store_true", default=False,
@@ -543,7 +543,7 @@ def calcStats(args,info):
     if not args.no_pyramids:
         if args.format in ["GTiff"]:
             if os.path.isfile(info.localdst):
-                cmd = ('gdaladdo -r {} "{}" 2 4 8 16' %(args.pyramid_type, info.localdst))
+                cmd = ('gdaladdo -r {} "{}" 2 4 8 16'.format(args.pyramid_type, info.localdst))
                 (err,so,se) = taskhandler.exec_cmd(cmd)
                 if err == 1:
                     rc = 1
@@ -571,8 +571,6 @@ def GetImageStats(args, info, target_extent_geom=None):
 
     info.sat = sat
     info.vendor = vendor
-
-    info.stretch = args.stretch
 
     if info.vendor == 'GeoEye' and info.sat == 'IK01' and "_msi_" in info.srcfn:
         src_image_name = info.srcfn.replace("_msi_","_blu_")
@@ -759,7 +757,13 @@ def GetImageStats(args, info, target_extent_geom=None):
                 else:
                     logger.error("Cannot get bgrn bands from a {0} band image".format(info.bands))
                     rc = 1
-                
+              
+            info.stretch = args.stretch
+            if args.stretch == 'au':
+                if (maxlat+minmat/2) <= -60:
+                    info.stretch = 'rf'
+                else:
+                    info.stretch = 'mr'
     else:
         logger.error("Cannot open dataset: %s" %info.localsrc)
         rc = 1
