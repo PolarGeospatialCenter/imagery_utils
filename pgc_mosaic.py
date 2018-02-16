@@ -267,14 +267,6 @@ def run_mosaic(tile_builder_script, inpath, mosaicname, mosaic_dir, args, pos_ar
     if len(image_list) == 0:
         raise RuntimeError("No images found in input file or directory: {}".format(inpath))
 
-    # remove duplicate images
-    image_list_unique = list(set(image_list))
-    dupes = [x for n,x in enumerate(image_list) if x in image_list[:n]]
-    if len(dupes) > 0:
-        logger.info("Removed {0} duplicate image paths".format(len(dupes)))
-        logger.debug("Dupes: {0}".format(dupes))
-    image_list = image_list_unique
-
     logger.info("%i existing images found" %len(image_list))
     
     #### gather image info list
