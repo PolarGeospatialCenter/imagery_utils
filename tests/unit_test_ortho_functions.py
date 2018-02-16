@@ -58,14 +58,15 @@ class TestMetadata(unittest.TestCase):
             
             self.assertEqual(bool(calib_dict),result)
             if calib_dict:
+                print metapath,calib_dict
                 if 'BAND_P' in calib_dict:
-                    self.assertGreater(calib_dict['BAND_P'],0.0005)
-                    self.assertLess(calib_dict['BAND_P'],0.0015)
+                    self.assertGreater(calib_dict['BAND_P'][0],0.0005)
+                    self.assertLess(calib_dict['BAND_P'][0],0.0015)
                 if 'BAND_B' in calib_dict:
-                    self.assertGreater(calib_dict['BAND_B'],0.00045)
-                    self.assertLess(calib_dict['BAND_B'],0.001)
+                    self.assertGreater(calib_dict['BAND_B'][0],0.00045)
+                    self.assertLess(calib_dict['BAND_B'][0],0.001)
                 if 'BAND_B' in calib_dict and 'BAND_G' in calib_dict: ### check bands are not equal
-                    self.assertNotEqual(calib_dict['BAND_B'],calib_dict['BAND_G'])
+                    self.assertNotEqual(calib_dict['BAND_B'][0],calib_dict['BAND_G'][0])
                     
         for mdf, result in dg_files:   ### test radiance
             metapath = os.path.join(self.srcdir,mdf)
@@ -74,13 +75,13 @@ class TestMetadata(unittest.TestCase):
             if calib_dict:
                 #print calib_dict
                 if 'BAND_P' in calib_dict:
-                    self.assertGreater(calib_dict['BAND_P'],0.08)
-                    self.assertLess(calib_dict['BAND_P'],0.15)
+                    self.assertGreater(calib_dict['BAND_P'][0],0.08)
+                    self.assertLess(calib_dict['BAND_P'][0],0.15)
                 if 'BAND_B' in calib_dict:
-                    self.assertGreater(calib_dict['BAND_B'],0.17)
-                    self.assertLess(calib_dict['BAND_B'],0.33)
+                    self.assertGreater(calib_dict['BAND_B'][0],0.17)
+                    self.assertLess(calib_dict['BAND_B'][0],0.33)
                 if 'BAND_B' in calib_dict and 'BAND_G' in calib_dict: ### check bands are not equal
-                    self.assertNotEqual(calib_dict['BAND_B'],calib_dict['BAND_G'])
+                    self.assertNotEqual(calib_dict['BAND_B'][0],calib_dict['BAND_G'][0])
                            
     #@unittest.skip("skipping")     
     def test_parse_GE_md_files(self):

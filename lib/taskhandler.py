@@ -59,7 +59,7 @@ class SLURMTaskHandler(object):
 
     def __init__(self, qsubscript, qsub_args=""):
 
-        ####  verify PBS is present by calling pbsnodes cmd
+        ####  verify SLURM is present by calling sinfo cmd
         try:
             cmd = "sinfo"
             p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
