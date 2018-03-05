@@ -124,7 +124,10 @@ def exec_cmd_mp(job):
     try:
         (so,se) = p.communicate()
     except KeyboardInterrupt:
-        os.killpg(p.pid, signal.SIGTERM)
+        if platform.system() == "Windows":
+            p.terminate()
+        else:
+            os.killpg(p.pid, signal.SIGTERM)
 
     else:
         logger.debug(so)
