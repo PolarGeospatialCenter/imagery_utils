@@ -1177,6 +1177,9 @@ def buffernum(num,buf):
 def copyall(srcfile,dstdir):
     for fpi in glob.glob("%s.*" %os.path.splitext(srcfile)[0]):
         fpo = os.path.join(dstdir,os.path.basename(fpi))
-        shutil.copy2(fpi,fpo)
+        try:
+            shutil.copy2(fpi,fpo)
+        except WindowsError as e:
+            logger.warning(e)
 
 
