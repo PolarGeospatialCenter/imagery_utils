@@ -4,7 +4,7 @@
 task handler classes and methods
 """
 
-import os, sys, string, shutil, glob, re, logging, subprocess
+import os, sys, string, shutil, glob, re, logging, subprocess, platform
 import multiprocessing as mp
 
 #### Create Logger
@@ -117,7 +117,10 @@ def exec_cmd_mp(job):
     job_name, cmd = job
     logger.info('Running job: {0}'.format(job_name))
     logger.debug('Cmd: {0}'.format(cmd))
-    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, preexec_fn=os.setsid)
+    if platform.system() == "Windows":
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+    else:
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, preexec_fn=os.setsid)
     try:
         (so,se) = p.communicate()
     except KeyboardInterrupt:
