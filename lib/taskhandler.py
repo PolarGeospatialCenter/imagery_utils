@@ -4,7 +4,7 @@
 task handler classes and methods
 """
 
-import os, sys, string, shutil, glob, re, logging, subprocess
+import os, sys, string, shutil, glob, re, logging, subprocess, platform
 import multiprocessing as mp
 
 #### Create Logger
@@ -91,9 +91,9 @@ class ParallelTaskHandler(object):
     def __init__(self, num_processes=1):
         self.num_processes = num_processes
         if mp.cpu_count() < num_processes:
-            raise RuntimeError("Specified number of processes ({0}) is higher than the system cpu count ({1})".format(num_proceses,mp.count_cpu()))
+            raise RuntimeError("Specified number of processes ({0}) is higher than the system cpu count ({1})".format(num_processes,mp.count_cpu()))
         elif num_processes < 1:
-            raise RuntimeError("Specified number of processes ({0}) must be greater than 0, using default".format(num_proceses,mp.count_cpu()))
+            raise RuntimeError("Specified number of processes ({0}) must be greater than 0, using default".format(num_processes,mp.count_cpu()))
 
     def run_tasks(self, tasks):
 
@@ -117,11 +117,17 @@ def exec_cmd_mp(job):
     job_name, cmd = job
     logger.info('Running job: {0}'.format(job_name))
     logger.debug('Cmd: {0}'.format(cmd))
-    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, preexec_fn=os.setsid)
+    if platform.system() == "Windows":
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+    else:
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, preexec_fn=os.setsid)
     try:
         (so,se) = p.communicate()
     except KeyboardInterrupt:
-        os.killpg(p.pid, signal.SIGTERM)
+        if platform.system() == "Windows":
+            p.terminate()
+        else:
+            os.killpg(p.pid, signal.SIGTERM)
 
     else:
         logger.debug(so)
