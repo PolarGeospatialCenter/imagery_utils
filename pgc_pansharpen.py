@@ -363,6 +363,9 @@ def main():
                 
                 if not args.dryrun:
                     results[task.name] = task.method(src, dstfp, task_arg_obj)
+                    
+                #### remove existing file handler
+                logger.removeHandler(lfh)
             
                 #### remove existing file handler
                 logger.removeHandler(lfh)
