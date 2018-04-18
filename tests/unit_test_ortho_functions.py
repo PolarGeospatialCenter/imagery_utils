@@ -7,7 +7,7 @@ sys.path.append(root_dir)
 
 from lib import ortho_functions, utils
 
-logger = logging.getLogger("logger")
+#logger = logging.getLogger("logger")
 # lso = logging.StreamHandler()
 # lso.setLevel(logging.ERROR)
 # formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s','%m-%d-%Y %H:%M:%S')
@@ -58,13 +58,18 @@ class TestMetadata(unittest.TestCase):
             
             self.assertEqual(bool(calib_dict),result)
             if calib_dict:
-                print metapath,calib_dict
                 if 'BAND_P' in calib_dict:
                     self.assertGreater(calib_dict['BAND_P'][0],0.0005)
                     self.assertLess(calib_dict['BAND_P'][0],0.0015)
                 if 'BAND_B' in calib_dict:
                     self.assertGreater(calib_dict['BAND_B'][0],0.00045)
-                    self.assertLess(calib_dict['BAND_B'][0],0.001)
+                    self.assertLess(calib_dict['BAND_B'][0],0.0012)
+                if 'BAND_P' in calib_dict:
+                    self.assertGreater(calib_dict['BAND_P'][1],-0.029)
+                    self.assertLess(calib_dict['BAND_P'][1],-0.0098)
+                if 'BAND_B' in calib_dict:
+                    self.assertGreater(calib_dict['BAND_B'][1],-0.1306)
+                    self.assertLess(calib_dict['BAND_B'][1],-0.0085)
                 if 'BAND_B' in calib_dict and 'BAND_G' in calib_dict: ### check bands are not equal
                     self.assertNotEqual(calib_dict['BAND_B'][0],calib_dict['BAND_G'][0])
                     
@@ -80,6 +85,12 @@ class TestMetadata(unittest.TestCase):
                 if 'BAND_B' in calib_dict:
                     self.assertGreater(calib_dict['BAND_B'][0],0.17)
                     self.assertLess(calib_dict['BAND_B'][0],0.33)
+                if 'BAND_P' in calib_dict:
+                    self.assertGreater(calib_dict['BAND_P'][1],-4.5)
+                    self.assertLess(calib_dict['BAND_P'][1],-1.4)
+                if 'BAND_B' in calib_dict:
+                    self.assertGreater(calib_dict['BAND_B'][1],-9.7)
+                    self.assertLess(calib_dict['BAND_B'][1],-2.8)
                 if 'BAND_B' in calib_dict and 'BAND_G' in calib_dict: ### check bands are not equal
                     self.assertNotEqual(calib_dict['BAND_B'][0],calib_dict['BAND_G'][0])
                            
@@ -95,14 +106,18 @@ class TestMetadata(unittest.TestCase):
             self.assertEqual(bool(calib_dict),result)
             if calib_dict:
                 
-                if 5 in calib_dict:  # pan band
-                    self.assertGreater(calib_dict[5],0.0002)
-                    self.assertLess(calib_dict[5],0.0008)
+                if 5 in calib_dict:  # pan band 
+                    self.assertGreater(calib_dict[5][0],0.0002)
+                    self.assertLess(calib_dict[5][0],0.0008)
                 if 1 in calib_dict:  # blue band
-                    self.assertGreater(calib_dict[1],0.0002)
-                    self.assertLess(calib_dict[1],0.0008)
+                    self.assertGreater(calib_dict[1][0],0.0002)
+                    self.assertLess(calib_dict[1][0],0.0008)
+                if 5 in calib_dict:  # pan band bias
+                    self.assertEqual(calib_dict[5][1],0)
+                if 1 in calib_dict:  # blue band bias
+                    self.assertEqual(calib_dict[1][1],0)
                 if 1 in calib_dict and 2 in calib_dict: ### check bands are not equal
-                    self.assertNotEqual(calib_dict[1],calib_dict[2])
+                    self.assertNotEqual(calib_dict[1][0],calib_dict[2][0])
                     
         for mdf, result in ge_files:  ### test radiance
             metapath = os.path.join(self.srcdir,mdf)
@@ -111,13 +126,17 @@ class TestMetadata(unittest.TestCase):
             if calib_dict:
                 
                 if 5 in calib_dict:  # pan band
-                    self.assertGreater(calib_dict[5],0.01)
-                    self.assertLess(calib_dict[5],0.02)
+                    self.assertGreater(calib_dict[5][0],0.01)
+                    self.assertLess(calib_dict[5][0],0.02)
                 if 1 in calib_dict:  # blue band
-                    self.assertGreater(calib_dict[1],0.01)
-                    self.assertLess(calib_dict[1],0.02)
+                    self.assertGreater(calib_dict[1][0],0.01)
+                    self.assertLess(calib_dict[1][0],0.02)
+                if 5 in calib_dict:  # pan band bias
+                    self.assertEqual(calib_dict[5][1],0)
+                if 1 in calib_dict:  # blue band bias
+                    self.assertEqual(calib_dict[1][1],0)
                 if 1 in calib_dict and 2 in calib_dict: ### check bands are not equal
-                    self.assertNotEqual(calib_dict[1],calib_dict[2])
+                    self.assertNotEqual(calib_dict[1][0],calib_dict[2][0])
         
     def test_parse_IK_md_files(self):
         
@@ -137,13 +156,17 @@ class TestMetadata(unittest.TestCase):
                 #print mdf
                 #print calib_dict
                 if 4 in calib_dict:  # pan band
-                    self.assertGreater(calib_dict[4],0.0004)
-                    self.assertLess(calib_dict[4],0.0006)
+                    self.assertGreater(calib_dict[4][0],0.0004)
+                    self.assertLess(calib_dict[4][0],0.0006)
                 if 0 in calib_dict:  # blue band
-                    self.assertGreater(calib_dict[0],0.0003)
-                    self.assertLess(calib_dict[0],0.0006)
+                    self.assertGreater(calib_dict[0][0],0.0003)
+                    self.assertLess(calib_dict[0][0],0.0006)
+                if 4 in calib_dict:  # pan band bias
+                    self.assertEqual(calib_dict[4][1],0)
+                if 0 in calib_dict:  # blue band bias
+                    self.assertEqual(calib_dict[0][1],0)
                 if 0 in calib_dict and 1 in calib_dict: ### check bands are not equal
-                    self.assertNotEqual(calib_dict[0],calib_dict[1])
+                    self.assertNotEqual(calib_dict[0][0],calib_dict[1][0])
                     
         for mdf, result in ik_files:    ### test radiance
             metapath = os.path.join(self.srcdir,mdf)
@@ -152,13 +175,17 @@ class TestMetadata(unittest.TestCase):
             if calib_dict:
                 
                 if 4 in calib_dict:  # pan band
-                    self.assertGreater(calib_dict[4],0.1)
-                    self.assertLess(calib_dict[4],0.16)
+                    self.assertGreater(calib_dict[4][0],0.1)
+                    self.assertLess(calib_dict[4][0],0.16)
                 if 0 in calib_dict:  # blue band
-                    self.assertGreater(calib_dict[0],0.15)
-                    self.assertLess(calib_dict[0],0.25)
+                    self.assertGreater(calib_dict[0][0],0.15)
+                    self.assertLess(calib_dict[0][0],0.25)
+                if 5 in calib_dict:  # pan band bias
+                    self.assertEqual(calib_dict[4][1],0)
+                if 1 in calib_dict:  # blue band bias
+                    self.assertEqual(calib_dict[0][1],0)
                 if 0 in calib_dict and 1 in calib_dict: ### check bands are not equal
-                    self.assertNotEqual(calib_dict[0],calib_dict[1])
+                    self.assertNotEqual(calib_dict[0][0],calib_dict[1])
 
                     
 class TestCollectFiles(unittest.TestCase):

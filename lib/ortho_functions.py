@@ -630,7 +630,8 @@ def calcStats(args,info):
                     LUT = ",".join(lLUT)
 
                 if info.stretch != "ns":
-                    logger.debug("Band Calibration Factors: %i %f" %(band, CFlist[band-1]))
+                    logger.debug("Band Calibration Factors: {} {} {}".format(band,
+                                    CFlist[band-1][0], CFlist[band-1][1]))
                 logger.debug("Band stretch parameters: %i %s" %(band, LUT))
 
                 ComplexSourceXML = ('<ComplexSource>'
@@ -651,7 +652,7 @@ def calcStats(args,info):
             logger.error("Cannot create virtual dataset: %s" %info.vrtfile)
 
     else:
-        logger.error("Cannot open dataset: %s" %wds_fp)
+        logger.error("Cannot open dataset: %s" %info.warpfile)
 
     vds = None
     wds = None
@@ -741,7 +742,6 @@ def GetImageStats(args, info, target_extent_geom=None):
 
         ####  Get extent from GCPs
         num_gcps = ds.GetGCPCount()
-        print num_gcps
         if info.bands is None:
             info.bands = ds.RasterCount
 
@@ -780,7 +780,6 @@ def GetImageStats(args, info, target_extent_geom=None):
             ysize = ds.RasterYSize
             proj = ds.GetProjectionRef()
             gtf = ds.GetGeoTransform()
-            print gtf
 
             ulx = gtf[0] + 0 * gtf[1] + 0 * gtf[2]
             uly = gtf[3] + 0 * gtf[4] + 0 * gtf[5]
@@ -790,14 +789,6 @@ def GetImageStats(args, info, target_extent_geom=None):
             lly = gtf[3] + 0 * gtf[4] + ysize * gtf[5]
             lrx = gtf[0] + xsize * gtf[1] + ysize* gtf[2]
             lry = gtf[3] + xsize * gtf[4] + ysize * gtf[5]
-
-            print xsize, ysize
-            print gtf
-            print proj
-            print ulx, uly
-            print urx, ury
-            print llx, lly
-            print lrx,lry
 
         ds = None
 
