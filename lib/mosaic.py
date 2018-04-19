@@ -331,7 +331,7 @@ class ImageInfo:
             
             else:
                 try:
-                    metad = getGEMetadataAsXml(metapath)
+                    metad = utils.getGEMetadataAsXml(metapath)
                 except Exception, err:
                     logger.debug("ERROR parsing metadata: %s, %s" %(err,metapath))
                 #### Write IK01 code 
