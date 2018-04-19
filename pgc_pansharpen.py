@@ -90,14 +90,13 @@ class ImagePair(object):
                     pan_name = os.path.basename(candidates2[0])
                 else: #raise error for now. TODO: iterate through candidates for greatest overlap
                     pan_name = ''
-                    logger.error('{} panchromatic images match the multispectral image name {}'.format(len(candidates2),mul_name))
+                    logger.error('{} panchromatic images match the multispectral image name {}'.format(len(candidates2),
+                                                                                                       self.mul_srcfn))
             else:
                 pan_name = self.mul_srcfn.replace("-M","-P")
         elif self.sensor == "IK01":
-            pan_name = mul_name.replace("blu","pan")
-            pan_name = mul_name.replace("msi","pan")
-            pan_name = mul_name.replace("bgrn","pan")
-    
+            pan_name = ["pan" if i in ["blu", "msi", "bgrn"] else i for i in self.mul_srcfn]
+
         return pan_name
     
     def _get_image_info(self, src_image, spatial_ref):
@@ -181,7 +180,7 @@ class ImagePair(object):
             return extent_geom
                    
         else:
-            logger.error("Cannot open dataset: %s" %info.localsrc)
+            logger.error("Cannot open dataset: %s" %src_image)
             return None
 
 
