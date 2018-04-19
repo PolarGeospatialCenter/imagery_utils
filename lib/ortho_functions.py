@@ -365,19 +365,25 @@ def process_image(srcfp,dstfp,args,target_extent_geom=None):
                     logger.error("Error building merged Ikonos image: %s" %info.srcfp)
                     err = 1
 
-        elif args.wd:
-            if os.path.isfile(info.srcfp):
-                logger.info("Copying image to working directory")
-                copy_list = glob.glob("%s.*" %os.path.splitext(info.srcfp)[0])
-                #copy_list.append(info.metapath)
-                for fpi in copy_list:
-                    fpo = os.path.join(wd,os.path.basename(fpi))
-                    if not os.path.isfile(fpo):
-                        shutil.copy2(fpi,fpo)
+    if not err == 1 and args.wd:
+        def copy_to_wd(source_fp, wd):
+            logger.info("Copying image to working directory")
+            copy_list = glob.glob("%s.*" % os.path.splitext(source_fp)[0])
+            # copy_list.append(info.metapath)
+            for fpi in copy_list:
+                fpo = os.path.join(wd, os.path.basename(fpi))
+                if not os.path.isfile(fpo):
+                    shutil.copy2(fpi, fpo)
 
-            else:
-                logger.warning("Source image does not exist: %s" %info.srcfp)
-                err = 1
+        if os.path.isfile(info.srcfp):
+            copy_to_wd(info.srcfp, wd)
+
+        elif os.path.isfile(info.localsrc) and not os.path.isfile(info.srcfp):
+            copy_to_wd(info.localsrc, wd)
+
+        else:
+            logger.warning("Source image does not exist: %s" %info.srcfp)
+            err = 1
 
 
     #### Get Image Stats
@@ -907,7 +913,7 @@ def GetImageStats(args, info, target_extent_geom=None):
               
             info.stretch = args.stretch
             if args.stretch == 'au':
-                if (maxlat+minmat/2) <= -60:
+                if (maxlat+minlat/2) <= -60:
                     info.stretch = 'rf'
                 else:
                     info.stretch = 'mr'
