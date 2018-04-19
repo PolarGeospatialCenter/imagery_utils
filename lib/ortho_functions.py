@@ -907,7 +907,7 @@ def GetImageStats(args, info, target_extent_geom=None):
               
             info.stretch = args.stretch
             if args.stretch == 'au':
-                if (maxlat+minmat/2) <= -60:
+                if (maxlat+minlat/2) <= -60:
                     info.stretch = 'rf'
                 else:
                     info.stretch = 'mr'
