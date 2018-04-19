@@ -147,7 +147,7 @@ class ImageInfo:
                         self.tdi = int(item[7:])
                     if 'BAND_G' in item:
                         self.tdi = int(item[7:])
-                except ValueError, e:
+                except ValueError as e:
                     logger.error("cannot parse TDI field for {}: {}".format(self.scene_id,tdi_str))
         
         i = feat.GetFieldIndex("ACQ_TIME")
@@ -169,7 +169,7 @@ class ImageInfo:
             self.ysize = ds.RasterYSize
             self.proj = ds.GetProjectionRef() if ds.GetProjectionRef() != '' else ds.GetGCPProjection()
             self.bands = ds.RasterCount
-            self.nodatavalue = [ds.GetRasterBand(b).GetNoDataValue() for b in range(1,self.bands+1)]
+            self.nodatavalue = [ds.GetRasterBand(b).GetNoDataValue() for b in list(range(1, self.bands+1))]
             self.datatype = ds.GetRasterBand(1).DataType
             self.datatype_readable = gdal.GetDataTypeName(self.datatype)
 
@@ -218,13 +218,14 @@ class ImageInfo:
                 self.xres = abs(math.sqrt((ulx - urx)**2 + (uly - ury)**2)/ self.xsize)
                 self.yres = abs(math.sqrt((ulx - llx)**2 + (uly - lly)**2)/ self.ysize)
                 
-            poly_wkt = 'POLYGON (( %.12f %.12f, %.12f %.12f, %.12f %.12f, %.12f %.12f, %.12f %.12f ))' %(ulx,uly,urx,ury,lrx,lry,llx,lly,ulx,uly)
+            poly_wkt = 'POLYGON (( {0:.12f} {0:.12f}, {0:.12f} {0:.12f}, {0:.12f} {0:.12f}, {0:.12f} {0:.12f}, ' \
+                       '{0:.12f} {0:.12f} ))'.format(ulx, uly, urx, ury, lrx, lry, llx, lly, ulx, uly)
             self.geom = ogr.CreateGeometryFromWkt(poly_wkt)
             self.xs = [ulx,urx,lrx,llx]
             self.ys = [uly,ury,lry,lly]
 
         else:
-            logger.warning("Cannot open image: %s" %self.srcfp)
+            logger.warning("Cannot open image: {}".format(self.srcfp))
             self.xsize = None
             self.ysize = None
             self.proj = None
@@ -317,7 +318,7 @@ class ImageInfo:
                 break
         
         if not metapath:
-            logger.debug("No metadata found for %s" %self.srcfp)
+            logger.debug("No metadata found for {}".format(self.srcfp))
         
         else:
             metad = None
@@ -326,20 +327,20 @@ class ImageInfo:
             if os.path.splitext(metapath)[1].lower() == '.xml':
                 try:
                     metad = ET.parse(metapath)
-                except ET.ParseError, err:
-                    logger.debug("ERROR parsing metadata: %s, %s" %(err,metapath))
+                except ET.ParseError as err:
+                    logger.debug("ERROR parsing metadata: {}, {}".format(err, metapath))
             
             else:
                 try:
                     metad = utils.getGEMetadataAsXml(metapath)
-                except Exception, err:
-                    logger.debug("ERROR parsing metadata: %s, %s" %(err,metapath))
+                except Exception as err:
+                    logger.debug("ERROR parsing metadata: {}, {}".format(err, metapath))
                 #### Write IK01 code 
         
             if metad is not None:
                 
                 for tag in dTags:
-                    taglist = metad.findall(".//%s"%tag)
+                    taglist = metad.findall(".//{}".format(tag))
                     vallist = []
                     for elem in taglist:
                         
@@ -373,8 +374,8 @@ class ImageInfo:
                                     
                                 vallist.append(val)
                                 
-                            except Exception, e:
-                                logger.debug("Error reading metadata values: %s, %s" %(metapath,e))
+                            except Exception as e:
+                                logger.debug("Error reading metadata values: {}, {}".format(metapath, e))
                                 
                     if dTags[tag] == 'tdi' and len(taglist) > 1:    
                         #### use pan or green band TDI for exposure calculation
@@ -387,7 +388,9 @@ class ImageInfo:
                         elif len(vallist) == 8:
                             dAttribs['tdi'] = vallist[3]
                         else:
-                            logger.debug("Unexpected number of TDI values and band count ( TDI: expected 1, 4, 5, or 8 - found %d ; Band cound, expected 1, 4, or 8 - found %d) %s" %(len(vallist), self.bands, metapath))
+                            logger.debug("Unexpected number of TDI values and band count ( TDI: expected 1, 4, 5, or 8 "
+                                         "- found {} ; Band cound, expected 1, 4, or 8 - found {}) {}".format(
+                                len(vallist), self.bands, metapath))
                     
                     elif dTags[tag] == 'sensor' and len(taglist) > 1:
                         val = vallist[0]
@@ -398,7 +401,7 @@ class ImageInfo:
                         dAttribs[dTags[tag]] = val
                         
                     elif len(taglist) > 1:
-                        logger.debug("Unexpected number of {} values ({}), {}".format(tag,len(taglist),metapath))
+                        logger.debug("Unexpected number of {} values ({}), {}".format(tag, len(taglist), metapath))
                 
                 self.sataz = float(dAttribs["sataz"])
                 self.satel = float(dAttribs["satel"])
@@ -406,7 +409,7 @@ class ImageInfo:
                 self.sunel = float(dAttribs["sunel"])
                 try:
                     self.ona = dAttribs["ona"] if dAttribs["ona"] else 90 - self.satel
-                except TypeError, e:
+                except TypeError as e:
                     pass
                 self.cloudcover = dAttribs["cc"]
                 self.sensor = dAttribs["sensor"]
@@ -416,10 +419,10 @@ class ImageInfo:
                 if dAttribs["date"]:
                     try:
                         self.acqdate = datetime.strptime(dAttribs["date"],"%Y-%m-%dT%H:%M:%S.%fZ")
-                    except ValueError, e:
+                    except ValueError as e:
                         try:
                             self.acqdate = datetime.strptime(dAttribs["date"],"%Y-%m-%d %H:%M GMT")
-                        except ValueError, e:
+                        except ValueError as e:
                             logger.error("Cannot parse date string {} from {}".format(dAttribs['date'],metapath))
 
 
@@ -441,7 +444,8 @@ class ImageInfo:
         status = [val is None for val in required_attribs]
         
         if sum(status) != 0:
-            logger.error("Cannot determine score for image {0}:\n  Sun elev\t{1}\n  Off nadir\t{2}\n  Cloudcover\t{3}\n  Sensor\t{4}".format(self.srcfn,self.sunel,self.ona,self.cloudcover,self.sensor))
+            logger.error("Cannot determine score for image {0}:\n  Sun elev\t{1}\n  Off nadir\t{2}\n  Cloudcover\t{3}\n"
+                         "  Sensor\t{4}".format(self.srcfn, self.sunel, self.ona, self.cloudcover, self.sensor))
             score = -1
         
         else:
@@ -480,13 +484,13 @@ class ImageInfo:
                     if params.bands == 1:
                         if self.sensor in pan_exposure_thresholds:
                             if exfact > pan_exposure_thresholds[self.sensor]:
-                                logger.debug("Image overexposed: %s --> %i" %(self.srcfp,exfact))
+                                logger.debug("Image overexposed: {0} --> {1}".format(self.srcfp, exfact))
                                 score = -1
                     
                     else:
                         if self.sensor in multi_exposure_thresholds:
                             if exfact > multi_exposure_thresholds[self.sensor]:
-                                logger.debug("Image overexposed: %s --> %i" %(self.srcfp,exfact))
+                                logger.debug("Image overexposed: {0} --> {1}".format(self.srcfp, exfact))
                                 score = -1
             
             #### Test if acqdate if needed, get date difference
@@ -498,7 +502,7 @@ class ImageInfo:
                 else:
                     #### Find nearest year for target day
                     tdeltas = []
-                    for y in range(self.acqdate.year-1,self.acqdate.year+2):
+                    for y in list(range(self.acqdate.year-1, self.acqdate.year+2)):
                         tdeltas.append(abs((datetime(y,params.m,params.d) - self.acqdate).days))
                     
                     self.date_diff = min(tdeltas)
@@ -549,12 +553,12 @@ class ImageInfo:
                 self.cloudcover = params.max_cc
             
             if self.cloudcover > params.max_cc:
-                logger.debug("Image too cloudy (>%s): %s --> %f" %(params.max_cc,self.srcfp,self.cloudcover))
+                logger.debug("Image too cloudy (>{0}): {1} --> {2}".format(params.max_cc, self.srcfp, self.cloudcover))
                 score = -1
             
             #### Handle ridiculously low sun el values, these images will result is spurious TOA values
             if self.sunel < 2:
-                logger.debug("Sun elevation too low (<2 degrees): %s --> %f" %(self.srcfp,self.sunel))
+                logger.debug("Sun elevation too low (<2 degrees): {0} --> {1}".format(self.srcfp, self.sunel))
                 score = -1
                         
             if not score == -1:
@@ -579,7 +583,7 @@ class ImageInfo:
             ny = ds.RasterYSize
  
             #### get stats and store in dictionaries
-            for bandnum in range(1,self.bands+1):
+            for bandnum in list(range(1, self.bands+1)):
 
                 # read band
                 band = ds.GetRasterBand(bandnum)
@@ -637,7 +641,7 @@ class ImageInfo:
             ds = None
 
         else:
-            logger.warning("Cannot open image: %s" %self.srcfp)
+            logger.warning("Cannot open image: {}".format(self.srcfp))
   
             
     def set_raster_median(self, median):
@@ -730,7 +734,8 @@ class DemInfo:
         status2 = [val is None for val in required_attribs2]
 
         if sum(status1) != 0 and sum(status2) != 0:
-            logger.error("Cannot determine score for image {0}:\n  Sun elev\t{1}\n  Cloudcover\t{2}\n  Sensor\t{3}\n  Density\t{4}".format(self.pairname,self.sunel,self.cloudcover,self.sensor,self.density)) 
+            logger.error("Cannot determine score for image {0}:\n  Sun elev\t{1}\n  Cloudcover\t{2}\n  Sensor\t{3}\n  "
+                         "Density\t{4}".format(self.pairname, self.sunel, self.cloudcover, self.sensor, self.density))
             score = -1
             
         elif self.sensor == 'QB02':
@@ -748,8 +753,8 @@ class DemInfo:
                     #### Find nearest year for target day
                     tdeltas = []
                     target_month, target_day = target_date[0]
-                    for y in range(self.acqdate.year-1,self.acqdate.year+2):
-                        tdeltas.append(abs((datetime(y,target_month,target_day) - self.acqdate).days))
+                    for y in list(range(self.acqdate.year-1, self.acqdate.year + 2)):
+                        tdeltas.append(abs((datetime(y, target_month, target_day) - self.acqdate).days))
                     
                     self.date_diff = min(tdeltas)
             
@@ -774,12 +779,13 @@ class DemInfo:
                     self.cloudcover = 0.5
             
                 if self.cloudcover > 0.2:
-                    logger.debug("Stereopair too cloudy (>20 percent): %s --> %f" %(self.pairname,self.cloudcover))
+                    logger.debug("Stereopair too cloudy (>20 percent): {0} --> {1}".format(self.pairname,
+                                                                                           self.cloudcover))
                     score = -1
             
             #### Handle ridiculously low sun el values
             if self.sunel and self.sunel < 1:
-                logger.debug("Sun elevation too low (<1 degrees): %s --> %f" %(self.pairname,self.sunel))
+                logger.debug("Sun elevation too low (<1 degrees): {0} --> {1}".format(self.pairname, self.sunel))
                 score = -1
                         
             if not score == -1:
@@ -856,7 +862,8 @@ class DGInfo:
         status1 = [val is None for val in required_attribs1]
 
         if sum(status1) != 0:
-            logger.error("Cannot determine score for image {0}:\n  Sun elev\t{1}\n  Cloudcover\t{2}\n  Sensor\t{3}".format(self.pairname,self.sunel,self.cloudcover,self.sensor)) 
+            logger.error("Cannot determine score for image {0}:\n  Sun elev\t{1}\n  Cloudcover\t{2}\n  Sensor\t{3}".
+                         format(self.pairname, self.sunel, self.cloudcover, self.sensor))
             score = -1
         
         else:
@@ -871,8 +878,8 @@ class DGInfo:
                     #### Find nearest year for target day
                     tdeltas = []
                     target_month, target_day = target_date[0]
-                    for y in range(self.acqdate.year-1,self.acqdate.year+2):
-                        tdeltas.append(abs((datetime(y,target_month,target_day) - self.acqdate).days))
+                    for y in list(range(self.acqdate.year-1, self.acqdate.year+2)):
+                        tdeltas.append(abs((datetime(y, target_month, target_day) - self.acqdate).days))
                     
                     self.date_diff = min(tdeltas)
             
@@ -895,18 +902,19 @@ class DGInfo:
                     self.cloudcover = 0.5
             
                 if self.cloudcover > 0.2:
-                    logger.debug("Catid too cloudy (>20 percent): %s --> %f" %(self.pairname,self.cloudcover))
+                    logger.debug("Catid too cloudy (>20 percent): {0} --> {1}".format(self.pairname, self.cloudcover))
                     score = -1
             
             #### Handle ridiculously low sun el values
             if self.sunel and self.sunel < 1:
-                logger.debug("Sun elevation too low (<1 degrees): %s --> %f" %(self.pairname,self.sunel))
+                logger.debug("Sun elevation too low (<1 degrees): {0} --> {1}".format(self.pairname, self.sunel))
                 score = -1
                         
             if not score == -1:
                 # determine score method
                 if sum(status1) == 0:
-                    score = ccwt * (1-self.cloudcover) + sunelwt * (self.sunel/90) + datediffwt * ((183 - self.date_diff)/183.0)
+                    score = ccwt * (1-self.cloudcover) + sunelwt * (self.sunel/90) + datediffwt * \
+                            ((183 - self.date_diff)/183.0)
         
         self.score = score
         return self.score
@@ -925,7 +933,7 @@ class TileParams:
         self.i = i
         self.j = j
         self.name = name
-        poly_wkt = 'POLYGON (( %f %f, %f %f, %f %f, %f %f, %f %f ))' %(x,y,x,y2,x2,y2,x2,y,x,y)
+        poly_wkt = 'POLYGON (( {} {}, {} {}, {} {}, {} {}, {} {} ))'.format(x, y, x, y2, x2, y2, x2, y, x, y)
         self.geom = ogr.CreateGeometryFromWkt(poly_wkt)
         
 
@@ -971,7 +979,8 @@ def determine_contributors(imginfo_list, tile_geom, contribution_threshold):
                     contrib_geom = diff.Intersection(tile_geom)
                     union_geom = union_geom.Union(iinfo.geom)
                     contribs.append((iinfo,contrib_geom))
-                    logger.debug("Adding image with contribution area below threshold to fill a gap: {}".format(iinfo.srcfp))
+                    logger.debug("Adding image with contribution area below threshold to fill a gap: {}".
+                                 format(iinfo.srcfp))
     
     # reverse list so highest score is last
     contribs.reverse()
@@ -982,7 +991,7 @@ def filterMatchingImages(imginfo_list,params):
     imginfo_list2 = []
    
     for iinfo in imginfo_list:
-        #print iinfo.srcfp, iinfo.proj
+        #print(iinfo.srcfp, iinfo.proj)
         isSame = True
         p = osr.SpatialReference()
         p.ImportFromWkt(iinfo.proj)
@@ -990,13 +999,13 @@ def filterMatchingImages(imginfo_list,params):
         rp.ImportFromWkt(params.proj)
         if p.IsSame(rp) is False:
             isSame = False
-            logger.debug("Image projection differs from mosaic params: %s" %iinfo.srcfp)
+            logger.debug("Image projection differs from mosaic params: {}".format(iinfo.srcfp))
         if iinfo.bands != params.bands and not (params.force_pan_to_multi is True and iinfo.bands == 1) and not (params.include_all_ms is True): 
             isSame = False
-            logger.debug("Image band count differs from mosaic params: %s" %iinfo.srcfp)
+            logger.debug("Image band count differs from mosaic params: {}".format(iinfo.srcfp))
         if iinfo.datatype != params.datatype:
             isSame = False
-            logger.debug("Image datatype differs from mosaic params: %s" %iinfo.srcfp)
+            logger.debug("Image datatype differs from mosaic params: {}".format(iinfo.srcfp))
             
         if isSame is True:
             imginfo_list2.append(iinfo)
@@ -1011,9 +1020,9 @@ def filter_images_by_geometry(imginfo_list, params):
             if params.extent_geom.Intersect(iinfo.geom):
                 imginfo_list2.append(iinfo)
             else:
-                logger.debug("Image does not intersect mosaic extent: %s" %iinfo.srcfn)
+                logger.debug("Image does not intersect mosaic extent: {}".format(iinfo.srcfn))
         else: # remove from list if no geom
-            logger.debug("Null geometry for image: %s" %iinfo.srcfn)
+            logger.debug("Null geometry for image: {} ".format(iinfo.srcfn))
     return imginfo_list2
 
 
@@ -1050,7 +1059,7 @@ def getMosaicParameters(iinfo,options):
             params.y = [options.tyear]
         else:
             yrs = options.tyear.split('-')
-            params.y = range(int(yrs[0]), int(yrs[1]) + 1)
+            params.y = list(range(int(yrs[0]), int(yrs[1]) + 1))
     else:
         params.y = 0
 
@@ -1059,7 +1068,10 @@ def getMosaicParameters(iinfo,options):
         params.ymin = options.extent[2]
         params.xmax = options.extent[1]
         params.ymax = options.extent[3]
-        poly_wkt = 'POLYGON (( %f %f, %f %f, %f %f, %f %f, %f %f ))' %(params.xmin,params.ymin,params.xmin,params.ymax,params.xmax,params.ymax,params.xmax,params.ymin,params.xmin,params.ymin)
+        poly_wkt = 'POLYGON (( {} {}, {} {}, {} {}, {} {}, {} {} ))'.format(params.xmin, params.ymin, params.xmin,
+                                                                            params.ymax, params.xmax, params.ymax,
+                                                                            params.xmax, params.ymin, params.xmin,
+                                                                            params.ymin)
         params.extent_geom = ogr.CreateGeometryFromWkt(poly_wkt)
     
     try:
@@ -1105,23 +1117,23 @@ def GetExactTrimmedGeom(image, step=4, tolerance=1):
             if nd is None:
                 nd = 0
             
-            #print ("Image NoData Value: %d" %nd )
+            #print("Image NoData Value: {}".format(nd))
             gtf = ds.GetGeoTransform()
             pixelst = []
             pixelsb = []
             pts = []
             
             #### For every other line, find first and last data pixel
-            lines = xrange(0, inband.YSize, step)
+            lines = list(range(0, inband.YSize, step))
             xsize = inband.XSize
             
             try:
                 lines_flatnonzero = [flatnonzero(inband.ReadAsArray(0,l,xsize,1) != nd) for l in lines]    
-            except AttributeError, e:
+            except AttributeError as e:
                 logger.error("Error reading image block.  Check image for corrupt data.")
             
             else:
-                #print lines_flatnonzero
+                #print(lines_flatnonzero)
                 i = 0
                 for nz in lines_flatnonzero:
                     nzmin = nz[0] if nz.size > 0 else 0
@@ -1133,30 +1145,30 @@ def GetExactTrimmedGeom(image, step=4, tolerance=1):
                 pixelsb.reverse()
                 pixels = pixelst + pixelsb
                 
-                #print "Pixel Array length:", len(pixels)
+                #print("Pixel Array length: {}".format(len(pixels))
                 
                 for px in pixels:
                     x,y = pl2xy(gtf,inband,px[0],px[1])
                     xs.append(x)
                     ys.append(y)
                     pts.append((x,y))
-                    #print px[0],px[1],x,y
+                    #print(px[0],px[1],x,y)
                 
                 #### create geometry
                 poly_vts = []
                 for pt in pts:
-                    poly_vts.append("%.16f %.16f" %(pt[0],pt[1]))
+                    poly_vts.append("{0:.16f} {0:.16f}".format(pt[0],pt[1]))
                 if len(pts) > 0:
-                    poly_vts.append("%.16f %.16f" %(pts[0][0],pts[0][1]))
+                    poly_vts.append("{0:.16f} {0:.16f}".format(pts[0][0],pts[0][1]))
                 
                 if len(poly_vts) > 0:
-                    poly_wkt = 'POLYGON (( %s ))' %(string.join(poly_vts,", "))
-                    #print poly_wkt
+                    poly_wkt = 'POLYGON (( {} ))'.format(string.join(poly_vts,", "))
+                    #print(poly_wkt)
                     
                     geom = ogr.CreateGeometryFromWkt(poly_wkt)
-                    #print geom
+                    #print(geom)
                     #### Simplify geom
-                    #logger.debug("Simplification tolerance: %.10f" %tolerance)
+                    #logger.debug("Simplification tolerance: {0:.10f}".format(tolerance))
                     if geom is not None:
                         geom2  = geom.Simplify(tolerance)
         ds = None
@@ -1207,12 +1219,12 @@ def drange(start, stop, step):
 def buffernum(num,buf):
     sNum = str(num)
     while len(sNum)<buf:
-        sNum = "0%s" %sNum
+        sNum = "0{}".format(sNum)
     return sNum
    
                     
 def copyall(srcfile,dstdir):
-    for fpi in glob.glob("%s.*" %os.path.splitext(srcfile)[0]):
+    for fpi in glob.glob("{}.*".format(os.path.splitext(srcfile)[0])):
         fpo = os.path.join(dstdir,os.path.basename(fpi))
         try:
             shutil.copy2(fpi,fpo)
