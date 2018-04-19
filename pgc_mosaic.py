@@ -744,7 +744,7 @@ def build_tiles_shp(mosaicname, tiles, params):
             feat.SetGeometry(t.geom)
             
             if lyr.CreateFeature(feat) != 0:
-                logger.error("ERROR: Could not create feature for tile %s" % tile)
+                logger.error("ERROR: Could not create feature for tile %s" % t)
             feat.Destroy()
             
 
