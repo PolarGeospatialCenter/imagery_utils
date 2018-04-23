@@ -61,14 +61,14 @@ class ImageInfo:
     def get_attributes_from_record(self, feat, srs):
         
         i = feat.GetFieldIndex("S_FILEPATH")
-        if i <> -1:
+        if i != -1:
             spath = feat.GetFieldAsString(i)
         else:
             logger.error("S_FILEPATH fields does not exist in record")
             spath = None
             
         i = feat.GetFieldIndex("O_FILEPATH")
-        if i <> -1:
+        if i != -1:
             opath = feat.GetFieldAsString(i)
         else:
             logger.error("O_FILEPATH fields does not exist in record")
