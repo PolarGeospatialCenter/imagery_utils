@@ -862,7 +862,7 @@ def GetImageStats(args, info, target_extent_geom=None):
                 logger.info("Using user-provided extent: {}".format(str(target_extent_geom)))
                 extent_geom = target_extent_geom
         
-        if rc <> 1:
+        if rc != 1:
             info.extent_geom = extent_geom
             info.geometry_wkt = extent_geom.ExportToWkt()
             #### Get centroid and back project to geographic coords (this is neccesary for images that cross 180)
@@ -1251,7 +1251,7 @@ def WarpImage(args,info):
         nodata_list = ["0"] * info.bands
 
         if not args.skip_warp:
-            if rc <> 1:
+            if rc != 1:
                 ####  Set RPC_DEM or RPC_HEIGHT transformation option
                 if args.dem != None:
                     logger.info('DEM: {}'.format(os.path.basename(args.dem)))
