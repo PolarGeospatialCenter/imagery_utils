@@ -503,7 +503,7 @@ def stackIkBands(dstfp, members):
         keys.sort()
         for k in keys:
             if not '"' in m[k]:
-                m_list.append('-co "{}={}"'.format((k.replace("NITF_", ""), m[k])))
+                m_list.append('-co "{}={}"'.format(k.replace("NITF_", ""), m[k]))
         for k in meta_dict.keys():
             if not '"' in meta_dict[k]:
                 m_list.append('-co "{}={}"'.format(k.replace("NITF_", ""), meta_dict[k]))
@@ -811,13 +811,13 @@ def GetImageStats(args, info, target_extent_geom=None):
         ds = None
 
         ####  Create geometry objects
-        ul = "POINT ( {0:.12f} {0:.12f} )".format(ulx, uly)
-        ur = "POINT ( {0:.12f} {0:.12f} )".format(urx, ury)
-        ll = "POINT ( {0:.12f} {0:.12f} )".format(llx, lly)
-        lr = "POINT ( {0:.12f} {0:.12f} )".format(lrx, lry)
-        poly_wkt = 'POLYGON (( {0:.12f} {0:.12f}, {0:.12f} {0:.12f}, ' \
-                              '{0:.12f} {0:.12f}, {0:.12f} {0:.12f}, ' \
-                              '{0:.12f} {0:.12f} ))'.format(ulx, uly, urx, ury, lrx, lry, llx, lly, ulx, uly)
+        ul = "POINT ( {0:.12f} {1:.12f} )".format(ulx, uly)
+        ur = "POINT ( {0:.12f} {1:.12f} )".format(urx, ury)
+        ll = "POINT ( {0:.12f} {1:.12f} )".format(llx, lly)
+        lr = "POINT ( {0:.12f} {1:.12f} )".format(lrx, lry)
+        poly_wkt = 'POLYGON (( {0:.12f} {1:.12f}, {2:.12f} {3:.12f}, ' \
+                              '{4:.12f} {5:.12f}, {6:.12f} {7:.12f}, ' \
+                              '{8:.12f} {9:.12f} ))'.format(ulx, uly, urx, ury, lrx, lry, llx, lly, ulx, uly)
 
         ul_geom = ogr.CreateGeometryFromWkt(ul)
         ur_geom = ogr.CreateGeometryFromWkt(ur)
@@ -883,7 +883,7 @@ def GetImageStats(args, info, target_extent_geom=None):
                 else:
                     info.centerlong = '--config CENTER_LONG 180 '
     
-            info.extent = "-te {0:.12f} {0:.12f} {0:.12f} {0:.12f} ".format(minx, miny, maxx, maxy)
+            info.extent = "-te {0:.12f} {1:.12f} {2:.12f} {3:.12f} ".format(minx, miny, maxx, maxy)
     
             rasterxsize_m = abs(math.sqrt((ul_geom.GetX() - ur_geom.GetX())**2 + (ul_geom.GetY() - ur_geom.GetY())**2))
             rasterysize_m = abs(math.sqrt((ul_geom.GetX() - ll_geom.GetX())**2 + (ul_geom.GetY() - ll_geom.GetY())**2))
@@ -895,9 +895,9 @@ def GetImageStats(args, info, target_extent_geom=None):
             if args.resolution is not None:
                 info.res = "-tr {} {} ".format(args.resolution,args.resolution)
             else:
-                info.res = "-tr {0:.12f} {0:.12f} ".format(resx, resy)
-            logger.info("Original image size: {} x {}, res: {0:.12f} x {0:.12f}".format(rasterxsize_m, rasterysize_m,
-                                                                                        resx, resy))
+                info.res = "-tr {0:.12f} {1:.12f} ".format(resx, resy)
+            logger.info("Original image size: {0} x {1}, res: {2:.12f} x {3:.12f}".format(rasterxsize_m, rasterysize_m,
+                                                                                          resx, resy))
     
             #### Set RGB bands
             info.rgb_bands = ""
@@ -1355,7 +1355,7 @@ def GetCalibrationFactors(info):
         if info.bands == 1:
             bandList = [5]
         elif info.bands == 4:
-            bandList = range(1,5,1)
+            bandList = range(1, 5, 1)
 
     elif info.vendor == "GeoEye" and info.sat == "IK01":
         metapath = info.metapath
@@ -1363,9 +1363,9 @@ def GetCalibrationFactors(info):
         if info.bands == 1:
             bandList = [4]
         elif info.bands == 4:
-            bandList = range(0,4,1)
+            bandList = range(0, 4, 1)
         elif info.bands == 3:
-            bandList = range(0,3,1)
+            bandList = range(0, 3, 1)
 
     else:
         logger.warning( "Vendor or sensor not recognized: {}, {}".format(info.vendor, info.sat))
