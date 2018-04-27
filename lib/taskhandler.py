@@ -93,7 +93,7 @@ class ParallelTaskHandler(object):
         if mp.cpu_count() < num_processes:
             raise RuntimeError("Specified number of processes ({0}) is higher than the system cpu count ({1})".format(num_processes,mp.cpu_count()))
         elif num_processes < 1:
-            raise RuntimeError("Specified number of processes ({0}) must be greater than 0, using default".format(num_processes,mp.cpu_count()))
+            raise RuntimeError("Specified number of processes ({0}) must be greater than 0, using default".format(num_processes))
 
     def run_tasks(self, tasks):
 
