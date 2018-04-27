@@ -476,7 +476,7 @@ def getWrappedGeometry(src_geom):
 
     # Assume a single polygon, deconstruct to points, skipping last one
     ring_geom = src_geom.GetGeometryRef(0)
-    for i in xrange(0, ring_geom.GetPointCount() - 1):
+    for i in range(0, ring_geom.GetPointCount() - 1):
         pt1 = ring_geom.GetPoint(i)
         pt2 = ring_geom.GetPoint(i + 1)
 
