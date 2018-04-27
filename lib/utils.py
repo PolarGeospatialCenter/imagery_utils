@@ -487,7 +487,7 @@ def getWrappedGeometry(src_geom):
             east_points.append(pt1)
 
         # Test if segment to next point crosses 180 (x is opposite sign)
-        if cmp(pt1[0], 0) != cmp(pt2[0], 0):
+        if (pt1[0] > 0) - (pt1[0] < 0) != (pt2[0] > 0) - (pt2[0] < 0):
 
             # If segment crosses, calculate y for the intersection point
             pt3_y = calc_y_intersection_with_180(pt1, pt2)
