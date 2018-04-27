@@ -265,7 +265,7 @@ def buildParentArgumentParser():
     parser.add_argument("--no-pyramids", action='store_true', default=False, help='suppress calculation of output '
                                                                                   'image pyramids')
     parser.add_argument("--pyramid-type", choices=['near','cubic'], default='near', help='pyramid resampling strategy')
-    parser.add_argument("--ortho-height", type=long, help='constant elevation to use for orthorectification (value '
+    parser.add_argument("--ortho-height", type=int, help='constant elevation to use for orthorectification (value '
                                                           'should be in meters above the wgs84 ellipoid)')
 
 
