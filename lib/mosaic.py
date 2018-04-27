@@ -217,8 +217,8 @@ class ImageInfo:
                 self.xres = abs(math.sqrt((ulx - urx) ** 2 + (uly - ury) ** 2) / self.xsize)
                 self.yres = abs(math.sqrt((ulx - llx) ** 2 + (uly - lly) ** 2) / self.ysize)
                 
-            poly_wkt = 'POLYGON (( {0:.12f} {0:.12f}, {0:.12f} {0:.12f}, {0:.12f} {0:.12f}, {0:.12f} {0:.12f}, ' \
-                       '{0:.12f} {0:.12f} ))'.format(ulx, uly, urx, ury, lrx, lry, llx, lly, ulx, uly)
+            poly_wkt = 'POLYGON (( {0:.12f} {1:.12f}, {2:.12f} {3:.12f}, {4:.12f} {5:.12f}, {6:.12f} {7:.12f}, ' \
+                       '{8:.12f} {9:.12f} ))'.format(ulx, uly, urx, ury, lrx, lry, llx, lly, ulx, uly)
             self.geom = ogr.CreateGeometryFromWkt(poly_wkt)
             self.xs = [ulx, urx, lrx, llx]
             self.ys = [uly, ury, lry, lly]
