@@ -32,7 +32,7 @@ class PBSTaskHandler(object):
             cmd = "pbsnodes"
             p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             so, se = p.communicate()
-        except OSError,e:
+        except OSError:
             raise RuntimeError("PBS job submission is not available on this system")
 
         self.qsubscript = qsubscript
@@ -64,7 +64,7 @@ class SLURMTaskHandler(object):
             cmd = "sinfo"
             p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             so, se = p.communicate()
-        except OSError,e:
+        except OSError:
             raise RuntimeError("SLURM job submission is not available on this system")
 
         self.qsubscript = qsubscript
