@@ -1,4 +1,4 @@
-import os, string, sys, shutil, math, glob, re, tarfile, logging, platform, argparse
+import os, sys, shutil, math, glob, re, tarfile, logging, platform, argparse
 from datetime import datetime, timedelta
 
 from lib import utils, taskhandler
@@ -529,8 +529,9 @@ def stackIkBands(dstfp, members):
             rc = 1
 
         cmd = 'gdal_translate -a_srs "{}" -of NITF -co "IC=NC" {} {} "{}" "{}"'.format(s_srs_proj4,
-                                                                                       string.join(m_list, " "),
-                                                                                       string.join(tre_list, " "), vrt,
+                                                                                       " ".join(m_list),
+                                                                                       " ".join(tre_list),
+                                                                                       vrt,
                                                                                        dstfp)
 
         (err,so,se) = taskhandler.exec_cmd(cmd)
@@ -1443,7 +1444,7 @@ def ExtractRPB(item,rpb_p):
             tar = tarfile.open(tar_p, 'r')
             tarlist = tar.getnames()
             for t in tarlist:
-                if '.rpb' in string.lower(t) or '_rpc' in string.lower(t): #or '.til' in string.lower(t):
+                if '.rpb' in t.lower() or '_rpc' in t.lower(): #or '.til' in t.lower():
                     tf = tar.extractfile(t)
                     fp = os.path.splitext(rpb_p)[0] + os.path.splitext(t)[1]
                     fpfh = open(fp,"w")
