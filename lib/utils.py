@@ -32,7 +32,7 @@ class SpatialRef(object):
             "+ellps=WGS84 +towgs84=0,0,0,0,0,0,0":"+datum=WGS84",
         }
 
-        for pattern, replacement in proj4_patterns.iteritems():
+        for pattern, replacement in proj4_patterns.items():
             if proj4_string.find(pattern) != -1:
                 proj4_string = proj4_string.replace(pattern,replacement)
 
