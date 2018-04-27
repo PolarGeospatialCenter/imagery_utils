@@ -1,4 +1,4 @@
-import os, string, sys, shutil, math, glob, re, tarfile, logging, platform, argparse, subprocess
+import os, sys, shutil, math, glob, re, tarfile, logging, platform, argparse, subprocess
 from datetime import datetime, timedelta
 
 from xml.dom import minidom
@@ -121,7 +121,7 @@ def find_images(inpath, is_textfile, target_exts):
             for f in  files:
                 if os.path.splitext(f)[1].lower() in target_exts:
                     image_path = os.path.join(root,f)
-                    image_path = string.replace(image_path,'\\','/')
+                    image_path = image_path.replace('\\', '/')
                     image_list.append(image_path)
 
     return image_list
@@ -146,7 +146,7 @@ def find_images_with_exclude_list(inpath, is_textfile, target_exts, exclude_list
             for f in  files:
                 if os.path.splitext(f)[1].lower() in target_exts:
                     image_path = os.path.join(root,f)
-                    image_path = string.replace(image_path,'\\','/')
+                    image_path = image_path.replace('\\', '/')
                     image_list.append(image_path)
 
     #print len(exclude_list)
