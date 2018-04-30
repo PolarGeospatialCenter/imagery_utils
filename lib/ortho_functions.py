@@ -504,10 +504,10 @@ def stackIkBands(dstfp, members):
         keys = m.keys()
         keys.sort()
         for k in keys:
-            if not '"' in m[k]:
+            if '"' not in m[k]:
                 m_list.append('-co "{}={}"'.format(k.replace("NITF_", ""), m[k]))
         for k in meta_dict.keys():
-            if not '"' in meta_dict[k]:
+            if '"' not in meta_dict[k]:
                 m_list.append('-co "{}={}"'.format(k.replace("NITF_", ""), meta_dict[k]))
 
         #### Get the TRE metadata
@@ -515,7 +515,7 @@ def stackIkBands(dstfp, members):
         #### Make the dictionary into a list
         tre_list = []
         for k in tres.keys():
-            if not '"' in tres[k]:
+            if '"' not in tres[k]:
                 tre_list.append('-co "TRE={}={}"'.format(k, src_ds.GetMetadataItem(k, "TRE")))
 
 
@@ -560,17 +560,17 @@ def stackIkBands(dstfp, members):
 
         #### also copy blue and rgb aux files
         for fpi in glob.glob(os.path.join(srcdir,"{}.*".format(os.path.splitext(srcfn)[0]))):
-            fpo = os.path.join(dstdir,os.path.basename(fpi).replace("blu","msi"))
+            fpo = os.path.join(dstdir,os.path.basename(fpi).replace("blu", "msi"))
             if not os.path.isfile(fpo) and not os.path.basename(fpi) == srcfn:
-                shutil.copy2(fpi,fpo)
-        for fpi in glob.glob(os.path.join(srcdir,"{}.*".format(os.path.splitext(srcfn)[0].replace("blu","rgb")))):
-            fpo = os.path.join(dstdir,os.path.basename(fpi).replace("rgb","msi"))
+                shutil.copy2(fpi, fpo)
+        for fpi in glob.glob(os.path.join(srcdir,"{}.*".format(os.path.splitext(srcfn)[0].replace("blu", "rgb")))):
+            fpo = os.path.join(dstdir,os.path.basename(fpi).replace("rgb", "msi"))
             if not os.path.isfile(fpo) and not os.path.basename(fpi) == srcfn:
-                shutil.copy2(fpi,fpo)
-        for fpi in glob.glob(os.path.join(srcdir,"{}.txt".format(os.path.splitext(srcfn)[0].replace("blu","pan")))):
-            fpo = os.path.join(dstdir,os.path.basename(fpi).replace("pan","msi"))
+                shutil.copy2(fpi, fpo)
+        for fpi in glob.glob(os.path.join(srcdir,"{}.txt".format(os.path.splitext(srcfn)[0].replace("blu", "pan")))):
+            fpo = os.path.join(dstdir,os.path.basename(fpi).replace("pan", "msi"))
             if not os.path.isfile(fpo):
-                shutil.copy2(fpi,fpo)
+                shutil.copy2(fpi, fpo)
 
     else:
         rc = 1
