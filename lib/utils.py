@@ -155,13 +155,9 @@ def find_images_with_exclude_list(inpath, is_textfile, target_exts, exclude_list
 
         image_list2 = []
         for image in image_list:
-            include = True
-            for pattern in exclude_list:
-                if pattern in image:
-                    include = False
-
-            if include is False:
-                logger.debug("Scene ID is matches pattern in exclude_list: {}".format(image))
+            exclude = [pattern for pattern in exclude_list if image in pattern]
+            if exclude:
+                logger.debug("Scene ID matches pattern in exclude_list: {}".format(image))
             else:
                 image_list2.append(image)
 
