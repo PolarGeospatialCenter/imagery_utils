@@ -48,6 +48,8 @@ def get_bit_depth(outtype):
         bitdepth = "u16"
     elif outtype == "Float32":
         bitdepth = "f32"
+    else:
+        raise RuntimeError("Invalid bit depth '{0}' supplied; must be 'Byte', 'UInt16', or 'Float32'.").format(outtype)
 
     return bitdepth
 
