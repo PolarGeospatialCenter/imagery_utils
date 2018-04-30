@@ -14,32 +14,31 @@ logger.setLevel(logging.DEBUG)
 
 class SpatialRef(object):
 
-    def __init__(self,epsg):
+    def __init__(self, epsg):
         srs = osr.SpatialReference()
         try:
             epsgcode = int(epsg)
         except ValueError:
-            raise RuntimeError("EPSG value must be an integer: %s" %epsg)
+            raise RuntimeError("EPSG value must be an integer: {}".format(epsg))
         else:
             err = srs.ImportFromEPSG(epsgcode)
             if err == 7:
-                raise RuntimeError("Invalid EPSG code: %d" %epsgcode)
+                raise RuntimeError("Invalid EPSG code: {}".format(epsgcode))
             else:
                 proj4_string = srs.ExportToProj4()
 
         proj4_patterns = {
-            "+ellps=GRS80 +towgs84=0,0,0,0,0,0,0":"+datum=NAD83",
-            "+ellps=WGS84 +towgs84=0,0,0,0,0,0,0":"+datum=WGS84",
+            "+ellps=GRS80 +towgs84=0,0,0,0,0,0,0": "+datum=NAD83",
+            "+ellps=WGS84 +towgs84=0,0,0,0,0,0,0": "+datum=WGS84",
         }
 
         for pattern, replacement in proj4_patterns.items():
             if proj4_string.find(pattern) != -1:
-                proj4_string = proj4_string.replace(pattern,replacement)
+                proj4_string = proj4_string.replace(pattern, replacement)
 
         self.srs = srs
         self.proj4 = proj4_string
         self.epsg = epsgcode
-
 
 
 def get_bit_depth(outtype):
@@ -107,20 +106,20 @@ def find_images(inpath, is_textfile, target_exts):
 
     image_list = []
     if is_textfile:
-        t = open(inpath,'r')
+        t = open(inpath, 'r')
         for line in t.readlines():
             image = line.rstrip('\n').rstrip('\r')
             if os.path.isfile(image) and os.path.splitext(image)[1].lower() in target_exts:
                 image_list.append(image)
             else:
-                logger.debug("File in textfile does not exist or has an invalid extension: %s" %image)
+                logger.debug("File in textfile does not exist or has an invalid extension: {}".format(image))
         t.close()
 
     else:
-        for root,dirs,files in os.walk(inpath):
-            for f in  files:
+        for root, dirs, files in os.walk(inpath):
+            for f in files:
                 if os.path.splitext(f)[1].lower() in target_exts:
-                    image_path = os.path.join(root,f)
+                    image_path = os.path.join(root, f)
                     image_path = image_path.replace('\\', '/')
                     image_list.append(image_path)
 
@@ -132,35 +131,35 @@ def find_images_with_exclude_list(inpath, is_textfile, target_exts, exclude_list
     image_list = []
 
     if is_textfile is True:
-        t = open(inpath,'r')
+        t = open(inpath, 'r')
         for line in t.readlines():
             image = line.rstrip('\n').rstrip('\r')
             if os.path.isfile(image) and os.path.splitext(image)[1].lower() in target_exts:
                 image_list.append(image)
             else:
-                logger.info("File in textfile does not exist or has an invalid extension: %s" %image)
+                logger.info("File in textfile does not exist or has an invalid extension: {}".format(image))
         t.close()
 
     else:
-        for root,dirs,files in os.walk(inpath):
-            for f in  files:
+        for root, dirs, files in os.walk(inpath):
+            for f in files:
                 if os.path.splitext(f)[1].lower() in target_exts:
-                    image_path = os.path.join(root,f)
+                    image_path = os.path.join(root, f)
                     image_path = image_path.replace('\\', '/')
                     image_list.append(image_path)
 
-    #print len(exclude_list)
+    #print(len(exclude_list))
     if len(exclude_list) > 0:
 
         image_list2 = []
         for image in image_list:
-            include=True
+            include = True
             for pattern in exclude_list:
                 if pattern in image:
-                    include=False
+                    include = False
 
-            if include==False:
-                logger.debug("Scene ID is matches pattern in exclude_list: %s" %image)
+            if include is False:
+                logger.debug("Scene ID is matches pattern in exclude_list: {}".format(image))
             else:
                 image_list2.append(image)
 
@@ -173,13 +172,13 @@ def find_images_with_exclude_list(inpath, is_textfile, target_exts, exclude_list
 def delete_temp_files(names):
 
     for name in names:
-        deleteList = glob.glob(os.path.splitext(name)[0]+'.*')
+        deleteList = glob.glob(os.path.splitext(name)[0] + '.*')
         for f in deleteList:
             if not "log" in os.path.basename(f):
                 try:
                     os.remove(f)
                 except Exception as e:
-                    logger.warning('Could not remove %s: %s' %(os.path.basename(f),e))
+                    logger.warning('Could not remove {0}: {1}'.format(os.path.basename(f), e))
 
 
 def getGEMetadataAsXml(metafile):
@@ -187,10 +186,10 @@ def getGEMetadataAsXml(metafile):
         try:
             metaf = open(metafile, "r")
         except IOError as err:
-            logger.error("Could not open metadata file %s because %s" % (metafile, err))
+            logger.error("Could not open metadata file {0} because {1}".format(metafile, err))
             raise
     else:
-        logger.error("Metadata file %s not found" % metafile)
+        logger.error("Metadata file {} not found".format(metafile))
         return None
 
     # Patterns to extract tag/value pairs and BEGIN/END group tags
@@ -199,9 +198,9 @@ def getGEMetadataAsXml(metafile):
 
     # These tags use the following tag/value as an attribute of the group rather than
     # a standalone node
-    group_tags = {"aoiGeoCoordinate":"coordinateNumber",
-                  "aoiMapCoordinate":"coordinateNumber",
-                  "bandSpecificInformation":"bandNumber"}
+    group_tags = {"aoiGeoCoordinate": "coordinateNumber",
+                  "aoiMapCoordinate": "coordinateNumber",
+                  "bandSpecificInformation": "bandNumber"}
 
     # Start processing
     root = ET.Element("root")
@@ -253,7 +252,7 @@ def getGEMetadataAsXml(metafile):
                 mlstr = True
 
     metaf.close()
-    #print ET.ElementTree(root)
+    #print(ET.ElementTree(root))
     return ET.ElementTree(root)
 
 
@@ -270,7 +269,7 @@ def getIKMetadataAsXml(metafile):
         try:
             metaf = open(metafile, "r")
         except IOError as err:
-            logger.error( "Could not open metadata file %s because %s" % (metafile, err))
+            logger.error("Could not open metadata file {0} because {1}".format(metafile, err))
             raise
     else:
         metaf = metafile
@@ -379,7 +378,9 @@ def getIKMetadataAsXml(metafile):
                 # Vanilla tag/value pair
                 else:
                     # Adjust depth if we just finished a Coordinate block
-                    if tag not in tags_coords and current.tag in ["Coordinate","Component_Map_Coordinates_in_Map_Units","Acquired_Nominal_GSD"]:
+                    if tag not in tags_coords and current.tag in ["Coordinate",
+                                                                  "Component_Map_Coordinates_in_Map_Units",
+                                                                  "Acquired_Nominal_GSD"]:
                         while current.tag not in tags_2L and current.tag not in tags_1L and current.tag != "root":
                             current = parent
                             parent = node_stack.pop()
@@ -419,7 +420,7 @@ def get_source_names(src_fp):
         msg = "The source {} does not appear to be a shapefile or File GDB".format(src_fp)
         raise RuntimeError(msg)
 
-    return (src_dsp, src_lyr)
+    return src_dsp, src_lyr
 
 
 def doesCross180(geom):
