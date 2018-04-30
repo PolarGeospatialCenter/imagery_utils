@@ -1253,7 +1253,7 @@ def WarpImage(args, info):
         if not args.skip_warp:
             if rc != 1:
                 ####  Set RPC_DEM or RPC_HEIGHT transformation option
-                if args.dem != None:
+                if args.dem is not None:
                     logger.info('DEM: {}'.format(os.path.basename(args.dem)))
                     to = "RPC_DEM={}".format(args.dem)
 
