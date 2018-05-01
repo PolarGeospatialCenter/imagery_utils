@@ -1,4 +1,4 @@
-import os, string, sys, shutil, glob, re, tarfile, logging, argparse, subprocess, math
+import os, sys, shutil, glob, re, tarfile, logging, argparse, subprocess, math
 from datetime import datetime, date, timedelta
 from xml.etree import cElementTree as ET
 import gdal, ogr, osr, gdalconst
@@ -500,7 +500,7 @@ def run_mosaic(tile_builder_script, inpath, mosaicname, mosaic_dir, args, pos_ar
             logger.info("Number of contributors to subtile %s: %i", tile_basename, len(intersects))
             itpath = os.path.join(mosaic_dir,tile_basename+"_intersects.txt")
             it = open(itpath,"w")
-            it.write(string.join(intersects,"\n"))
+            it.write("\n".join(intersects))
             it.close()
             
             #### Submit QSUB job
