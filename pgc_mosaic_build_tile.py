@@ -1,4 +1,4 @@
-import os, string, sys, shutil, glob, re, tarfile, logging, argparse
+import os, sys, shutil, glob, re, tarfile, logging, argparse
 from datetime import datetime, timedelta
 
 from subprocess import *
@@ -44,7 +44,7 @@ def main():
     parser.add_argument("--wd",
                         help="scratch space (default is mosaic directory)")
     parser.add_argument("--gtiff-compression", choices=mosaic.GTIFF_COMPRESSIONS, default="lzw",
-                        help="GTiff compression type. Default=lzw (%s)"%string.join(mosaic.GTIFF_COMPRESSIONS,','))
+                        help="GTiff compression type. Default=lzw ({})".format(','.join(mosaic.GTIFF_COMPRESSIONS)))
     
     #### Parse Arguments
     args = parser.parse_args()
@@ -128,7 +128,10 @@ def main():
         if args.force_pan_to_multi and iinfo.bands > 1:
             if iinfo.bands == 1:
                 mergefile = os.path.join(wd,os.path.basename(iinfo.srcfp)[:-4])+"_merge.tif"
-                cmd = 'gdal_merge.py -ps %s %s -separate -o "%s" "%s"' %(ref_xres, ref_yres, mergefile, string.join(([iinfo.srcfp] * iinfo.bands),'" "'))
+                cmd = 'gdal_merge.py -ps {} {} -separate -o "{}" "{}"'.format(ref_xres,
+                                                                              ref_yres,
+                                                                              mergefile,
+                                                                              '" "'.join([iinfo.srcfp] * iinfo.bands))
                 taskhandler.exec_cmd(cmd)
         srcnodata = " ".join([str(ndv) for ndv in iinfo.nodatavalue])
 
@@ -142,7 +145,7 @@ def main():
             ds = gdal.Open(dst)
             if ds:
                 srcnodata_val = ds.GetRasterBand(1).GetNoDataValue()
-                srcnodata = string.join(([str(srcnodata_val)] * bands)," ")
+                srcnodata = " ".join([str(srcnodata_val)] * bands)
                 mergefile = dst
             else:
                 logger.error("BandSubtractMedian() failed at gdal.Open(%s)", dst)
