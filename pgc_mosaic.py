@@ -678,7 +678,6 @@ def build_shp(contribs, shp, args, params):
                 feat.SetField("STATS_PXCT", ",".join(px_cnt_list))
 
         if params.median_remove is True:
-            median_list = []
             keys = iinfo.median.keys()
             keys.sort()
             median_list = [str(iinfo.median[band]) for band in keys]
