@@ -117,8 +117,8 @@ class ParallelTaskHandler(object):
 
 def exec_cmd_mp(job):
     job_name, cmd = job
-    logger.info('Running job: {0}'.format(job_name))
-    logger.debug('Cmd: {0}'.format(cmd))
+    logger.info('Running job: %s', job_name)
+    logger.debug('Cmd: %s', cmd)
     if platform.system() == "Windows":
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
     else:
@@ -145,13 +145,13 @@ def exec_cmd(cmd):
     err = 0
 
     if rc != 0:
-        logger.error("Error found - Return Code = {}:  {}".format(rc, cmd))
+        logger.error("Error found - Return Code = %s:  %s", rc, cmd)
         err = 1
     else:
-        logger.debug("Return Code = {}:  {}".format(rc, cmd))
+        logger.debug("Return Code = %s:  %s", rc, cmd)
 
-    logger.debug("STDOUT:  {}".format(so))
-    logger.debug("STDERR:  {}".format(se))
+    logger.debug("STDOUT:  %s", so)
+    logger.debug("STDERR:  %s", se)
     return err, so, se
 
 
