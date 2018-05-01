@@ -146,7 +146,7 @@ def main():
     else:
         exclude_list = set()
     
-    logger.debug("Exclude list: %s" %str(exclude_list))
+    logger.debug("Exclude list: %s", str(exclude_list))
     
     #### Parse csv, validate tile ID and get tilegeom
     tiles = {}
@@ -154,7 +154,7 @@ def main():
     for line in csv:
         tile = line.rstrip().split(",")
         if len(tile) != 9:
-            logger.warning("funny csv line: %s" %line.strip('\n'))
+            logger.warning("funny csv line: %s", line.strip('\n'))
         else:
             name = tile[2]
             if name != "name":
@@ -173,12 +173,12 @@ def main():
     
         for ttile in ttiles:
             if ttile not in tiles:
-                logger.info("Target tile is not in the tile csv: %s" %ttile)
+                logger.info("Target tile is not in the tile csv: %s", ttile)
                 
             else:
                 t = tiles[ttile]
                 if t.status == "0":
-                    logger.error("Tile status indicates it should not be created: %s, %s" %(ttile,t.status))
+                    logger.error("Tile status indicates it should not be created: %s, %s", ttile,t.status)
                 else:
                     try:
                         HandleTile(t,src,dstdir,csvpath,args,exclude_list)
@@ -204,9 +204,9 @@ def HandleTile(t,src,dstdir,csvpath,args,exclude_list):
     mtxtpath = os.path.join(dstdir,"%s_%s_ortho.txt" %(os.path.basename(csvpath)[:-4],t.name))
     
     if os.path.isfile(otxtpath) and os.path.isfile(mtxtpath) and args.overwrite is False:
-        logger.info("Tile %s processing files already exist" %t.name)
+        logger.info("Tile %s processing files already exist", t.name)
     else:
-        logger.info("Tile %s" %(t.name))
+        logger.info("Tile %s", t.name)
     
         t_srs = osr.SpatialReference()
         t_srs.ImportFromEPSG(t.epsg)
@@ -261,10 +261,11 @@ def HandleTile(t,src,dstdir,csvpath,args,exclude_list):
                         if iinfo.geom.Intersects(t.geom):
                             
                             if iinfo.scene_id in exclude_list:
-                                logger.debug("Scene in exclude list, excluding: %s" %iinfo.srcfp)
+                                logger.debug("Scene in exclude list, excluding: %s", iinfo.srcfp)
                                 
                             elif not os.path.isfile(iinfo.srcfp):
-                                logger.warning("Scene path is invalid, excluding {} (path = {})".format(iinfo.scene_id,iinfo.srcfp))
+                                logger.warning("Scene path is invalid, excluding %s (path = %s)", iinfo.scene_id,
+                                               iinfo.srcfp)
                             elif args.require_pan:
                                 srcfp = iinfo.srcfp
                                 srcdir, mul_name = os.path.split(srcfp)
@@ -281,7 +282,8 @@ def HandleTile(t,src,dstdir,csvpath,args,exclude_list):
                                               pan_name = os.path.basename(candidates2[0])
                                           else:
                                               pan_name = ''
-                                              logger.error('{} panchromatic images match the multispectral image name {}'.format(len(candidates2),mul_name))
+                                              logger.error('%i panchromatic images match the multispectral image name '
+                                                           '%s', len(candidates2), mul_name)
                                      else:
                                           pan_name = mul_name.replace("-M","-P")
                                 elif iinfo.sensor == "IK01":
@@ -290,20 +292,21 @@ def HandleTile(t,src,dstdir,csvpath,args,exclude_list):
                                      pan_name = mul_name.replace("bgrn","pan")    
                                 pan_srcfp = os.path.join(srcdir,pan_name)
                                 if not os.path.isfile(pan_srcfp):
-                                     logger.debug("Image does not have a panchromatic component, excluding: %s" %iinfo.srcfp)
+                                     logger.debug("Image does not have a panchromatic component, excluding: %s",
+                                                  iinfo.srcfp)
                                 else:
-                                     logger.debug( "Intersect %s, %s: %s" %(iinfo.scene_id, iinfo.srcfp, str(iinfo.geom)))
+                                     logger.debug("Intersect %s, %s: %s", iinfo.scene_id, iinfo.srcfp, str(iinfo.geom))
                                      imginfo_list1.append(iinfo)
                                 
                             else:
-                                logger.debug( "Intersect %s, %s: %s" %(iinfo.scene_id, iinfo.srcfp, str(iinfo.geom)))
+                                logger.debug( "Intersect %s, %s: %s", iinfo.scene_id, iinfo.srcfp, str(iinfo.geom))
                                 imginfo_list1.append(iinfo)                                
                                 
                     feat = lyr.GetNextFeature()
             
             ds = None
         
-            logger.info("Number of intersects in tile %s: %i" %(t.name,len(imginfo_list1)))
+            logger.info("Number of intersects in tile %s: %i", t.name, len(imginfo_list1))
             
             if len(imginfo_list1) > 0:
                 
@@ -315,7 +318,7 @@ def HandleTile(t,src,dstdir,csvpath,args,exclude_list):
                 #### Remove images that do not match ref
                 logger.debug("Setting image pattern filter")
                 imginfo_list2 = mosaic.filterMatchingImages(imginfo_list1,params)
-                logger.info("Number of images matching filter: %i" %(len(imginfo_list2)))
+                logger.info("Number of images matching filter: %i", len(imginfo_list2))
                     
                 if args.nosort is False:    
                     #### Sort by quality
@@ -337,7 +340,7 @@ def HandleTile(t,src,dstdir,csvpath,args,exclude_list):
                 logger.debug("Overlaying images to determine contributors")
                 contribs = mosaic.determine_contributors(imginfo_list3,t.geom,args.min_contribution_area)
                                             
-                logger.info("Number of contributing images: %i" %(len(contribs)))      
+                logger.info("Number of contributing images: %i", len(contribs))
             
                 if len(contribs) > 0:
                     
@@ -346,9 +349,9 @@ def HandleTile(t,src,dstdir,csvpath,args,exclude_list):
                         #######################################################
                         #### Create Shp
                         
-                        shp = os.path.join(dstdir,"%s_%s_imagery.shp" %(args.mosaic,t.name))
+                        shp = os.path.join(dstdir,"{}_{}_imagery.shp".format(args.mosaic, t.name))
                    
-                        logger.debug("Creating shapefile of geoms: %s" %shp)
+                        logger.debug("Creating shapefile of geoms: %s", shp)
                     
                         fields = [("IMAGENAME", ogr.OFTString, 100),
                             ("SCORE", ogr.OFTReal, 0)]
@@ -357,7 +360,7 @@ def HandleTile(t,src,dstdir,csvpath,args,exclude_list):
                         
                         ogrDriver = ogr.GetDriverByName(OGR_DRIVER)
                         if ogrDriver is None:
-                            logger.debug("OGR: Driver %s is not available" % OGR_DRIVER)
+                            logger.debug("OGR: Driver %s is not available", OGR_DRIVER)
                             sys.exit(-1)
                         
                         if os.path.isfile(shp):
@@ -372,7 +375,7 @@ def HandleTile(t,src,dstdir,csvpath,args,exclude_list):
                         
                         lyr = vds.CreateLayer(shpbn, t_srs, ogr.wkbPolygon)
                         if lyr is None:
-                            logger.debug("ERROR: Failed to create layer: %s" % shpbn)
+                            logger.debug("ERROR: Failed to create layer: %s", shpbn)
                             sys.exit(-1)
                         
                         for fld, fdef, flen in fields:
@@ -380,11 +383,11 @@ def HandleTile(t,src,dstdir,csvpath,args,exclude_list):
                             if fdef == ogr.OFTString:
                                 field_defn.SetWidth(flen)
                             if lyr.CreateField(field_defn) != 0:
-                                logger.debug("ERROR: Failed to create field: %s" % fld)
+                                logger.debug("ERROR: Failed to create field: %s", fld)
                         
                         for iinfo, geom in contribs:
                         
-                            logger.debug("Image: %s" %(iinfo.srcfn))
+                            logger.debug("Image: %s", iinfo.srcfn)
                             
                             feat = ogr.Feature(lyr.GetLayerDefn())
                             
@@ -393,9 +396,9 @@ def HandleTile(t,src,dstdir,csvpath,args,exclude_list):
     
                             feat.SetGeometry(geom)
                             if lyr.CreateFeature(feat) != 0:
-                                logger.debug("ERROR: Could not create feature for image %s" % iinfo.srcfn)
+                                logger.debug("ERROR: Could not create feature for image %s", iinfo.srcfn)
                             else:
-                                logger.debug("Created feature for image: %s" %iinfo.srcfn)
+                                logger.debug("Created feature for image: %s", iinfo.srcfn)
                                 
                             feat.Destroy()
                     
@@ -403,17 +406,17 @@ def HandleTile(t,src,dstdir,csvpath,args,exclude_list):
                     if not os.path.isdir(dstdir):
                         os.makedirs(dstdir)
                     
-                    otxtpath = os.path.join(dstdir,"%s_%s_orig.txt" %(args.mosaic,t.name))
-                    mtxtpath = os.path.join(dstdir,"%s_%s_ortho.txt" %(args.mosaic,t.name))
+                    otxtpath = os.path.join(dstdir, "{}_{}_orig.txt".format(args.mosaic, t.name))
+                    mtxtpath = os.path.join(dstdir, "{}_{}_ortho.txt".format(args.mosaic, t.name))
                     otxt = open(otxtpath,'w')
                     mtxt = open(mtxtpath,'w')
                     
                     for iinfo, geom in contribs:
                         
                         if not os.path.isfile(iinfo.srcfp):
-                            logger.warning("Image does not exist: %s" %(iinfo.srcfp))
+                            logger.warning("Image does not exist: %s", iinfo.srcfp)
                             
-                        otxt.write("%s\n" %iinfo.srcfp)
+                        otxt.write("{}\n".format(iinfo.srcfp))
                         m_fn = "{0}_u08{1}{2}.tif".format(
                             os.path.splitext(iinfo.srcfn)[0],
                             args.stretch,
