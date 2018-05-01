@@ -173,7 +173,7 @@ def delete_temp_files(names):
     for name in names:
         deleteList = glob.glob(os.path.splitext(name)[0] + '.*')
         for f in deleteList:
-            if not "log" in os.path.basename(f):
+            if "log" not in os.path.basename(f):
                 try:
                     os.remove(f)
                 except Exception as e:
