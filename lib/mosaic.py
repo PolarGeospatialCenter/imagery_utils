@@ -27,7 +27,6 @@ GTIFF_COMPRESSIONS = ["jpeg95", "lzw"]
 #        self.panfact = dAttribs["panfact"]
 
 
-
 class ImageInfo:
     def __init__(self, src, frmt, srs=None):
         self.frmt = frmt  #image format (IMAGE,RECORD)
@@ -76,7 +75,8 @@ class ImageInfo:
             path = spath
         elif opath and len(opath) > 1:
             path = opath
-        else: path = ""
+        else:
+            path = ""
         
         if r"V:/pgc/agic/private" in path:
             srcfp = path.replace(r"V:/pgc", r'/mnt/agic/storage00')
@@ -167,7 +167,7 @@ class ImageInfo:
             self.ysize = ds.RasterYSize
             self.proj = ds.GetProjectionRef() if ds.GetProjectionRef() != '' else ds.GetGCPProjection()
             self.bands = ds.RasterCount
-            self.nodatavalue = [ds.GetRasterBand(b).GetNoDataValue() for b in list(range(1, self.bands+1))]
+            self.nodatavalue = [ds.GetRasterBand(b).GetNoDataValue() for b in list(range(1, self.bands + 1))]
             self.datatype = ds.GetRasterBand(1).DataType
             self.datatype_readable = gdal.GetDataTypeName(self.datatype)
 
@@ -184,10 +184,9 @@ class ImageInfo:
                 ury = gtf[3] + self.xsize * gtf[4] + 0 * gtf[5]
                 llx = gtf[0] + 0 * gtf[1] + self.ysize * gtf[2]
                 lly = gtf[3] + 0 * gtf[4] + self.ysize * gtf[5]
-                lrx = gtf[0] + self.xsize * gtf[1] + self.ysize* gtf[2]
+                lrx = gtf[0] + self.xsize * gtf[1] + self.ysize * gtf[2]
                 lry = gtf[3] + self.xsize * gtf[4] + self.ysize * gtf[5]
-                
-            
+
             elif num_gcps == 4:
                 
                 gcps = ds.GetGCPs()
@@ -218,7 +217,7 @@ class ImageInfo:
                 self.yres = abs(math.sqrt((ulx - llx) ** 2 + (uly - lly) ** 2) / self.ysize)
                 
             poly_wkt = 'POLYGON (( {0:.12f} {1:.12f}, {2:.12f} {3:.12f}, {4:.12f} {5:.12f}, {6:.12f} {7:.12f}, ' \
-                       '{8:.12f} {9:.12f} ))'.format(ulx, uly, urx, ury, lrx, lry, llx, lly, ulx, uly)
+                       '{0:.12f} {1:.12f} ))'.format(ulx, uly, urx, ury, lrx, lry, llx, lly)
             self.geom = ogr.CreateGeometryFromWkt(poly_wkt)
             self.xs = [ulx, urx, lrx, llx]
             self.ys = [uly, ury, lry, lly]
@@ -421,7 +420,6 @@ class ImageInfo:
                         except ValueError:
                             logger.error("Cannot parse date string %s from %s", dAttribs['date'], metapath)
 
-
     def getScore(self, params):
         
         score = 0
@@ -462,18 +460,18 @@ class ImageInfo:
                     self.exposure_factor = exfact
                     
                     pan_exposure_thresholds = {
-                        "WV01":1400,
-                        "WV02":1400,
-                        "WV03":1400,
-                        "QB02":500,
+                        "WV01": 1400,
+                        "WV02": 1400,
+                        "WV03": 1400,
+                        "QB02": 500,
                         #"GE01":,
                     }
                     
                     multi_exposure_thresholds = {
-                        "WV02":400,
-                        "WV03":400,
-                        "GE01":170,
-                        "QB02":25,
+                        "WV02": 400,
+                        "WV03": 400,
+                        "GE01": 170,
+                        "QB02": 25,
                     }
                     
                     #### Remove images with high exposure settings (tdi_pan (or tdi_grn) * sunel)
@@ -499,8 +497,8 @@ class ImageInfo:
                     #### Find nearest year for target day
                     tdeltas = []
                     for y in list(range(self.acqdate.year - 1, self.acqdate.year + 2)):
-                        tdeltas.append(abs((datetime(y,params.m, params.d) - self.acqdate).days))
-                    
+                        tdeltas.append(abs((datetime(y, params.m, params.d) - self.acqdate).days))
+
                     self.date_diff = min(tdeltas)
             
             
@@ -580,7 +578,7 @@ class ImageInfo:
             ny = ds.RasterYSize
  
             #### get stats and store in dictionaries
-            for bandnum in list(range(1, self.bands+1)):
+            for bandnum in list(range(1, self.bands + 1)):
 
                 # read band
                 band = ds.GetRasterBand(bandnum)
@@ -615,9 +613,9 @@ class ImageInfo:
                         logger.debug("Calculating band %i max", bandnum)
                         band_max = numpy.amax(band_valid)
                         logger.debug("Calculating band %i mean", bandnum)
-                        band_mean = numpy.mean(band_valid,dtype=numpy.float64)
+                        band_mean = numpy.mean(band_valid, dtype=numpy.float64)
                         logger.debug("Calculating band %i stdev", bandnum)
-                        band_std = numpy.std(band_valid,dtype=numpy.float64)
+                        band_std = numpy.std(band_valid, dtype=numpy.float64)
                         stats = numpy.array([band_min, band_max, band_mean, band_std], numpy.float64)
                         logger.info("band %i min %f, max %f, mean %f, stdev %f", bandnum, band_min, band_max,
                                     band_mean, band_std)
@@ -730,7 +728,7 @@ class DemInfo:
         status2 = [val is None for val in required_attribs2]
 
         if sum(status1) != 0 and sum(status2) != 0:
-            logger.error("Cannot determine score for image %s:\n  Sun elev\t%f\n  Cloudcover\t$f\n  Sensor\t%s\n  "
+            logger.error("Cannot determine score for image %s:\n  Sun elev\t%f\n  Cloudcover\t%f\n  Sensor\t%s\n  "
                          "Density\t%f", self.pairname, self.sunel, self.cloudcover, self.sensor, self.density)
             score = -1
             
@@ -766,8 +764,7 @@ class DemInfo:
                 datediffwt = 0
                 densitywt = 100
                 self.date_diff = -9999
-                
-                
+
             #### Handle nonesense or nodata cloud cover values
             if self.cloudcover:
                 if self.cloudcover < 0 or self.cloudcover > 1:
@@ -811,8 +808,7 @@ class DGInfo:
             self.get_attributes_from_record(src, srs)
         else:
             logger.error("Image format must be RECORD")
-        
-        
+
     def get_attributes_from_record(self, feat, srs):
                 
         self.proj = srs.ExportToWkt()
@@ -841,7 +837,6 @@ class DGInfo:
         
         geom = feat.GetGeometryRef()
         self.geom = geom.Clone()
-        
 
     def getScore(self, target_date=None):
         
@@ -889,8 +884,7 @@ class DGInfo:
                 sunelwt = 10
                 datediffwt = 0
                 self.date_diff = -9999
-                
-                
+
             #### Handle nonesense or nodata cloud cover values
             if self.cloudcover:
                 if self.cloudcover < 0 or self.cloudcover > 1:
@@ -1083,9 +1077,9 @@ def getMosaicParameters(iinfo, options):
             params.ytilesize = None
         
     if options.max_cc is not None:
-    	params.max_cc = options.max_cc
+        params.max_cc = options.max_cc
     else:
-    	params.max_cc = 0.5
+        params.max_cc = 0.5
     
     params.force_pan_to_multi = True if params.bands > 1 and options.force_pan_to_multi else False # determine if force pan to multi is applicable and true
 
@@ -1097,6 +1091,7 @@ def getMosaicParameters(iinfo, options):
         params.median_remove = None
 
     return params
+
 
 def GetExactTrimmedGeom(image, step=4, tolerance=1):
     
@@ -1146,7 +1141,7 @@ def GetExactTrimmedGeom(image, step=4, tolerance=1):
                     x,y = pl2xy(gtf, inband, px[0], px[1])
                     xs.append(x)
                     ys.append(y)
-                    pts.append((x,y))
+                    pts.append((x, y))
                     #print(px[0], px[1], x, y)
                 
                 #### create geometry
@@ -1180,10 +1175,10 @@ def findVertices(xoff, yoff, xsize, ysize, band, nd):
         nzmin = nz[0] if nz.size > 0 else 0
         nzmax = nz[-1] if nz.size > 0 else 0
         
-        return(nzbool, nzmin, nzmax)
+        return nzbool, nzmin, nzmax
     
     else:
-        return (False, 0, 0)
+        return False, 0, 0
     
     
 def pl2xy(gtf, band, p, l):
