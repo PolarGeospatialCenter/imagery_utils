@@ -56,7 +56,7 @@ def main():
     tile = args.tile
     ref_xres, ref_yres = args.resolution
     xmin,xmax,ymin,ymax = args.extent
-    dims = "-tr %s %s -te %s %s %s %s" %(ref_xres,ref_yres,xmin,ymin,xmax,ymax)
+    dims = "-tr {} {} -te {} {} {} {}".format(ref_xres, ref_yres, xmin, ymin, xmax, ymax)
     
     ##### Configure Logger
     logfile = os.path.splitext(tile)[0]+".log"
@@ -116,7 +116,8 @@ def main():
     images = {}
         
     #### Get Extent geometry 
-    poly_wkt = 'POLYGON (( %s %s, %s %s, %s %s, %s %s, %s %s ))' %(xmin,ymin,xmin,ymax,xmax,ymax,xmax,ymin,xmin,ymin)
+    poly_wkt = 'POLYGON (( {} {}, {} {}, {} {}, {} {}, {} {} ))'.format(xmin, ymin, xmin, ymax, xmax, ymax, xmax, ymin,
+                                                                        xmin, ymin)
     tile_geom = ogr.CreateGeometryFromWkt(poly_wkt)
     
     c = 0
@@ -156,11 +157,12 @@ def main():
                 logger.info("localtile1 already exists")
                 status = 1
                 break
-            cmd = 'gdalwarp %s -srcnodata "%s" -dstnodata "%s" "%s" "%s"' %(dims,srcnodata,srcnodata,mergefile,localtile1)
+            cmd = 'gdalwarp {} -srcnodata "{}" -dstnodata "{}" "{}" "{}"'.format(dims, srcnodata, srcnodata, mergefile,
+                                                                                 localtile1)
             taskhandler.exec_cmd(cmd)
             
         else:
-            cmd = 'gdalwarp -srcnodata "%s" "%s" "%s"' %(srcnodata,mergefile,localtile1)
+            cmd = 'gdalwarp -srcnodata "{}" "{}" "{}"'.format(srcnodata, mergefile, localtile1)
             taskhandler.exec_cmd(cmd)
             
         c += 1
@@ -178,12 +180,13 @@ def main():
             elif args.gtiff_compression == 'jpeg95':
                 compress_option =  '-co "compress=jpeg" -co "jpeg_quality=95"'
                 
-            cmd = 'gdal_translate -stats -of GTiff %s -co "PHOTOMETRIC=MINISBLACK" -co "TILED=YES" -co "BIGTIFF=IF_SAFER" "%s" "%s"' %(compress_option,localtile1,localtile2)
+            cmd = 'gdal_translate -stats -of GTiff {} -co "PHOTOMETRIC=MINISBLACK" -co "TILED=YES" -co ' \
+                  '"BIGTIFF=IF_SAFER" "{}" "{}"'.format(compress_option, localtile1, localtile2)
             taskhandler.exec_cmd(cmd)
         
         ####  Build Pyramids        
         if os.path.isfile(localtile2):
-            cmd = 'gdaladdo "%s" 2 4 8 16 30' %(localtile2)
+            cmd = 'gdaladdo "{}" 2 4 8 16 30'.format(localtile2)
             taskhandler.exec_cmd(cmd)
         
         #### Copy tile to destination
@@ -265,11 +268,11 @@ def BandSubtractMedian(iinfo,dstfp):
                     band_min = numpy.min(band_valid)
                     corr_min = numpy.subtract(float(band_min),float(band_median))
                     if( corr_min < float(out_min) ):
-                        logger.error("BandSubtractMedian() returns min out of range for {} band {}".format(iinfo.srcfp,band))
+                        logger.error("BandSubtractMedian() returns min out of range for %s band %i", iinfo.srcfp, band)
                         return 1
                     band_corrected[~nodata_mask] = numpy.subtract(band_array[~nodata_mask],band_median)
                 else:
-                    logger.warning("Band {} has no valid data".format(band))
+                    logger.warning("Band %i has no valid data", band)
                 out_band = out_ds.GetRasterBand(band)
                 out_band.WriteArray(band_corrected)
                 out_band.SetNoDataValue(out_nodataval)
