@@ -92,7 +92,7 @@ def main():
                 if len(median) == iinfo.bands:
                     iinfo.set_raster_median(median)
                 else:
-                    logger.warning("Median dct length ({}) does not match band count ({})".format(len(median),iinfo.bands))
+                    logger.warning("Median dct length (%i) does not match band count (%i)", len(median), iinfo.bands)
             
             else:
                 iinfo = mosaic.ImageInfo(line,"IMAGE")
@@ -100,11 +100,11 @@ def main():
             intersects.append(iinfo)
         t.close()
     else:
-        logger.error("Intersecting image file does not exist: {}".format(inpath))
+        logger.error("Intersecting image file does not exist: %i", inpath)
 
     logger.info(tile)
 
-    logger.info("Number of image found in source file: {}".format(len(intersects)))
+    logger.info("Number of image found in source file: %i", len(intersects))
     
     wd = os.path.join(localpath,os.path.splitext(os.path.basename(tile))[0])
     if not os.path.isdir(wd):
@@ -137,7 +137,7 @@ def main():
             dst = os.path.join(wd,os.path.basename(mergefile)[:-4])+"_median_removed.tif"
             status = BandSubtractMedian(iinfo,dst)
             if status == 1:
-                logger.error("BandSubtractMedian() failed on {}".format(mergefile))
+                logger.error("BandSubtractMedian() failed on %s", mergefile)
                 sys.exit(1)
             ds = gdal.Open(dst)
             if ds:
@@ -145,7 +145,7 @@ def main():
                 srcnodata = string.join(([str(srcnodata_val)] * bands)," ")
                 mergefile = dst
             else:
-                logger.error("BandSubtractMedian() failed at gdal.Open({})".format(dst))
+                logger.error("BandSubtractMedian() failed at gdal.Open(%s)", dst)
                 sys.exit(1)
             
         if c == 0:
@@ -222,12 +222,12 @@ def BandSubtractMedian(iinfo,dstfp):
         driver = gdal.GetDriverByName('GTiff')
         out_ds = driver.Create(dstfp,iinfo.xsize,iinfo.ysize,iinfo.bands,out_datatype,gtiff_options)
         if not out_ds:
-            logger.error("BandSubtractMedian(): !driver.Create({})".format(dstfp))
+            logger.error("BandSubtractMedian(): !driver.Create(%s)", dstfp)
             return 1
         
         ds = gdal.Open(iinfo.srcfp)
         if not ds:
-            logger.error("BandSubtractMedian(): !gdal.Open({})".format(iinfo.srcfp))
+            logger.error("BandSubtractMedian(): !gdal.Open(%s)", iinfo.srcfp)
             return 1
         
         out_ds.SetGeoTransform(ds.GetGeoTransform())
@@ -248,7 +248,7 @@ def BandSubtractMedian(iinfo,dstfp):
                 band_nodata = band_data.GetNoDataValue()
                 # default nodata to zero
                 if band_nodata is None:
-                    logger.info("Defaulting band {} nodata to zero".format(band))
+                    logger.info("Defaulting band %i nodata to zero", band)
                     band_nodata = 0.0 
                 band_array = numpy.array(band_data.ReadAsArray())
                 nodata_mask = (band_array==band_nodata)
@@ -272,7 +272,7 @@ def BandSubtractMedian(iinfo,dstfp):
                 out_band.SetNoDataValue(out_nodataval)
 
             else:
-                logger.error("BandSubtractMedian(): iinfo.median[{}] is None, image {}".format(band,iinfo.srcfp))
+                logger.error("BandSubtractMedian(): iinfo.median[%i] is None, image %s", band, iinfo.srcfp)
                 return 1
         ds = None
         out_ds = None
@@ -282,7 +282,7 @@ def BandSubtractMedian(iinfo,dstfp):
     # taskhandler.exec_cmd(cmd)
 
     else:
-        logger.info("BandSubtractMedian(): {} exists".format(dstfp))
+        logger.info("BandSubtractMedian(): %s exists", dstfp)
 
     return 0
 
