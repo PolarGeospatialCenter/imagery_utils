@@ -270,33 +270,33 @@ def HandleTile(t,src,dstdir,csvpath,args,exclude_list):
                                 srcfp = iinfo.srcfp
                                 srcdir, mul_name = os.path.split(srcfp)
                                 if iinfo.sensor in ["WV02","WV03","QB02"]:
-                                     pan_name = mul_name.replace("-M","-P")
+                                    pan_name = mul_name.replace("-M","-P")
                                 elif iinfo.sensor == "GE01":
-                                     if "_5V" in mul_name:
-                                          pan_name_base = srcfp[:-24].replace("M0","P0")
-                                          candidates = glob.glob(pan_name_base + "*")
-                                          candidates2 = [f for f in candidates if f.endswith(('.ntf','.NTF','.tif','.TIF'))]
-                                          if len(candidates2) == 0:
-                                              pan_name = ''
-                                          elif len(candidates2) == 1:
-                                              pan_name = os.path.basename(candidates2[0])
-                                          else:
-                                              pan_name = ''
-                                              logger.error('%i panchromatic images match the multispectral image name '
-                                                           '%s', len(candidates2), mul_name)
-                                     else:
-                                          pan_name = mul_name.replace("-M","-P")
+                                    if "_5V" in mul_name:
+                                        pan_name_base = srcfp[:-24].replace("M0","P0")
+                                        candidates = glob.glob(pan_name_base + "*")
+                                        candidates2 = [f for f in candidates if f.endswith(('.ntf','.NTF','.tif','.TIF'))]
+                                        if len(candidates2) == 0:
+                                            pan_name = ''
+                                        elif len(candidates2) == 1:
+                                            pan_name = os.path.basename(candidates2[0])
+                                        else:
+                                            pan_name = ''
+                                            logger.error('%i panchromatic images match the multispectral image name '
+                                                         '%s', len(candidates2), mul_name)
+                                    else:
+                                        pan_name = mul_name.replace("-M","-P")
                                 elif iinfo.sensor == "IK01":
-                                     pan_name = mul_name.replace("blu","pan")
-                                     pan_name = mul_name.replace("msi","pan")
-                                     pan_name = mul_name.replace("bgrn","pan")    
+                                    pan_name = mul_name.replace("blu","pan")
+                                    pan_name = mul_name.replace("msi","pan")
+                                    pan_name = mul_name.replace("bgrn","pan")
                                 pan_srcfp = os.path.join(srcdir,pan_name)
                                 if not os.path.isfile(pan_srcfp):
-                                     logger.debug("Image does not have a panchromatic component, excluding: %s",
-                                                  iinfo.srcfp)
+                                    logger.debug("Image does not have a panchromatic component, excluding: %s",
+                                                 iinfo.srcfp)
                                 else:
-                                     logger.debug("Intersect %s, %s: %s", iinfo.scene_id, iinfo.srcfp, str(iinfo.geom))
-                                     imginfo_list1.append(iinfo)
+                                    logger.debug("Intersect %s, %s: %s", iinfo.scene_id, iinfo.srcfp, str(iinfo.geom))
+                                    imginfo_list1.append(iinfo)
                                 
                             else:
                                 logger.debug( "Intersect %s, %s: %s", iinfo.scene_id, iinfo.srcfp, str(iinfo.geom))
