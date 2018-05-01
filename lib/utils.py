@@ -49,7 +49,7 @@ def get_bit_depth(outtype):
     elif outtype == "Float32":
         bitdepth = "f32"
     else:
-        logger.error("Invalid bit depth '{0}' supplied; must be 'Byte', 'UInt16', or 'Float32'.").format(outtype)
+        logger.error("Invalid bit depth '%s' supplied; must be 'Byte', 'UInt16', or 'Float32'.", outtype)
         return None
 
     return bitdepth
@@ -115,7 +115,7 @@ def find_images(inpath, is_textfile, target_exts):
             if os.path.isfile(image) and os.path.splitext(image)[1].lower() in target_exts:
                 image_list.append(image)
             else:
-                logger.debug("File in textfile does not exist or has an invalid extension: {}".format(image))
+                logger.debug("File in textfile does not exist or has an invalid extension: %s", image)
         t.close()
 
     else:
@@ -140,7 +140,7 @@ def find_images_with_exclude_list(inpath, is_textfile, target_exts, exclude_list
             if os.path.isfile(image) and os.path.splitext(image)[1].lower() in target_exts:
                 image_list.append(image)
             else:
-                logger.info("File in textfile does not exist or has an invalid extension: {}".format(image))
+                logger.info("File in textfile does not exist or has an invalid extension: %s", image)
         t.close()
 
     else:
@@ -158,7 +158,7 @@ def find_images_with_exclude_list(inpath, is_textfile, target_exts, exclude_list
         for image in image_list:
             exclude = [pattern for pattern in exclude_list if image in pattern]
             if exclude:
-                logger.debug("Scene ID matches pattern in exclude_list: {}".format(image))
+                logger.debug("Scene ID matches pattern in exclude_list: %s", image)
             else:
                 image_list2.append(image)
 
@@ -177,7 +177,7 @@ def delete_temp_files(names):
                 try:
                     os.remove(f)
                 except Exception as e:
-                    logger.warning('Could not remove {0}: {1}'.format(os.path.basename(f), e))
+                    logger.warning('Could not remove %s: %s', os.path.basename(f), e)
 
 
 def getGEMetadataAsXml(metafile):
@@ -185,10 +185,10 @@ def getGEMetadataAsXml(metafile):
         try:
             metaf = open(metafile, "r")
         except IOError as err:
-            logger.error("Could not open metadata file {0} because {1}".format(metafile, err))
+            logger.error("Could not open metadata file %s because %s", metafile, err)
             raise
     else:
-        logger.error("Metadata file {} not found".format(metafile))
+        logger.error("Metadata file %s not found", metafile)
         return None
 
     # Patterns to extract tag/value pairs and BEGIN/END group tags
@@ -268,7 +268,7 @@ def getIKMetadataAsXml(metafile):
         try:
             metaf = open(metafile, "r")
         except IOError as err:
-            logger.error("Could not open metadata file {0} because {1}".format(metafile, err))
+            logger.error("Could not open metadata file %s because %s", metafile, err)
             raise
     else:
         metaf = metafile
