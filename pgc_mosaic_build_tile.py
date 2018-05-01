@@ -1,9 +1,4 @@
 import os, sys, shutil, glob, re, tarfile, logging, argparse
-from datetime import datetime, timedelta
-
-from subprocess import *
-from math import *
-from xml.etree import cElementTree as ET
 
 from lib import mosaic, utils, taskhandler
 import numpy
