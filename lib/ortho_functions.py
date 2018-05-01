@@ -220,6 +220,7 @@ BiasDict = {  # Spectral Irradiance in W/m2/um
 class ImageInfo:
     pass
 
+
 def buildParentArgumentParser():
 
     #### Set Up Arguments
@@ -340,7 +341,7 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
     if not err == 1:
         metafile = GetDGMetadataPath(info.srcfp)
         if metafile is None:
-            metafile = ExtractDGMetadataFile(info.srcfp,wd)
+            metafile = ExtractDGMetadataFile(info.srcfp, wd)
         if metafile is None:
             metafile = GetIKMetadataPath(info.srcfp)
         if metafile is None:
@@ -477,8 +478,8 @@ def stackIkBands(dstfp, members):
     meta_dict = {"NITF_IREP": "MULTI"}
 
     srcfp = members[0]
-    srcdir,srcfn = os.path.split(srcfp)
-    dstdir,dstfn = os.path.split(dstfp)
+    srcdir, srcfn = os.path.split(srcfp)
+    dstdir, dstfn = os.path.split(dstfp)
     vrt = os.path.splitext(dstfp)[0] + "_merge.vrt"
 
     #### Gather metadata from original blue image and save as strings for merge command
@@ -518,7 +519,6 @@ def stackIkBands(dstfp, members):
             if '"' not in tres[k]:
                 tre_list.append('-co "TRE={}={}"'.format(k, src_ds.GetMetadataItem(k, "TRE")))
 
-
         #### Close the source dataset
         src_ds = None
 
@@ -541,7 +541,7 @@ def stackIkBands(dstfp, members):
             rc = 1
 
         #print("Writing metadata to output")
-        dst_ds = gdal.Open(dstfp,gdalconst.GA_ReadOnly)
+        dst_ds = gdal.Open(dstfp, gdalconst.GA_ReadOnly)
         if dst_ds is not None:
             #### check that ds has correct number of bands
             if not dst_ds.RasterCount == len(band_dict):
@@ -559,16 +559,16 @@ def stackIkBands(dstfp, members):
         dst_ds = None
 
         #### also copy blue and rgb aux files
-        for fpi in glob.glob(os.path.join(srcdir,"{}.*".format(os.path.splitext(srcfn)[0]))):
-            fpo = os.path.join(dstdir,os.path.basename(fpi).replace("blu", "msi"))
+        for fpi in glob.glob(os.path.join(srcdir, "{}.*".format(os.path.splitext(srcfn)[0]))):
+            fpo = os.path.join(dstdir, os.path.basename(fpi).replace("blu", "msi"))
             if not os.path.isfile(fpo) and not os.path.basename(fpi) == srcfn:
                 shutil.copy2(fpi, fpo)
-        for fpi in glob.glob(os.path.join(srcdir,"{}.*".format(os.path.splitext(srcfn)[0].replace("blu", "rgb")))):
-            fpo = os.path.join(dstdir,os.path.basename(fpi).replace("rgb", "msi"))
+        for fpi in glob.glob(os.path.join(srcdir, "{}.*".format(os.path.splitext(srcfn)[0].replace("blu", "rgb")))):
+            fpo = os.path.join(dstdir, os.path.basename(fpi).replace("rgb", "msi"))
             if not os.path.isfile(fpo) and not os.path.basename(fpi) == srcfn:
                 shutil.copy2(fpi, fpo)
-        for fpi in glob.glob(os.path.join(srcdir,"{}.txt".format(os.path.splitext(srcfn)[0].replace("blu", "pan")))):
-            fpo = os.path.join(dstdir,os.path.basename(fpi).replace("pan", "msi"))
+        for fpi in glob.glob(os.path.join(srcdir, "{}.txt".format(os.path.splitext(srcfn)[0].replace("blu", "pan")))):
+            fpo = os.path.join(dstdir, os.path.basename(fpi).replace("pan", "msi"))
             if not os.path.isfile(fpo):
                 shutil.copy2(fpi, fpo)
 
@@ -581,7 +581,7 @@ def stackIkBands(dstfp, members):
     return rc
 
 
-def calcStats(args,info):
+def calcStats(args, info):
 
     logger.info("Calculating image with stats")
     rc = 0
@@ -1386,43 +1386,42 @@ def overlap_check(geometry_wkt, spatial_ref, demPath):
     dem = gdal.Open(demPath, gdalconst.GA_ReadOnly)
 
     if dem is not None:
-            xsize = dem.RasterXSize
-            ysize = dem.RasterYSize
-            demProjection = dem.GetProjectionRef()
-            if demProjection:
+        xsize = dem.RasterXSize
+        ysize = dem.RasterYSize
+        demProjection = dem.GetProjectionRef()
+        if demProjection:
 
-                gtf = dem.GetGeoTransform()
+            gtf = dem.GetGeoTransform()
 
-                minx = gtf[0]
-                maxx = minx + xsize * gtf[1]
-                maxy = gtf[3]
-                miny = maxy + ysize * gtf[5]
+            minx = gtf[0]
+            maxx = minx + xsize * gtf[1]
+            maxy = gtf[3]
+            miny = maxy + ysize * gtf[5]
 
-                dem_geometry_wkt = 'POLYGON (( {} {}, {} {}, {} {}, {} {}, {} {} ))'.format(minx, miny, minx, maxy,
-                                                                                            maxx, maxy, maxx, miny,
-                                                                                            minx, miny)
-                demGeometry = ogr.CreateGeometryFromWkt(dem_geometry_wkt)
-                logger.info("DEM extent: %s", str(demGeometry))
-                demSpatialReference = osr.SpatialReference(demProjection)
+            dem_geometry_wkt = 'POLYGON (( {} {}, {} {}, {} {}, {} {}, {} {} ))'.format(minx, miny, minx, maxy, maxx,
+                                                                                        maxy, maxx, miny, minx, miny)
+            demGeometry = ogr.CreateGeometryFromWkt(dem_geometry_wkt)
+            logger.info("DEM extent: %s", str(demGeometry))
+            demSpatialReference = osr.SpatialReference(demProjection)
 
-                coordinateTransformer = osr.CoordinateTransformation(imageSpatialReference, demSpatialReference)
-                if not imageSpatialReference.IsSame(demSpatialReference):
-                    #logger.info("Image Spatial Refernce: %s", imageSpatialReference)
-                    #logger.info("DEM Spatial ReferenceL %s", emSpatialReference)
-                    #logger.info("Image Geometry before transformation: %s", imageGeometry)
-                    logger.info("Transforming image geometry to dem spatial reference")
-                    imageGeometry.Transform(coordinateTransformer)
-                    #logger.info("Image Geometry after transformation: %s", imageGeometry)
+            coordinateTransformer = osr.CoordinateTransformation(imageSpatialReference, demSpatialReference)
+            if not imageSpatialReference.IsSame(demSpatialReference):
+                #logger.info("Image Spatial Refernce: %s", imageSpatialReference)
+                #logger.info("DEM Spatial ReferenceL %s", emSpatialReference)
+                #logger.info("Image Geometry before transformation: %s", imageGeometry)
+                logger.info("Transforming image geometry to dem spatial reference")
+                imageGeometry.Transform(coordinateTransformer)
+                #logger.info("Image Geometry after transformation: %s", imageGeometry)
 
-                dem = None
-                overlap = imageGeometry.Within(demGeometry)
+            dem = None
+            overlap = imageGeometry.Within(demGeometry)
 
-                if overlap is False:
-                    logger.error("Image is not contained within DEM extent")
+            if overlap is False:
+                logger.error("Image is not contained within DEM extent")
 
-            else:
-                logger.error("DEM has no spatial reference information: %s", demPath)
-                overlap = False
+        else:
+            logger.error("DEM has no spatial reference information: %s", demPath)
+            overlap = False
 
     else:
         logger.error("Cannot open DEM to determine extent: %s", demPath)
@@ -1469,7 +1468,7 @@ def calcEarthSunDist(t):
     hr = t.hour
     minute = t.minute
     sec = t.second
-    ut = hr + (minute/60) + (sec/3600)
+    ut = hr + (minute / 60) + (sec / 3600)
     #print(ut)
 
     if month <= 2:
@@ -1515,7 +1514,6 @@ def getDGXmlData(xmlpath, stretch):
             else:
                 return None
 
-
             sunAngle = 90.0 - sunEl
             des = calcEarthSunDist(datetime.strptime(t, "%Y-%m-%dT%H:%M:%S.%fZ"))
 
@@ -1557,7 +1555,7 @@ def getDGXmlData(xmlpath, stretch):
                         units_factor = 10
 
             for band in abscalfact_dict:
-                satband = sat+'_'+band
+                satband = sat + '_' + band
                 if satband not in EsunDict:
                     logger.warning("Cannot find sensor and band in Esun lookup table: %s.  Try using --stretch "
                                    "ns.", satband)
@@ -1744,27 +1742,27 @@ def getGEMetadata(fp_mode, metafile):
     metad = utils.getGEMetadataAsXml(metafile)
     if metad is not None:
 
-            search_keys = ["originalFirstLineAcquisitionDateTime", "firstLineSunElevationAngle"]
-            for key in search_keys:
-                node = metad.find(".//{}".format(key))
-                if node is not None:
-                    metadict[key] = node.text
+        search_keys = ["originalFirstLineAcquisitionDateTime", "firstLineSunElevationAngle"]
+        for key in search_keys:
+            node = metad.find(".//{}".format(key))
+            if node is not None:
+                metadict[key] = node.text
 
-            band_keys = ["gain", "offset"]
-            for key in band_keys:
-                nodes = metad.findall(".//bandSpecificInformation")
+        band_keys = ["gain", "offset"]
+        for key in band_keys:
+            nodes = metad.findall(".//bandSpecificInformation")
 
-                vals = {}
-                for node in nodes:
-                    try:
-                        band = int(node.attrib["bandNumber"])
-                    except Exception:
-                        logger.error("Unable to retrieve band number in GE metadata")
-                    else:
-                        node = node.find(".//{}".format(key))
-                        if node is not None:
-                            vals[band] = node.text
-                metadict[key] = vals
+            vals = {}
+            for node in nodes:
+                try:
+                    band = int(node.attrib["bandNumber"])
+                except Exception:
+                    logger.error("Unable to retrieve band number in GE metadata")
+                else:
+                    node = node.find(".//{}".format(key))
+                    if node is not None:
+                        vals[band] = node.text
+            metadict[key] = vals
     else:
         logger.error("Unable to get metadata from %s", metafile)
 
