@@ -68,7 +68,7 @@ def main():
     #### Validate Required Arguments
     try:
         dsp, lyrn = utils.get_source_names(src)
-    except RuntimeError, e:
+    except RuntimeError as e:
         parser.error(e)
     if not os.path.isfile(csvpath):
         parser.error("Arg2 is not a valid file path: %s" %csvpath)
@@ -182,7 +182,7 @@ def main():
                 else:
                     try:
                         HandleTile(t,src,dstdir,csvpath,args,exclude_list)
-                    except RuntimeError,e:
+                    except RuntimeError as e:
                         logger.error(e)
     
     else:
@@ -193,7 +193,7 @@ def main():
             if t.status == "1":
                 try:
                     HandleTile(t,src,dstdir,csvpath,args,exclude_list)
-                except RuntimeError,e:
+                except RuntimeError as e:
                     logger.error(e)
         
         
