@@ -115,7 +115,6 @@ def main():
     #### Get Extent geometry 
     poly_wkt = 'POLYGON (( {} {}, {} {}, {} {}, {} {}, {} {} ))'.format(xmin, ymin, xmin, ymax, xmax, ymax, xmax, ymin,
                                                                         xmin, ymin)
-    tile_geom = ogr.CreateGeometryFromWkt(poly_wkt)
     
     c = 0
     for iinfo in intersects:
@@ -134,7 +133,6 @@ def main():
         srcnodata = " ".join([str(ndv) for ndv in iinfo.nodatavalue])
 
         if args.median_remove:
-            src = mergefile
             dst = os.path.join(wd, os.path.basename(mergefile)[:-4]) + "_median_removed.tif"
             status = BandSubtractMedian(iinfo, dst)
             if status == 1:
