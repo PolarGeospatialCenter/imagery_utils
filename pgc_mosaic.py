@@ -96,7 +96,7 @@ def main():
         else:
             qsubpath = os.path.abspath(args.qsubscript)
         if not os.path.isfile(qsubpath):
-            parser.error("qsub script path is not valid: %s" %qsubpath)
+            parser.error("qsub script path is not valid: {}".format(qsubpath))
         
     ## Verify processing options do not conflict
     if args.pbs and args.slurm:
@@ -108,7 +108,7 @@ def main():
     elif os.path.isdir(inpath):
         bTextfile = False
     else:
-        parser.error("Arg1 is not a valid file path or directory: %s" %inpath)    
+        parser.error("Arg1 is not a valid file path or directory: {}".format(inpath))
     
     
     #### Validate target day option
@@ -195,7 +195,7 @@ def main():
             l = "-l {}".format(args.l) if args.l else ""
             try:
                 task_handler = taskhandler.PBSTaskHandler(qsubpath, l)
-            except RuntimeError, e:
+            except RuntimeError as e:
                 logger.error(e)
             else:
                 task_handler.run_tasks(task_queue)
@@ -203,7 +203,7 @@ def main():
         elif args.slurm:
             try:
                 task_handler = taskhandler.SLURMTaskHandler(qsubpath)
-            except RuntimeError, e:
+            except RuntimeError as e:
                 logger.error(e)
             else:
                 task_handler.run_tasks(task_queue)
@@ -211,7 +211,7 @@ def main():
         else:
             try:
                 run_mosaic(tile_builder_script, inpath, mosaicname, mosaic_dir, args, pos_arg_keys)
-            except RuntimeError, e:
+            except RuntimeError as e:
                 logger.error(e)
             
         
@@ -271,11 +271,11 @@ def run_mosaic(tile_builder_script, inpath, mosaicname, mosaic_dir, args, pos_ar
     image_list_unique = list(set(image_list))
     dupes = [x for n,x in enumerate(image_list) if x in image_list[:n]]
     if len(dupes) > 0:
-        logger.info("Removed {0} duplicate image paths".format(len(dupes)))
-        logger.debug("Dupes: {0}".format(dupes))
+        logger.info("Removed %i duplicate image paths", len(dupes))
+        logger.debug("Dupes: %s", dupes)
     image_list = image_list_unique
 
-    logger.info("%i existing images found" %len(image_list))
+    logger.info("%i existing images found", len(image_list))
     
     #### gather image info list
     logger.info("Getting image info")
@@ -284,8 +284,8 @@ def run_mosaic(tile_builder_script, inpath, mosaicname, mosaic_dir, args, pos_ar
     #### Get mosaic parameters
     logger.info("Setting mosaic parameters")
     params = mosaic.getMosaicParameters(imginfo_list[0],args)
-    logger.info("Mosaic parameters: band count={}, datatype={}".format(params.bands,params.datatype))
-    logger.info("Mosaic parameters: projection={}".format(params.proj))
+    logger.info("Mosaic parameters: band count=%i, datatype=%s", params.bands, params.datatype)
+    logger.info("Mosaic parameters: projection=%s", params.proj)
      
     #### Remove images that do not match ref
     logger.info("Applying attribute filter")
@@ -294,7 +294,7 @@ def run_mosaic(tile_builder_script, inpath, mosaicname, mosaic_dir, args, pos_ar
     if len(imginfo_list2) == 0:
         raise RuntimeError("No valid images found.  Check input filter parameters.")
 
-    logger.info("{} of {} images match filter".format(len(imginfo_list2),len(image_list)))
+    logger.info("%i of %i images match filter", len(imginfo_list2), len(image_list))
 
     #### if extent is specified, build tile params and compare extent to input image geom
     if args.extent:
@@ -325,8 +325,9 @@ def run_mosaic(tile_builder_script, inpath, mosaicname, mosaic_dir, args, pos_ar
     if len(imginfo_list3) == 0:
         raise RuntimeError("No images found that intersect mosaic extent")
     
-    logger.info("Mosaic parameters: resolution %f x %f, tilesize %f x %f, extent %f %f %f %f" %(params.xres,params.yres,params.xtilesize,params.ytilesize,params.xmin,params.xmax,params.ymin,params.ymax))
-    logger.info("%d of %d input images intersect mosaic extent" %(len(imginfo_list3),len(imginfo_list2)))
+    logger.info("Mosaic parameters: resolution %f x %f, tilesize %f x %f, extent %f %f %f %f", params.xres,
+                params.yres, params.xtilesize, params.ytilesize, params.xmin, params.xmax, params.ymin, params.ymax)
+    logger.info("%d of %d input images intersect mosaic extent", len(imginfo_list3), len(imginfo_list2))
     
     ## Sort images by score
     logger.info("Reading image metadata and determining sort order")
@@ -356,10 +357,10 @@ def run_mosaic(tile_builder_script, inpath, mosaicname, mosaic_dir, args, pos_ar
                 tm = datetime.today()
                 imginfo_list4.append(iinfo)
                 centroid = geom.Centroid()
-                logger.info("%s: geometry acquired - centroid: %f, %f" %(iinfo.srcfn, centroid.GetX(), centroid.GetY()))
+                logger.info("%s: geometry acquired - centroid: %f, %f", iinfo.srcfn, centroid.GetX(), centroid.GetY())
                 #print geom
         else:
-            logger.debug("Image has an invalid score: %s --> %i" %(iinfo.srcfp, iinfo.score))
+            logger.debug("Image has an invalid score: %s --> %i", iinfo.srcfp, iinfo.score)
 
     if not all_valid:
         raise RuntimeError("Some source images do not have valid geometries.  Cannot proceeed")
@@ -376,13 +377,13 @@ def run_mosaic(tile_builder_script, inpath, mosaicname, mosaic_dir, args, pos_ar
         
         if args.mode == "ALL" or args.mode == "SHP":
             contribs = [(iinfo,iinfo.geom) for iinfo in imginfo_list4]
-            logger.info("Number of contributors: %d" %len(contribs))
+            logger.info("Number of contributors: %d", len(contribs))
             
             logger.info("Building component index")
             comp_shp = mosaicname + "_components.shp"
             if len(contribs) > 0:
                 if os.path.isfile(comp_shp):
-                    logger.info("Components shapefile already exists: %s" %comp_shp)
+                    logger.info("Components shapefile already exists: %s", comp_shp)
                 else:
                     build_shp(contribs, comp_shp, args, params)
     
@@ -394,14 +395,14 @@ def run_mosaic(tile_builder_script, inpath, mosaicname, mosaic_dir, args, pos_ar
     ####  Overlay geoms and remove non-contributors
     logger.info("Overlaying images to determine contribution geom")
     contribs = mosaic.determine_contributors(imginfo_list4,params.extent_geom,args.min_contribution_area)
-    logger.info("Number of contributors: %d" %len(contribs))
+    logger.info("Number of contributors: %d", len(contribs))
     
     if args.mode == "ALL" or args.mode == "SHP":
         logger.info("Building cutlines index")
         shp = mosaicname + "_cutlines.shp"
         if len(contribs) > 0:
             if os.path.isfile(shp):
-                logger.info("Cutlines shapefile already exists: %s" %shp)
+                logger.info("Cutlines shapefile already exists: %s", shp)
             else:
                 build_shp(contribs, shp, args, params)
     
@@ -414,7 +415,7 @@ def run_mosaic(tile_builder_script, inpath, mosaicname, mosaic_dir, args, pos_ar
     
     xtiledim = math.ceil((params.xmax-params.xmin)/params.xtilesize)
     ytiledim = math.ceil((params.ymax-params.ymin)/params.ytilesize)
-    logger.info("Tiles: %d rows, %d columns" %(ytiledim,xtiledim))
+    logger.info("Tiles: %d rows, %d columns", ytiledim, xtiledim)
     
     xtdb = len(str(int(xtiledim)))
     ytdb = len(str(int(ytiledim)))
@@ -473,10 +474,10 @@ def run_mosaic(tile_builder_script, inpath, mosaicname, mosaic_dir, args, pos_ar
     )
     tile_arg_str = taskhandler.convert_optional_args_to_string(args, pos_arg_keys, arg_keys_to_remove)
     
-    logger.debug("Identifying components of {} subtiles".format(len(tiles)))
+    logger.debug("Identifying components of %i subtiles", len(tiles))
     i = 0
     for t in tiles:
-        logger.debug("Identifying components of tile {} of {}: {}".format(i,len(tiles),os.path.basename(t.name)))
+        logger.debug("Identifying components of tile %i of %i: %s", i, len(tiles), os.path.basename(t.name))
         
         ####    determine which images in each tile - create geom and query image geoms
         logger.debug("Running intersect with imagery")       
@@ -496,14 +497,14 @@ def run_mosaic(tile_builder_script, inpath, mosaicname, mosaic_dir, args, pos_ar
             
                         
             tile_basename = os.path.basename(os.path.splitext(t.name)[0])                                    
-            logger.info("Number of contributors to subtile {}: {}".format(tile_basename,len(intersects)))
+            logger.info("Number of contributors to subtile %s: %i", tile_basename, len(intersects))
             itpath = os.path.join(mosaic_dir,tile_basename+"_intersects.txt")
             it = open(itpath,"w")
             it.write(string.join(intersects,"\n"))
             it.close()
             
             #### Submit QSUB job
-            logger.debug("Building mosaicking job for tile: %s" %os.path.basename(t.name))
+            logger.debug("Building mosaicking job for tile: %s", os.path.basename(t.name))
             if not os.path.isfile(t.name):
                 
                 cmd = r'{} {} -e {} {} {} {} -r {} {} -b {} {} {}'.format(
@@ -532,7 +533,7 @@ def run_mosaic(tile_builder_script, inpath, mosaicname, mosaic_dir, args, pos_ar
                     task_queue.append(task)
                 
             else:
-                logger.info("Tile already exists: %s" %os.path.basename(t.name))
+                logger.info("Tile already exists: %s", os.path.basename(t.name))
         i += 1
 
     if args.mode == "ALL" or args.mode == "MOSAIC":
@@ -542,11 +543,11 @@ def run_mosaic(tile_builder_script, inpath, mosaicname, mosaic_dir, args, pos_ar
             
             try:
                 task_handler = taskhandler.ParallelTaskHandler(args.parallel_processes)
-            except RuntimeError, e:
+            except RuntimeError as e:
                 logger.error(e)
             else:
                 if task_handler.num_processes > 1:
-                    logger.info("Number of child processes to spawn: {0}".format(task_handler.num_processes))
+                    logger.info("Number of child processes to spawn: %i", task_handler.num_processes)
                 task_handler.run_tasks(task_queue)
                 
             logger.info("Done")
@@ -557,7 +558,7 @@ def run_mosaic(tile_builder_script, inpath, mosaicname, mosaic_dir, args, pos_ar
 
 
 def build_shp(contribs, shp, args, params):
-    logger.info("Creating shapefile of image boundaries: %s" %shp)
+    logger.info("Creating shapefile of image boundaries: %s", shp)
     
     fields = (
         ("IMAGENAME", ogr.OFTString, 100),
@@ -594,7 +595,7 @@ def build_shp(contribs, shp, args, params):
     
     ogrDriver = ogr.GetDriverByName(OGR_DRIVER)
     if ogrDriver is None:
-        logger.info("OGR: Driver %s is not available" % OGR_DRIVER)
+        logger.info("OGR: Driver %s is not available", OGR_DRIVER)
         sys.exit(-1)
     
     if os.path.isfile(shp):
@@ -612,7 +613,7 @@ def build_shp(contribs, shp, args, params):
     
     lyr = vds.CreateLayer(shpbn, rp, ogr.wkbPolygon)
     if lyr is None:
-        logger.info("ERROR: Failed to create layer: %s" % shpbn)
+        logger.info("ERROR: Failed to create layer: %s", shpbn)
         sys.exit(-1)
     
     for fld, fdef, flen in fields:
@@ -620,7 +621,7 @@ def build_shp(contribs, shp, args, params):
         if fdef == ogr.OFTString:
             field_defn.SetWidth(flen)
         if lyr.CreateField(field_defn) != 0:
-            logger.info("ERROR: Failed to create field: %s" % fld)
+            logger.info("ERROR: Failed to create field: %s", fld)
     
     for iinfo,geom in contribs:
                 
@@ -677,12 +678,12 @@ def build_shp(contribs, shp, args, params):
             keys.sort()
             median_list = [str(iinfo.median[band]) for band in keys]
             feat.SetField("MEDIAN", ",".join(median_list))
-            #logger.info("median = {}".format(",".join(median_list)))
+            #logger.info("median = %s", ",".join(median_list))
             
         feat.SetGeometry(geom)
         
         if lyr.CreateFeature(feat) != 0:
-            logger.info("ERROR: Could not create feature for image %s" % iinfo.srcfn)
+            logger.info("ERROR: Could not create feature for image %s", iinfo.srcfn)
             
         feat.Destroy()
     
@@ -690,9 +691,9 @@ def build_shp(contribs, shp, args, params):
 def build_tiles_shp(mosaicname, tiles, params):
     tiles_shp = mosaicname + "_tiles.shp"
     if os.path.isfile(tiles_shp):
-        logger.info("Tiles shapefile already exists: %s" %os.path.basename(tiles_shp))
+        logger.info("Tiles shapefile already exists: %s", os.path.basename(tiles_shp))
     else:
-        logger.info("Creating shapefile of tiles: %s" %os.path.basename(tiles_shp))
+        logger.info("Creating shapefile of tiles: %s", os.path.basename(tiles_shp))
         fields = [('ROW', ogr.OFTInteger, 4),
                 ('COL', ogr.OFTInteger, 4),
                 ("TILENAME", ogr.OFTString, 100),
@@ -704,7 +705,7 @@ def build_tiles_shp(mosaicname, tiles, params):
         OGR_DRIVER = "ESRI Shapefile"
         ogrDriver = ogr.GetDriverByName(OGR_DRIVER)
         if ogrDriver is None:
-            logger.error("OGR: Driver %s is not available" % OGR_DRIVER)
+            logger.error("OGR: Driver %s is not available", OGR_DRIVER)
             sys.exit(-1)
     
         if os.path.isfile(tiles_shp):
@@ -722,7 +723,7 @@ def build_tiles_shp(mosaicname, tiles, params):
         
         lyr = vds.CreateLayer(shpbn, rp, ogr.wkbPolygon)
         if lyr is None:
-            logger.error("ERROR: Failed to create layer: %s" % shpbn)
+            logger.error("ERROR: Failed to create layer: %s", shpbn)
             sys.exit(-1)
         
         for fld, fdef, flen in fields:
@@ -730,7 +731,7 @@ def build_tiles_shp(mosaicname, tiles, params):
             if fdef == ogr.OFTString:
                 field_defn.SetWidth(flen)
             if lyr.CreateField(field_defn) != 0:
-                logger.error("ERROR: Failed to create field: %s" % fld)
+                logger.error("ERROR: Failed to create field: %s", fld)
         
         for t in tiles:
             feat = ogr.Feature(lyr.GetLayerDefn())
@@ -744,7 +745,7 @@ def build_tiles_shp(mosaicname, tiles, params):
             feat.SetGeometry(t.geom)
             
             if lyr.CreateFeature(feat) != 0:
-                logger.error("ERROR: Could not create feature for tile %s" % t)
+                logger.error("ERROR: Could not create feature for tile %s", t)
             feat.Destroy()
             
 
