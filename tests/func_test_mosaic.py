@@ -60,7 +60,7 @@ class TestMosaicFunc(unittest.TestCase):
             mosaicname+'_2_2_intersects.txt':2,
         }
         
-        for f,cnt in intersects_files.iteritems():
+        for f, cnt in intersects_files.items():
             fh = open(f)
             lines = fh.readlines()
             self.assertEqual(len(lines),cnt)
