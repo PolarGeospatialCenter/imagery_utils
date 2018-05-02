@@ -19,25 +19,26 @@ def main():
 
     parser.add_argument("src", help="source image, text file, or directory")
     parser.add_argument("dst", help="destination directory")
-    pos_arg_keys = ["src","dst"]
-    
+    pos_arg_keys = ["src", "dst"]
+
     parser.add_argument("-t", "--outtype", choices=outtypes, default='Float32',
-                    help="output data type (for Int16, output values are scaled from -1000 to 1000)")
+                        help="output data type (for Int16, output values are scaled from -1000 to 1000)")
     parser.add_argument("-s", "--save-temps", action="store_true", default=False,
-                    help="save temp files")
+                        help="save temp files")
     parser.add_argument("--wd",
-                    help="local working directory for cluster jobs (default is dst dir)")
+                        help="local working directory for cluster jobs (default is dst dir)")
     parser.add_argument("--pbs", action='store_true', default=False,
-                    help="submit tasks to PBS")
+                        help="submit tasks to PBS")
     parser.add_argument("--slurm", action='store_true', default=False,
-                    help="submit tasks to SLURM")
+                        help="submit tasks to SLURM")
     parser.add_argument("--parallel-processes", type=int, default=1,
-                    help="number of parallel processes to spawn (default 1)")
+                        help="number of parallel processes to spawn (default 1)")
     parser.add_argument("--qsubscript",
-                    help="submission script to use in PBS/SLURM submission (PBS default is qsub_ndvi.sh, SLURM default is slurm_ndvi.py, in script root folder)")
+                        help="submission script to use in PBS/SLURM submission (PBS default is qsub_ndvi.sh, SLURM "
+                             "default is slurm_ndvi.py, in script root folder)")
     parser.add_argument("-l", help="PBS resources requested (mimicks qsub syntax, PBS only)")
     parser.add_argument("--dryrun", action="store_true", default=False,
-                    help="print actions without executing")
+                        help="print actions without executing")
 
     #### Parse Arguments
     args = parser.parse_args()
@@ -52,7 +53,7 @@ def main():
         srctype = 'textfile'
     elif os.path.isfile(src) and os.path.splitext(src)[1].lower() in ortho_functions.exts:
         srctype = 'image'
-    elif os.path.isfile(src.replace('msi','blu')) and os.path.splitext(src)[1].lower() in ortho_functions.exts:
+    elif os.path.isfile(src.replace('msi', 'blu')) and os.path.splitext(src)[1].lower() in ortho_functions.exts:
         srctype = 'image'
     else:
         parser.error("Error arg1 is not a recognized file path or file type: %s" %(src))
@@ -64,9 +65,9 @@ def main():
     if args.pbs or args.slurm:
         if args.qsubscript is None:
             if args.pbs:
-                qsubpath = os.path.join(os.path.dirname(scriptpath),'qsub_ndvi.sh')
+                qsubpath = os.path.join(os.path.dirname(scriptpath), 'qsub_ndvi.sh')
             if args.slurm:
-                qsubpath = os.path.join(os.path.dirname(scriptpath),'slurm_ndvi.sh')
+                qsubpath = os.path.join(os.path.dirname(scriptpath), 'slurm_ndvi.sh')
         else:
             qsubpath = os.path.abspath(args.qsubscript)
         if not os.path.isfile(qsubpath):
@@ -81,7 +82,7 @@ def main():
     #### Set concole logging handler
     lso = logging.StreamHandler()
     lso.setLevel(logging.DEBUG)
-    formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s','%m-%d-%Y %H:%M:%S')
+    formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s', '%m-%d-%Y %H:%M:%S')
     lso.setFormatter(formatter)
     logger.addHandler(lso)
 
@@ -107,7 +108,7 @@ def main():
         dstfp = os.path.join(dstdir, bn + '_ndvi.tif')
         
         if not os.path.isfile(dstfp):
-            i+=1
+            i += 1
             task = taskhandler.Task(
                 srcfn,
                 'NDVI{:04g}'.format(i),
@@ -159,10 +160,10 @@ def main():
                 srcfp, dstfp, task_arg_obj = task.method_arg_list
                 
                 #### Set up processing log handler
-                logfile = os.path.splitext(dstfp)[0]+".log"
+                logfile = os.path.splitext(dstfp)[0] + ".log"
                 lfh = logging.FileHandler(logfile)
                 lfh.setLevel(logging.DEBUG)
-                formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s','%m-%d-%Y %H:%M:%S')
+                formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s', '%m-%d-%Y %H:%M:%S')
                 lfh.setFormatter(formatter)
                 logger.addHandler(lfh)
                 
@@ -173,7 +174,7 @@ def main():
                 logger.removeHandler(lfh)
             
             #### Print Images with Errors    
-            for k,v in results.iteritems():
+            for k, v in results.iteritems():
                 if v != 0:
                     logger.warning("Failed Image: %s", k)
         
@@ -192,11 +193,11 @@ def calc_ndvi(srcfp, dstfp, args):
     tol = 0.00001
 
     # get basenames for src and dst files, get xml metadata filenames
-    srcdir,srcfn = os.path.split(srcfp)
-    dstdir,dstfn = os.path.split(dstfp)
-    bn,ext = os.path.splitext(srcfn)
+    srcdir, srcfn = os.path.split(srcfp)
+    dstdir, dstfn = os.path.split(dstfp)
+    bn, ext = os.path.splitext(srcfn)
     src_xml = os.path.join(srcdir, bn + '.xml')
-    dst_xml = os.path.join(dstdir,bn + '_ndvi.xml')
+    dst_xml = os.path.join(dstdir, bn + '_ndvi.xml')
 
     #### Get working dir
     if args.wd is not None:
@@ -213,7 +214,7 @@ def calc_ndvi(srcfp, dstfp, args):
     print("Image: {}").format(srcfn)
    
     ## copy source image to working directory
-    srcfp_local = os.path.join(wd,srcfn)
+    srcfp_local = os.path.join(wd, srcfn)
     if not os.path.isfile(srcfp_local):
         shutil.copy2(srcfp, srcfp_local)
 
@@ -236,7 +237,7 @@ def calc_ndvi(srcfp, dstfp, args):
 
     ## check for input data type - must be float or int
     datatype = ds.GetRasterBand(1).DataType
-    if not (datatype in [1,2,3,4,5,6,7]):
+    if datatype not in [1, 2, 3, 4, 5, 6, 7]:
         logger.error("Invalid input data type %s", datatype)
         return 1 
 
@@ -246,10 +247,10 @@ def calc_ndvi(srcfp, dstfp, args):
 
     ## open output file for write and copy proj/geotransform info
     if not os.path.isfile(dstfp):
-        dstfp_local = os.path.join(wd,os.path.basename(dstfp))
-        gtiff_options = ['TILED=YES','COMPRESS=LZW','BIGTIFF=IF_SAFER']
+        dstfp_local = os.path.join(wd, os.path.basename(dstfp))
+        gtiff_options = ['TILED=YES', 'COMPRESS=LZW', 'BIGTIFF=IF_SAFER']
         driver = gdal.GetDriverByName('GTiff')
-        out_ds = driver.Create(dstfp_local,nx,ny,1,gdal.GetDataTypeByName(args.outtype),gtiff_options)
+        out_ds = driver.Create(dstfp_local, nx, ny, 1, gdal.GetDataTypeByName(args.outtype), gtiff_options)
         if out_ds:
             out_ds.SetGeoTransform(ds.GetGeoTransform())
             out_ds.SetProjection(ds.GetProjection())
@@ -262,65 +263,65 @@ def calc_ndvi(srcfp, dstfp, args):
         ## for red and nir bands, get band data, nodata values, and natural block size
         ## if NoData is None default it to zero.
         red_band = ds.GetRasterBand(red_band_num)
-        if red_band == None:
+        if red_band is None:
             logger.error("Can't load band %i from %s", red_band_num, srcfp_local)
             return 1
         red_nodata = red_band.GetNoDataValue()
         if red_nodata is None:
             logger.info("Defaulting red band nodata to zero")
             red_nodata = 0.0
-        (red_xblocksize,red_yblocksize) = red_band.GetBlockSize()
+        (red_xblocksize, red_yblocksize) = red_band.GetBlockSize()
     
         nir_band = ds.GetRasterBand(nir_band_num)
-        if nir_band == None:
+        if nir_band is None:
             logger.error("Can't load band %i from %s", nir_band_num, srcfp_local)
             return 1
         nir_nodata = nir_band.GetNoDataValue()
         if nir_nodata is None:
             logger.info("Defaulting nir band nodata to zero")
             nir_nodata = 0.0
-        (nir_xblocksize,nir_yblocksize) = nir_band.GetBlockSize()
+        (nir_xblocksize, nir_yblocksize) = nir_band.GetBlockSize()
 
         ## if different block sizes choose the smaller of the two
-        xblocksize = min([red_xblocksize,nir_xblocksize])
-        yblocksize = min([red_yblocksize,nir_yblocksize])
+        xblocksize = min([red_xblocksize, nir_xblocksize])
+        yblocksize = min([red_yblocksize, nir_yblocksize])
 
         ## calculate the number of x and y blocks to read/write
-        nxblocks = int(math.floor(nx + xblocksize - 1)/xblocksize)
-        nyblocks = int(math.floor(ny + yblocksize - 1)/yblocksize)
+        nxblocks = int(math.floor(nx + xblocksize - 1) / xblocksize)
+        nyblocks = int(math.floor(ny + yblocksize - 1) / yblocksize)
 
         ## blocks loop
         yblockrange = range(nyblocks)
         xblockrange = range(nxblocks)
         for yblock in yblockrange:
             ## y offset for ReadAsArray
-            yoff = yblock*yblocksize
+            yoff = yblock * yblocksize
 
             ## get block actual y size in case of partial block at edge
-            if yblock<nyblocks-1:
-                block_ny=yblocksize
+            if yblock < nyblocks - 1:
+                block_ny = yblocksize
             else:
-                block_ny = ny - (yblock*yblocksize)
+                block_ny = ny - (yblock * yblocksize)
 
             for xblock in xblockrange:
                 ## x offset for ReadAsArray
-                xoff = xblock*xblocksize
+                xoff = xblock * xblocksize
 
                 ## get block actual x size in case of partial block at edge
-                if xblock<(nxblocks-1):
+                if xblock < (nxblocks - 1):
                     block_nx = xblocksize
                 else:
-                    block_nx = nx - (xblock*xblocksize)
+                    block_nx = nx - (xblock * xblocksize)
 
                 ## read a block from each band
-                red_array = red_band.ReadAsArray(xoff,yoff,block_nx,block_ny)
-                nir_array = nir_band.ReadAsArray(xoff,yoff,block_nx,block_ny)
+                red_array = red_band.ReadAsArray(xoff, yoff, block_nx, block_ny)
+                nir_array = nir_band.ReadAsArray(xoff, yoff, block_nx, block_ny)
 
                 ## generate mask for red nodata, nir nodata, and 
                 ## (red+nir) less than tol away from zero
-                red_mask = (red_array==red_nodata)
+                red_mask = (red_array == red_nodata)
                 if red_array[red_mask] != []:
-                    nir_mask = (nir_array==nir_nodata)
+                    nir_mask = (nir_array == nir_nodata)
                     if nir_array[nir_mask] != []:
                         divzero_mask = abs(nir_array + red_array) < tol
                         if red_array[divzero_mask] != []:
@@ -334,7 +335,7 @@ def calc_ndvi(srcfp, dstfp, args):
                         else:
                             ndvi_mask = red_mask
                 else:
-                    nir_mask = (nir_array==nir_nodata)
+                    nir_mask = (nir_array == nir_nodata)
                     if nir_array[nir_mask] != []:
                         divzero_mask = abs(nir_array + red_array) < tol
                         if red_array[divzero_mask] != []:
@@ -344,44 +345,47 @@ def calc_ndvi(srcfp, dstfp, args):
                     else:
                         divzero_mask = abs(nir_array + red_array) < tol
                         if red_array[divzero_mask] != []:
-                           ndvi_mask = divzero_mask
+                            ndvi_mask = divzero_mask
                         else:
-                           ndvi_mask = numpy.full_like(red_array,fill_value=0,dtype=numpy.bool)
+                            ndvi_mask = numpy.full_like(red_array, fill_value=0, dtype=numpy.bool)
 
                 ## declare ndvi array, init to nodata value
-                ndvi_array = numpy.full_like(red_array,fill_value=ndvi_nodata,dtype=numpy.float32)
+                ndvi_array = numpy.full_like(red_array, fill_value=ndvi_nodata, dtype=numpy.float32)
                 ## cast bands to float for calc
-                red_asfloat = numpy.array(red_array,dtype=numpy.float32)
+                red_asfloat = numpy.array(red_array, dtype=numpy.float32)
                 red_array = None
-                nir_asfloat = numpy.array(nir_array,dtype=numpy.float32)
+                nir_asfloat = numpy.array(nir_array, dtype=numpy.float32)
                 nir_array = None
 
                 ## calculate ndvi
                 if ndvi_array[~ndvi_mask] != []:
-                    ndvi_array[~ndvi_mask] = numpy.divide(numpy.subtract(nir_asfloat[~ndvi_mask],red_asfloat[~ndvi_mask]),numpy.add(nir_asfloat[~ndvi_mask],red_asfloat[~ndvi_mask]))
+                    ndvi_array[~ndvi_mask] = numpy.divide(numpy.subtract(nir_asfloat[~ndvi_mask],
+                                                                         red_asfloat[~ndvi_mask]),
+                                                          numpy.add(nir_asfloat[~ndvi_mask],
+                                                                    red_asfloat[~ndvi_mask]))
                 red_asfloat = None
                 nir_asfloat = None
  
                 ## scale and cast to int if outtype integer
                 if args.outtype == 'Int16':
-                    ndvi_scaled = numpy.full_like(ndvi_array,fill_value=ndvi_nodata,dtype=numpy.int16)
+                    ndvi_scaled = numpy.full_like(ndvi_array, fill_value=ndvi_nodata, dtype=numpy.int16)
                     if ndvi_scaled[~ndvi_mask] != []:
-                        ndvi_scaled[~ndvi_mask] = numpy.array(ndvi_array[~ndvi_mask]*1000.0,dtype=numpy.int16)
+                        ndvi_scaled[~ndvi_mask] = numpy.array(ndvi_array[~ndvi_mask]*1000.0, dtype=numpy.int16)
                     ndvi_array = ndvi_scaled
                     ndvi_scaled = None
 
                 ndvi_mask = None
                
                 ## write valid portion of ndvi array to output file
-                ndvi_band.WriteArray(ndvi_array,xoff,yoff)
+                ndvi_band.WriteArray(ndvi_array, xoff, yoff)
                 ndvi_array = None
 
         out_ds = None
-        ds=None
+        ds = None
         
         if os.path.isfile(dstfp_local):
             ## add pyramids
-            cmd = 'gdaladdo "%s" 2 4 8 16' %(dstfp_local)
+            cmd = 'gdaladdo "{}" 2 4 8 16'.format(dstfp_local)
             taskhandler.exec_cmd(cmd)
 
             ## copy to dst
@@ -421,6 +425,7 @@ def calc_ndvi(srcfp, dstfp, args):
             shutil.copy2(src_xml, dst_xml)
             
     return 0
+
 
 if __name__ == '__main__':
     main()
