@@ -2,7 +2,7 @@ import os, string, sys, shutil, math, glob, re, tarfile, logging, shlex, argpars
 from datetime import datetime, timedelta
 from xml.dom import minidom
 from xml.etree import cElementTree as ET
-import gdal, ogr,osr, gdalconst
+import gdal, ogr, osr, gdalconst
 
 from lib import ortho_functions, utils, taskhandler
 
