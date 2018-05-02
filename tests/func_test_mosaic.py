@@ -41,8 +41,8 @@ class TestMosaicFunc(unittest.TestCase):
         )
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         se,so = p.communicate()
-        # print so
-        # print se
+        # print(so)
+        # print(se)
         
         self.assertTrue(os.path.isfile(mosaicname + '_1_1.tif'))
         self.assertTrue(os.path.isfile(mosaicname + '_1_2.tif'))
@@ -82,8 +82,8 @@ class TestMosaicFunc(unittest.TestCase):
         )
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         se, so = p.communicate()
-        # print so
-        # print se
+        # print(so)
+        # print(se)
         
         self.assertTrue(os.path.isfile(mosaicname + '_1_1.tif'))
         self.assertTrue(os.path.isfile(mosaicname + '_1_2.tif'))
@@ -111,8 +111,8 @@ class TestMosaicFunc(unittest.TestCase):
         )
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         se, so = p.communicate()
-        # print so
-        # print se
+        # print(so)
+        # print(se)
         
         self.assertTrue(os.path.isfile(mosaicname + '_1_1.tif'))
         self.assertTrue(os.path.isfile(mosaicname + '_1_2.tif'))
@@ -138,8 +138,8 @@ class TestMosaicFunc(unittest.TestCase):
         )
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         se, so = p.communicate()
-        # print so
-        # print se
+        # print(so)
+        # print(se)
         
         self.assertTrue(os.path.isfile(mosaicname + '_1_1.tif'))
         self.assertTrue(os.path.isfile(mosaicname + '_1_2.tif'))
