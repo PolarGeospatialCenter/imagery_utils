@@ -96,7 +96,7 @@ def main():
         image_list = utils.find_images(src, True, ortho_functions.exts)
     else:
         image_list = [src]
-    logger.info('Number of src images: %i' %len(image_list))
+    logger.info('Number of src images: %i', len(image_list))
     
     ## Build task queue
     i = 0
@@ -118,7 +118,7 @@ def main():
             )
             task_queue.append(task)
        
-    logger.info('Number of incomplete tasks: {}'.format(i))
+    logger.info('Number of incomplete tasks: %i', i)
     
     ## Run tasks
     if len(task_queue) > 0:
@@ -148,7 +148,7 @@ def main():
             except RuntimeError as e:
                 logger.error(e)
             else:
-                logger.info("Number of child processes to spawn: {0}".format(task_handler.num_processes))
+                logger.info("Number of child processes to spawn: %i", task_handler.num_processes)
                 if not args.dryrun:
                     task_handler.run_tasks(task_queue)
     
@@ -175,7 +175,7 @@ def main():
             #### Print Images with Errors    
             for k,v in results.iteritems():
                 if v != 0:
-                    logger.warning("Failed Image: {}".format(k)) 
+                    logger.warning("Failed Image: %s", k)
         
         logger.info("Done")
         
@@ -208,7 +208,7 @@ def calc_ndvi(srcfp, dstfp, args):
             os.makedirs(wd)
         except OSError:
             pass
-    logger.info("Working Dir: %s" %wd)
+    logger.info("Working Dir: %s", wd)
 
     print("Image: {}").format(srcfn)
    
@@ -228,16 +228,16 @@ def calc_ndvi(srcfp, dstfp, args):
             red_band_num = 3
             nir_band_num = 4
         else:
-            logger.error("Cannot calculate NDVI from a {} band image: {}".format(bands, srcfp_local))
+            logger.error("Cannot calculate NDVI from a %i band image: %s", bands, srcfp_local)
             return 1
     else:
-        logger.error("Cannot open target image: {}".format(srcfp_local))
+        logger.error("Cannot open target image: %s", srcfp_local)
         return 1
 
     ## check for input data type - must be float or int
     datatype = ds.GetRasterBand(1).DataType
     if not (datatype in [1,2,3,4,5,6,7]):
-        logger.error("Invalid input data type {}".format(datatype))
+        logger.error("Invalid input data type %s", datatype)
         return 1 
 
     ## get the raster dimensions
@@ -256,14 +256,14 @@ def calc_ndvi(srcfp, dstfp, args):
             ndvi_band = out_ds.GetRasterBand(1)
             ndvi_band.SetNoDataValue(float(ndvi_nodata))
         else:
-            logger.error("Couldn't open for write: {}".format(dstfp_local))
+            logger.error("Couldn't open for write: %s", dstfp_local)
             return 1
 
         ## for red and nir bands, get band data, nodata values, and natural block size
         ## if NoData is None default it to zero.
         red_band = ds.GetRasterBand(red_band_num)
         if red_band == None:
-            logger.error("Can't load band {} from {}".format(red_band_num,srcfp_local))
+            logger.error("Can't load band %i from %s", red_band_num, srcfp_local)
             return 1
         red_nodata = red_band.GetNoDataValue()
         if red_nodata is None:
@@ -273,7 +273,7 @@ def calc_ndvi(srcfp, dstfp, args):
     
         nir_band = ds.GetRasterBand(nir_band_num)
         if nir_band == None:
-            logger.error("Can't load band {} from {}".format(nir_band_num,srcfp_local))
+            logger.error("Can't load band %i from %s", nir_band_num, srcfp_local)
             return 1
         nir_nodata = nir_band.GetNoDataValue()
         if nir_nodata is None:
@@ -392,7 +392,7 @@ def calc_ndvi(srcfp, dstfp, args):
             if os.path.isfile(src_xml):
                 shutil.copy2(src_xml, dst_xml)
             else:
-                logger.warning("xml {} not found".format(src_xml))
+                logger.warning("xml %s not found", src_xml)
         
             ## Delete Temp Files
             temp_files = [srcfp_local]
@@ -402,19 +402,19 @@ def calc_ndvi(srcfp, dstfp, args):
                     try:
                         os.remove(f)
                     except Exception as e:
-                        logger.warning('Could not remove %s: %s' %(os.path.basename(f),e))
+                        logger.warning('Could not remove %s: %s', os.path.basename(f), e)
             if wd != dstdir:
                 for f in wd_files:
                     try:
                         os.remove(f)
                     except Exception as e:
-                        logger.warning('Could not remove %s: %s' %(os.path.basename(f),e))
+                        logger.warning('Could not remove %s: %s', os.path.basename(f), e)
         else:
-            logger.error("pgc_ndvi.py: {} was not created".dstfp_local)
+            logger.error("pgc_ndvi.py: %s was not created", dstfp_local)
             return 1 
             
     else:
-        logger.info("pgc_ndvi.py: file {} already exists".format(dstfp))
+        logger.info("pgc_ndvi.py: file %s already exists", dstfp)
         
         ## copy xml to dst if missing
         if not os.path.isfile(dst_xml):
