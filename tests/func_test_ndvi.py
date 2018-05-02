@@ -29,15 +29,15 @@ class TestNdviFunc(unittest.TestCase):
     #@unittest.skip("skipping")
     def test_ndvi(self):
         
-        srcdir = os.path.join(os.path.join(test_dir,'ndvi','ortho'))
+        srcdir = os.path.join(os.path.join(test_dir, 'ndvi', 'ortho'))
         
         cmd = 'python {} {} {}'.format(
             self.scriptpath,
             srcdir,
             self.dstdir,
         )
-        p = subprocess.Popen(cmd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell=True)
-        se,so = p.communicate()
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        se, so = p.communicate()
         # print so
         # print se
         
@@ -55,15 +55,15 @@ class TestNdviFunc(unittest.TestCase):
     #@unittest.skip("skipping")
     def test_ndvi_int16(self):
         
-        srcdir = os.path.join(os.path.join(test_dir,'ndvi','ortho'))
+        srcdir = os.path.join(os.path.join(test_dir, 'ndvi', 'ortho'))
         
         cmd = 'python {} {} {} -t Int16'.format(
             self.scriptpath,
             srcdir,
             self.dstdir,
         )
-        p = subprocess.Popen(cmd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell=True)
-        se,so = p.communicate()
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        se, so = p.communicate()
         # print so
         # print se
         
@@ -81,15 +81,15 @@ class TestNdviFunc(unittest.TestCase):
     #@unittest.skip("skipping")
     def test_ndvi_from_pansharp(self):
         
-        srcdir = os.path.join(os.path.join(test_dir,'ndvi','pansh'))
+        srcdir = os.path.join(os.path.join(test_dir, 'ndvi', 'pansh'))
         
         cmd = 'python {} {} {} -t Int16'.format(
             self.scriptpath,
             srcdir,
             self.dstdir,
         )
-        p = subprocess.Popen(cmd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell=True)
-        se,so = p.communicate()
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        se, so = p.communicate()
         # print so
         # print se
         
@@ -102,7 +102,8 @@ class TestNdviFunc(unittest.TestCase):
     
     def tearDown(self):
         shutil.rmtree(self.dstdir)
-   
+
+
 if __name__ == '__main__':
     
     #### Set Up Arguments
@@ -119,10 +120,10 @@ if __name__ == '__main__':
     if args.testdata:
         test_dir = os.path.abspath(args.testdata)
     else:
-        test_dir = os.path.join(script_dir,'testdata')
+        test_dir = os.path.join(script_dir, 'testdata')
     
     if not os.path.isdir(test_dir):
-        parser.error("Test data folder does not exist: %s" %test_dir)
+        parser.error("Test data folder does not exist: {}".format(test_dir))
         
     test_cases = [
         TestNdviFunc

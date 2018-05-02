@@ -40,7 +40,7 @@ class TestMosaicFunc(unittest.TestCase):
             args
         )
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-        se,so = p.communicate()
+        se, so = p.communicate()
         # print(so)
         # print(se)
         
