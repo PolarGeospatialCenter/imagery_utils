@@ -61,8 +61,8 @@ class TestOrthoFunc(unittest.TestCase):
             cmd = r"""python "%s" --wd /local -r 10 -p %d "%s" "%s" """ %(self.scriptpath, epsg, srcfp, self.dstdir)
             p = subprocess.Popen(cmd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell=True)
             se,so = p.communicate()
-            print so
-            print se
+            print(so)
+            print(se)
             
             
     def test_input_parameters(self):
@@ -117,8 +117,8 @@ class TestOrthoFunc(unittest.TestCase):
         for cmd in cmds:
             p = subprocess.Popen(cmd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell=True)
             se,so = p.communicate()
-            # print so
-            # print se
+            # print(so)
+            # print(se)
             
     # def tearDown(self):
     #     shutil.rmtree(self.dstdir)

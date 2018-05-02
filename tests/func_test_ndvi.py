@@ -38,8 +38,8 @@ class TestNdviFunc(unittest.TestCase):
         )
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         se, so = p.communicate()
-        # print so
-        # print se
+        # print(so)
+        # print(se)
         
         for f in os.listdir(srcdir):
             if f.endswith('.tif'):
@@ -64,8 +64,8 @@ class TestNdviFunc(unittest.TestCase):
         )
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         se, so = p.communicate()
-        # print so
-        # print se
+        # print(so)
+        # print(se)
         
         for f in os.listdir(srcdir):
             if f.endswith('.tif'):
@@ -90,8 +90,8 @@ class TestNdviFunc(unittest.TestCase):
         )
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         se, so = p.communicate()
-        # print so
-        # print se
+        # print(so)
+        # print(se)
         
         for f in os.listdir(srcdir):
             if f.endswith('.tif'):
