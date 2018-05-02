@@ -1,4 +1,4 @@
-import os, string, sys, logging, argparse, numpy, glob
+import os, sys, logging, argparse, numpy, glob
 from datetime import datetime, date
 import gdal, ogr, osr, gdalconst
 
