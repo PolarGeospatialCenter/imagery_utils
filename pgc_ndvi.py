@@ -56,10 +56,10 @@ def main():
     elif os.path.isfile(src.replace('msi', 'blu')) and os.path.splitext(src)[1].lower() in ortho_functions.exts:
         srctype = 'image'
     else:
-        parser.error("Error arg1 is not a recognized file path or file type: %s" %(src))
+        parser.error("Error arg1 is not a recognized file path or file type: {}".format(src))
 
     if not os.path.isdir(dstdir):
-        parser.error("Error arg2 is not a valid file path: %s" %(dstdir))
+        parser.error("Error arg2 is not a valid file path: {}".format(dstdir))
 
     ## Verify qsubscript
     if args.pbs or args.slurm:
@@ -71,7 +71,7 @@ def main():
         else:
             qsubpath = os.path.abspath(args.qsubscript)
         if not os.path.isfile(qsubpath):
-            parser.error("qsub script path is not valid: %s" %qsubpath)
+            parser.error("qsub script path is not valid: {}".format(qsubpath))
         
     ## Verify processing options do not conflict
     if args.pbs and args.slurm:
