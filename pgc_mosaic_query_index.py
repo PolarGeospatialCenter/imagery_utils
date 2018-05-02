@@ -1,6 +1,6 @@
 import os, string, sys, logging, argparse, numpy, glob
 from datetime import datetime, date
-import gdal, ogr,osr, gdalconst
+import gdal, ogr, osr, gdalconst
 
 from lib import ortho_functions, mosaic, utils, taskhandler
 
@@ -21,7 +21,7 @@ def main():
     parser.add_argument("dstdir", help="textfile output directory")
     parser.add_argument("mosaic", help="mosaic name without extension")
     #pos_arg_keys = ["index","tile_csv","dstdir"]
-    
+
     parser.add_argument("-e", "--extent", nargs=4, type=float,
                         help="extent of output mosaic -- xmin xmax ymin ymax (default is union of all inputs)")
     parser.add_argument("--force-pan-to-multi", action="store_true", default=False,
@@ -33,7 +33,9 @@ def main():
     parser.add_argument("--tyear",
                         help="year (or year range) to use as target for image suitability ranking -- 2017 or 2015-2017")
     parser.add_argument("--nosort", action="store_true", default=False,
-                        help="do not sort images by metadata. script uses the order of the input textfile or directory (first image is first drawn).  Not recommended if input is a directory; order will be random")
+                        help="do not sort images by metadata. script uses the order of the input textfile or directory "
+                             "(first image is first drawn).  Not recommended if input is a directory; order will be "
+                             "random")
     parser.add_argument("--use-exposure", action="store_true", default=False,
                         help="use exposure settings in metadata to inform score")
     parser.add_argument("--exclude",
@@ -43,19 +45,21 @@ def main():
     parser.add_argument("--include-all-ms", action="store_true", default=False,
                         help="include all multispectral imagery, even if the imagery has differing numbers of bands")
     parser.add_argument("--min-contribution-area", type=int, default=20000000,
-                      help="minimum area contribution threshold in target projection units (default=20000000). Higher values remove more image slivers from the resulting mosaic") 
+                        help="minimum area contribution threshold in target projection units (default=20000000). "
+                             "Higher values remove more image slivers from the resulting mosaic")
     parser.add_argument("--log",
-                      help="output log file (default is queryFP.log in the output folder)")
+                        help="output log file (default is queryFP.log in the output folder)")
     parser.add_argument("--ttile",
-                      help="target tile (default is to compute all valid tiles. multiple tiles should be delimited by a comma [ex: 23_24,23_25])")
+                        help="target tile (default is to compute all valid tiles. multiple tiles should be delimited "
+                             "by a comma [ex: 23_24,23_25])")
     parser.add_argument("--overwrite", action="store_true", default=False,
-                      help="overwrite any existing files")
+                        help="overwrite any existing files")
     parser.add_argument("--stretch", choices=ortho_functions.stretches, default="rf",
-                      help="stretch abbreviation used in image processing (default=rf)")
+                        help="stretch abbreviation used in image processing (default=rf)")
     parser.add_argument("--build-shp", action='store_true', default=False,
-                      help="build shapefile of intersecting images (only invoked if --no_sort is not used)")
+                        help="build shapefile of intersecting images (only invoked if --no_sort is not used)")
     parser.add_argument("--require-pan", action='store_true', default=False,
-                      help="limit search to imagery with both a multispectral and a panchromatic component")
+                        help="limit search to imagery with both a multispectral and a panchromatic component")
  
     #### Parse Arguments
     args = parser.parse_args()
@@ -78,7 +82,7 @@ def main():
         try:
             m = int(args.tday.split("-")[0])
             d = int(args.tday.split("-")[1])
-            td = date(2000,m,d)
+            td = date(2000, m, d)
         except ValueError:
             logger.error("Target day must be in mm-dd format (i.e 04-05)")
             sys.exit(1)
@@ -123,11 +127,11 @@ def main():
     if args.log is not None:
         logfile = os.path.abspath(args.log)
     else:
-        logfile = os.path.join(dstdir,"queryFP_%s.log" %datetime.today().strftime("%Y%m%d%H%M%S"))
+        logfile = os.path.join(dstdir, "queryFP_{}.log".format(datetime.today().strftime("%Y%m%d%H%M%S")))
     
     lfh = logging.FileHandler(logfile)
     lfh.setLevel(logging.DEBUG)
-    formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s','%m-%d-%Y %H:%M:%S')
+    formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s', '%m-%d-%Y %H:%M:%S')
     lfh.setFormatter(formatter)
     logger.addHandler(lfh)
     
@@ -150,7 +154,7 @@ def main():
     
     #### Parse csv, validate tile ID and get tilegeom
     tiles = {}
-    csv = open(csvpath,'r')
+    csv = open(csvpath, 'r')
     for line in csv:
         tile = line.rstrip().split(",")
         if len(tile) != 9:
@@ -159,7 +163,8 @@ def main():
             name = tile[2]
             if name != "name":
                 ### Tile csv schema: row, column, name, status, xmin, xmax, ymin, ymax, epsg code
-                t = mosaic.TileParams(float(tile[4]),float(tile[5]),float(tile[6]),float(tile[7]),int(tile[0]),int(tile[1]),tile[2])
+                t = mosaic.TileParams(float(tile[4]), float(tile[5]), float(tile[6]), float(tile[7]), int(tile[0]),
+                                      int(tile[1]), tile[2])
                 t.status = tile[3]
                 t.epsg = int(tile[8])
                 tiles[name] = t
@@ -178,10 +183,10 @@ def main():
             else:
                 t = tiles[ttile]
                 if t.status == "0":
-                    logger.error("Tile status indicates it should not be created: %s, %s", ttile,t.status)
+                    logger.error("Tile status indicates it should not be created: %s, %s", ttile, t.status)
                 else:
                     try:
-                        HandleTile(t,src,dstdir,csvpath,args,exclude_list)
+                        HandleTile(t, src, dstdir, csvpath, args, exclude_list)
                     except RuntimeError as e:
                         logger.error(e)
     
@@ -192,16 +197,16 @@ def main():
             t = tiles[tile]
             if t.status == "1":
                 try:
-                    HandleTile(t,src,dstdir,csvpath,args,exclude_list)
+                    HandleTile(t, src, dstdir, csvpath, args, exclude_list)
                 except RuntimeError as e:
                     logger.error(e)
         
         
-def HandleTile(t,src,dstdir,csvpath,args,exclude_list):
+def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
     
     
-    otxtpath = os.path.join(dstdir,"%s_%s_orig.txt" %(os.path.basename(csvpath)[:-4],t.name))
-    mtxtpath = os.path.join(dstdir,"%s_%s_ortho.txt" %(os.path.basename(csvpath)[:-4],t.name))
+    otxtpath = os.path.join(dstdir, "{}_{}_orig.txt".format(os.path.basename(csvpath)[:-4], t.name))
+    mtxtpath = os.path.join(dstdir, "{}_{}_ortho.txt".format(os.path.basename(csvpath)[:-4], t.name))
     
     if os.path.isfile(otxtpath) and os.path.isfile(mtxtpath) and args.overwrite is False:
         logger.info("Tile %s processing files already exist", t.name)
@@ -219,7 +224,7 @@ def HandleTile(t,src,dstdir,csvpath,args,exclude_list):
             logger.error("Open failed")
             
         else:
-            lyr = ds.GetLayerByName( lyrn )
+            lyr = ds.GetLayerByName(lyrn)
             
             if not lyr:
                 raise RuntimeError("Layer {} does not exist in dataset {}".format(lyrn, dsp))
@@ -249,9 +254,9 @@ def HandleTile(t,src,dstdir,csvpath,args,exclude_list):
                 
                 while feat:
                     
-                    iinfo = mosaic.ImageInfo(feat,"RECORD",srs=s_srs)
+                    iinfo = mosaic.ImageInfo(feat, "RECORD", srs=s_srs)
                     
-                    if iinfo.geom is not None and iinfo.geom.GetGeometryType() in (ogr.wkbPolygon,ogr.wkbMultiPolygon):
+                    if iinfo.geom is not None and iinfo.geom.GetGeometryType() in (ogr.wkbPolygon, ogr.wkbMultiPolygon):
                         if not t_srs.IsSame(s_srs):
                             iinfo.geom.Transform(ct)
                             ## fix self-intersection errors caused by reprojecting over 180
@@ -269,13 +274,14 @@ def HandleTile(t,src,dstdir,csvpath,args,exclude_list):
                             elif args.require_pan:
                                 srcfp = iinfo.srcfp
                                 srcdir, mul_name = os.path.split(srcfp)
-                                if iinfo.sensor in ["WV02","WV03","QB02"]:
-                                    pan_name = mul_name.replace("-M","-P")
+                                if iinfo.sensor in ["WV02", "WV03", "QB02"]:
+                                    pan_name = mul_name.replace("-M", "-P")
                                 elif iinfo.sensor == "GE01":
                                     if "_5V" in mul_name:
-                                        pan_name_base = srcfp[:-24].replace("M0","P0")
+                                        pan_name_base = srcfp[:-24].replace("M0", "P0")
                                         candidates = glob.glob(pan_name_base + "*")
-                                        candidates2 = [f for f in candidates if f.endswith(('.ntf','.NTF','.tif','.TIF'))]
+                                        candidates2 = [f for f in candidates if f.endswith(('.ntf', '.NTF', '.tif',
+                                                                                            '.TIF'))]
                                         if len(candidates2) == 0:
                                             pan_name = ''
                                         elif len(candidates2) == 1:
@@ -285,12 +291,12 @@ def HandleTile(t,src,dstdir,csvpath,args,exclude_list):
                                             logger.error('%i panchromatic images match the multispectral image name '
                                                          '%s', len(candidates2), mul_name)
                                     else:
-                                        pan_name = mul_name.replace("-M","-P")
+                                        pan_name = mul_name.replace("-M", "-P")
                                 elif iinfo.sensor == "IK01":
-                                    pan_name = mul_name.replace("blu","pan")
-                                    pan_name = mul_name.replace("msi","pan")
-                                    pan_name = mul_name.replace("bgrn","pan")
-                                pan_srcfp = os.path.join(srcdir,pan_name)
+                                    pan_name = mul_name.replace("blu", "pan")
+                                    pan_name = mul_name.replace("msi", "pan")
+                                    pan_name = mul_name.replace("bgrn", "pan")
+                                pan_srcfp = os.path.join(srcdir, pan_name)
                                 if not os.path.isfile(pan_srcfp):
                                     logger.debug("Image does not have a panchromatic component, excluding: %s",
                                                  iinfo.srcfp)
@@ -299,7 +305,7 @@ def HandleTile(t,src,dstdir,csvpath,args,exclude_list):
                                     imginfo_list1.append(iinfo)
                                 
                             else:
-                                logger.debug( "Intersect %s, %s: %s", iinfo.scene_id, iinfo.srcfp, str(iinfo.geom))
+                                logger.debug("Intersect %s, %s: %s", iinfo.scene_id, iinfo.srcfp, str(iinfo.geom))
                                 imginfo_list1.append(iinfo)                                
                                 
                     feat = lyr.GetNextFeature()
@@ -309,15 +315,14 @@ def HandleTile(t,src,dstdir,csvpath,args,exclude_list):
             logger.info("Number of intersects in tile %s: %i", t.name, len(imginfo_list1))
             
             if len(imginfo_list1) > 0:
-                
-                
+
                 #### Get mosaic parameters
                 logger.debug("Getting mosaic parameters")
-                params = mosaic.getMosaicParameters(imginfo_list1[0],args)
+                params = mosaic.getMosaicParameters(imginfo_list1[0], args)
                 
                 #### Remove images that do not match ref
                 logger.debug("Setting image pattern filter")
-                imginfo_list2 = mosaic.filterMatchingImages(imginfo_list1,params)
+                imginfo_list2 = mosaic.filterMatchingImages(imginfo_list1, params)
                 logger.info("Number of images matching filter: %i", len(imginfo_list2))
                     
                 if args.nosort is False:    
@@ -338,7 +343,7 @@ def HandleTile(t,src,dstdir,csvpath,args,exclude_list):
                     
                 ####  Overlay geoms and remove non-contributors
                 logger.debug("Overlaying images to determine contributors")
-                contribs = mosaic.determine_contributors(imginfo_list3,t.geom,args.min_contribution_area)
+                contribs = mosaic.determine_contributors(imginfo_list3, t.geom, args.min_contribution_area)
                                             
                 logger.info("Number of contributing images: %i", len(contribs))
             
@@ -349,12 +354,11 @@ def HandleTile(t,src,dstdir,csvpath,args,exclude_list):
                         #######################################################
                         #### Create Shp
                         
-                        shp = os.path.join(dstdir,"{}_{}_imagery.shp".format(args.mosaic, t.name))
+                        shp = os.path.join(dstdir, "{}_{}_imagery.shp".format(args.mosaic, t.name))
                    
                         logger.debug("Creating shapefile of geoms: %s", shp)
                     
-                        fields = [("IMAGENAME", ogr.OFTString, 100),
-                            ("SCORE", ogr.OFTReal, 0)]
+                        fields = [("IMAGENAME", ogr.OFTString, 100), ("SCORE", ogr.OFTReal, 0)]
                         
                         OGR_DRIVER = "ESRI Shapefile"
                         
@@ -391,8 +395,8 @@ def HandleTile(t,src,dstdir,csvpath,args,exclude_list):
                             
                             feat = ogr.Feature(lyr.GetLayerDefn())
                             
-                            feat.SetField("IMAGENAME",iinfo.srcfn)
-                            feat.SetField("SCORE",iinfo.score)
+                            feat.SetField("IMAGENAME", iinfo.srcfn)
+                            feat.SetField("SCORE", iinfo.score)
     
                             feat.SetGeometry(geom)
                             if lyr.CreateFeature(feat) != 0:
@@ -408,8 +412,8 @@ def HandleTile(t,src,dstdir,csvpath,args,exclude_list):
                     
                     otxtpath = os.path.join(dstdir, "{}_{}_orig.txt".format(args.mosaic, t.name))
                     mtxtpath = os.path.join(dstdir, "{}_{}_ortho.txt".format(args.mosaic, t.name))
-                    otxt = open(otxtpath,'w')
-                    mtxt = open(mtxtpath,'w')
+                    otxt = open(otxtpath, 'w')
+                    mtxt = open(mtxtpath, 'w')
                     
                     for iinfo, geom in contribs:
                         
@@ -423,11 +427,9 @@ def HandleTile(t,src,dstdir,csvpath,args,exclude_list):
                             t.epsg
                         )
                         
-                        mtxt.write(os.path.join(dstdir,'ortho',t.name,m_fn)+"\n")
+                        mtxt.write(os.path.join(dstdir, 'ortho', t.name, m_fn) + "\n")
  
                     otxt.close()
-
-
 
 
 if __name__ == '__main__':
