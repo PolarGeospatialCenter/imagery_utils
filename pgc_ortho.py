@@ -10,6 +10,7 @@ from lib import ortho_functions, utils, taskhandler
 logger = logging.getLogger("logger")
 logger.setLevel(logging.DEBUG)
 
+
 def main():
 
     #### Set Up Arguments
@@ -26,8 +27,8 @@ def main():
     parser.add_argument("--parallel-processes", type=int, default=1,
                         help="number of parallel processes to spawn (default 1)")
     parser.add_argument("--qsubscript",
-                        help="submission script to use in PBS/SLURM submission (PBS default is qsub_ortho.sh, SLURM default is "
-                             "slurm_ortho.py, in script root folder)")
+                        help="submission script to use in PBS/SLURM submission (PBS default is qsub_ortho.sh, SLURM "
+                             "default is slurm_ortho.py, in script root folder)")
     parser.add_argument("-l",
                         help="PBS resources requested (mimicks qsub syntax, PBS only)")
     parser.add_argument("--dryrun", action='store_true', default=False,
@@ -46,25 +47,25 @@ def main():
         srctype = 'textfile'
     elif os.path.isfile(src) and os.path.splitext(src)[1].lower() in ortho_functions.exts:
         srctype = 'image'
-    elif os.path.isfile(src.replace('msi','blu')) and os.path.splitext(src)[1].lower() in ortho_functions.exts:
+    elif os.path.isfile(src.replace('msi', 'blu')) and os.path.splitext(src)[1].lower() in ortho_functions.exts:
         srctype = 'image'
     else:
-        parser.error("Error arg1 is not a recognized file path or file type: %s" %(src))
+        parser.error("Error arg1 is not a recognized file path or file type: {}".format(src))
 
     if not os.path.isdir(dstdir):
-        parser.error("Error arg2 is not a valid file path: %s" %(dstdir))
+        parser.error("Error arg2 is not a valid file path: {}".format(dstdir))
 
     ## Verify qsubscript
     if args.pbs or args.slurm:
         if args.qsubscript is None:
             if args.pbs:
-                qsubpath = os.path.join(os.path.dirname(scriptpath),'qsub_ortho.sh')
+                qsubpath = os.path.join(os.path.dirname(scriptpath), 'qsub_ortho.sh')
             if args.slurm:
-                qsubpath = os.path.join(os.path.dirname(scriptpath),'slurm_ortho.sh')
+                qsubpath = os.path.join(os.path.dirname(scriptpath), 'slurm_ortho.sh')
         else:
             qsubpath = os.path.abspath(args.qsubscript)
         if not os.path.isfile(qsubpath):
-            parser.error("qsub script path is not valid: %s" %qsubpath)
+            parser.error("qsub script path is not valid: {}".format(qsubpath))
 
     ## Verify processing options do not conflict
     if args.pbs and args.slurm:
@@ -85,12 +86,12 @@ def main():
     #### Test if DEM exists
     if args.dem:
         if not os.path.isfile(args.dem):
-            parser.error("DEM does not exist: %s" %args.dem)
+            parser.error("DEM does not exist: {}".format(args.dem))
 
     #### Set up console logging handler
     lso = logging.StreamHandler()
     lso.setLevel(logging.INFO)
-    formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s','%m-%d-%Y %H:%M:%S')
+    formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s', '%m-%d-%Y %H:%M:%S')
     lso.setFormatter(formatter)
     logger.addHandler(lso)
 
@@ -109,11 +110,11 @@ def main():
     ## Group Ikonos
     image_list2 = []
     for srcfp in image_list1:
-        srcdir,srcfn = os.path.split(srcfp)
+        srcdir, srcfn = os.path.split(srcfp)
         if "IK01" in srcfn and sum([b in srcfn for b in ortho_functions.ikMsiBands]) > 0:
             for b in ortho_functions.ikMsiBands:
                 if b in srcfn:
-                    newname = os.path.join(srcdir,srcfn.replace(b,"msi"))
+                    newname = os.path.join(srcdir, srcfn.replace(b, "msi"))
                     break
             image_list2.append(newname)
 
@@ -128,7 +129,7 @@ def main():
     task_queue = []
     for srcfp in image_list:
         srcdir, srcfn = os.path.split(srcfp)
-        dstfp = os.path.join(dstdir,"%s_%s%s%d%s" %(
+        dstfp = os.path.join(dstdir, "{}_{}{}{}{}".format(
             os.path.splitext(srcfn)[0],
             utils.get_bit_depth(args.outtype),
             args.stretch,
@@ -194,7 +195,7 @@ def main():
                 logfile = os.path.splitext(dstfp)[0]+".log"
                 lfh = logging.FileHandler(logfile)
                 lfh.setLevel(logging.DEBUG)
-                formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s','%m-%d-%Y %H:%M:%S')
+                formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s', '%m-%d-%Y %H:%M:%S')
                 lfh.setFormatter(formatter)
                 logger.addHandler(lfh)
                 
@@ -205,7 +206,7 @@ def main():
                 logger.removeHandler(lfh)
             
             #### Print Images with Errors    
-            for k,v in results.iteritems():
+            for k, v in results.iteritems():
                 if v != 0:
                     logger.warning("Failed Image: %s", k)
         
