@@ -20,17 +20,18 @@ def main():
     )
 
     parser.add_argument("--pbs", action='store_true', default=False,
-            help="submit tasks to PBS")
+                        help="submit tasks to PBS")
     parser.add_argument("--slurm", action='store_true', default=False,
-            help="submit tasks to SLURM")
+                        help="submit tasks to SLURM")
     parser.add_argument("--parallel-processes", type=int, default=1,
-            help="number of parallel processes to spawn (default 1)")
+                        help="number of parallel processes to spawn (default 1)")
     parser.add_argument("--qsubscript",
-            help="submission script to use in PBS/SLURM submission (PBS default is qsub_ortho.sh, SLURM default is slurm_ortho.py, in script root folder)")
+                        help="submission script to use in PBS/SLURM submission (PBS default is qsub_ortho.sh, SLURM default is "
+                             "slurm_ortho.py, in script root folder)")
     parser.add_argument("-l",
-            help="PBS resources requested (mimicks qsub syntax, PBS only)")
+                        help="PBS resources requested (mimicks qsub syntax, PBS only)")
     parser.add_argument("--dryrun", action='store_true', default=False,
-            help='print actions without executing')
+                        help='print actions without executing')
 
     #### Parse Arguments
     args = parser.parse_args()
@@ -120,7 +121,7 @@ def main():
             image_list2.append(srcfp)
 
     image_list = list(set(image_list2))
-    logger.info('Number of src images: {}'.format(len(image_list)))
+    logger.info('Number of src images: %i', len(image_list))
     
     ## Build task queue
     i = 0
@@ -148,7 +149,7 @@ def main():
             )
             task_queue.append(task)
     
-    logger.info('Number of incomplete tasks: {}'.format(i)) 
+    logger.info('Number of incomplete tasks: %i', i)
     
     ## Run tasks
     if len(task_queue) > 0:
@@ -178,7 +179,7 @@ def main():
             except RuntimeError as e:
                 logger.error(e)
             else:
-                logger.info("Number of child processes to spawn: {0}".format(task_handler.num_processes))
+                logger.info("Number of child processes to spawn: %i", task_handler.num_processes)
                 if not args.dryrun:
                     task_handler.run_tasks(task_queue)
     
@@ -206,7 +207,7 @@ def main():
             #### Print Images with Errors    
             for k,v in results.iteritems():
                 if v != 0:
-                    logger.warning("Failed Image: {}".format(k))
+                    logger.warning("Failed Image: %s", k)
         
         logger.info("Done")
         
