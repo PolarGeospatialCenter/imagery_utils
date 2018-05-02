@@ -210,7 +210,7 @@ def calc_ndvi(srcfp, dstfp, args):
             pass
     logger.info("Working Dir: %s" %wd)
 
-    print "Image: %s" %srcfn
+    print("Image: {}").format(srcfn)
    
     ## copy source image to working directory
     srcfp_local = os.path.join(wd,srcfn)
@@ -385,7 +385,7 @@ def calc_ndvi(srcfp, dstfp, args):
             taskhandler.exec_cmd(cmd)
 
             ## copy to dst
-            if wd <> dstdir:
+            if wd != dstdir:
                 shutil.copy2(dstfp_local, dstfp)
 
             ## copy xml to dst
@@ -403,7 +403,7 @@ def calc_ndvi(srcfp, dstfp, args):
                         os.remove(f)
                     except Exception as e:
                         logger.warning('Could not remove %s: %s' %(os.path.basename(f),e))
-            if wd <> dstdir:
+            if wd != dstdir:
                 for f in wd_files:
                     try:
                         os.remove(f)
