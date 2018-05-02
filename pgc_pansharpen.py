@@ -90,8 +90,8 @@ class ImagePair(object):
                     pan_name = os.path.basename(candidates2[0])
                 else: #raise error for now. TODO: iterate through candidates for greatest overlap
                     pan_name = ''
-                    logger.error('{} panchromatic images match the multispectral image name {}'.format(len(candidates2),
-                                                                                                       self.mul_srcfn))
+                    logger.error('%i panchromatic images match the multispectral image name %s', len(candidates2),
+                                 self.mul_srcfn)
             else:
                 pan_name = self.mul_srcfn.replace("-M","-P")
         elif self.sensor == "IK01":
@@ -180,7 +180,7 @@ class ImagePair(object):
             return extent_geom
                    
         else:
-            logger.error("Cannot open dataset: %s" %src_image)
+            logger.error("Cannot open dataset: %s", src_image)
             return None
 
 
@@ -286,10 +286,10 @@ def main():
         except RuntimeError as e:
             logger.error(e)
         else:
-            logger.info("Image: {}, Sensor: {}".format(image_pair.mul_srcfn, image_pair.sensor))
+            logger.info("Image: %s, Sensor: %s", image_pair.mul_srcfn, image_pair.sensor)
             pair_list.append(image_pair)
                 
-    logger.info('Number of src image pairs: {}'.format(len(pair_list)))
+    logger.info('Number of src image pairs: %i', len(pair_list))
     
     ## Build task queue
     i = 0
@@ -311,7 +311,7 @@ def main():
             )
             task_queue.append(task)
             
-    logger.info('Number of incomplete tasks: {}'.format(i)) 
+    logger.info('Number of incomplete tasks: %i', i)
 
     ## Run tasks
     if len(task_queue) > 0:
@@ -341,7 +341,7 @@ def main():
             except RuntimeError as e:
                 logger.error(e)
             else:
-                logger.info("Number of child processes to spawn: {0}".format(task_handler.num_processes))
+                logger.info("Number of child processes to spawn: %i", task_handler.num_processes)
                 if not args.dryrun:
                     task_handler.run_tasks(task_queue)
     
@@ -353,7 +353,7 @@ def main():
                 src, dstfp, task_arg_obj = task.method_arg_list
                 
                 #### Set up processing log handler
-                logfile = os.path.splitext(dstfp)[0]+".log"
+                logfile = os.path.splitext(dstfp)[0] + ".log"
                 lfh = logging.FileHandler(logfile)
                 lfh.setLevel(logging.DEBUG)
                 formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s','%m-%d-%Y %H:%M:%S')
@@ -372,7 +372,7 @@ def main():
             #### Print Images with Errors    
             for k,v in results.items():
                 if v != 0:
-                    logger.warning("Failed Image: {}".format(k))
+                    logger.warning("Failed Image: %s", k)
         
         logger.info("Done")
         
@@ -394,7 +394,7 @@ def exec_pansharpen(image_pair, pansh_dstfp, args):
             os.makedirs(wd)
         except OSError:
             pass
-    logger.info("Working Dir: %s" %wd)
+    logger.info("Working Dir: %s", wd)
 
     ####  Identify name pattern
     print("Multispectral image: {}".format(image_pair.mul_srcfp))
@@ -486,7 +486,7 @@ def exec_pansharpen(image_pair, pansh_dstfp, args):
                 try:
                     os.remove(f)
                 except Exception as e:
-                    logger.warning('Could not remove %s: %s' %(os.path.basename(f),e))
+                    logger.warning('Could not remove %s: %s', os.path.basename(f), e)
     
     if os.path.isfile(pansh_dstfp):
         return 0
