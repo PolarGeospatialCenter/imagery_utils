@@ -127,7 +127,7 @@ def main():
             l = "-l {}".format(args.l) if args.l else ""
             try:
                 task_handler = taskhandler.PBSTaskHandler(qsubpath, l)
-            except RuntimeError, e:
+            except RuntimeError as e:
                 logger.error(e)
             else:
                 if not args.dryrun:
@@ -136,7 +136,7 @@ def main():
         elif args.slurm:
             try:
                 task_handler = taskhandler.SLURMTaskHandler(qsubpath)
-            except RuntimeError, e:
+            except RuntimeError as e:
                 logger.error(e)
             else:
                 if not args.dryrun:
@@ -145,7 +145,7 @@ def main():
         elif args.parallel_processes > 1:
             try:
                 task_handler = taskhandler.ParallelTaskHandler(args.parallel_processes)
-            except RuntimeError, e:
+            except RuntimeError as e:
                 logger.error(e)
             else:
                 logger.info("Number of child processes to spawn: {0}".format(task_handler.num_processes))
@@ -401,13 +401,13 @@ def calc_ndvi(srcfp, dstfp, args):
                 for f in temp_files:
                     try:
                         os.remove(f)
-                    except Exception, e:
+                    except Exception as e:
                         logger.warning('Could not remove %s: %s' %(os.path.basename(f),e))
             if wd <> dstdir:
                 for f in wd_files:
                     try:
                         os.remove(f)
-                    except Exception, e:
+                    except Exception as e:
                         logger.warning('Could not remove %s: %s' %(os.path.basename(f),e))
         else:
             logger.error("pgc_ndvi.py: {} was not created".dstfp_local)
