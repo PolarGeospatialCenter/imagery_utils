@@ -1,5 +1,6 @@
 import unittest, os, sys, glob, shutil, argparse, logging
 import gdal, ogr, osr, gdalconst
+import xml
 
 script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
 root_dir = os.path.dirname(script_dir)
