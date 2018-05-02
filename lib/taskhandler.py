@@ -161,7 +161,7 @@ def convert_optional_args_to_string(args, positional_arg_keys, arg_keys_to_remov
     arg_list = []
 
     ## Add optional args to arg_list
-    for k, v in args_dict.iteritems():
+    for k, v in args_dict.items():
         if k not in positional_arg_keys and k not in arg_keys_to_remove and v is not None:
             k = k.replace('_', '-')
             if isinstance(v, (list, tuple)):
