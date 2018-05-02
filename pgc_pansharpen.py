@@ -64,11 +64,11 @@ class ImagePair(object):
                 mul_extent = self._get_image_info(self.mul_srcfp, spatial_ref)
                 pan_extent = self._get_image_info(self.pan_srcfp, spatial_ref)
                 self.intersection_geom = mul_extent.Intersection(pan_extent)
-                # print mul_extent
-                # print mul_extent.Contains(pan_extent)
-                # print pan_extent
-                # print pan_extent.Contains(mul_extent)
-                # print self.intersection_geom
+                # print(mul_extent)
+                # print(mul_extent.Contains(pan_extent))
+                # print(pan_extent)
+                # print(pan_extent.Contains(mul_extent))
+                # print(self.intersection_geom)
                 
         else:
             raise RuntimeError("Image does not match multispectral name pattern: {}".format(self.mul_srcfn))
@@ -144,7 +144,7 @@ class ImagePair(object):
                 ysize = ds.RasterYSize
                 proj = ds.GetProjectionRef()
                 gtf = ds.GetGeoTransform()
-                print gtf
+                print(gtf)
     
                 ulx = gtf[0] + 0 * gtf[1] + 0 * gtf[2]
                 uly = gtf[3] + 0 * gtf[4] + 0 * gtf[5]
@@ -280,7 +280,7 @@ def main():
 
     pair_list = []
     for srcfp in image_list1:
-        #print  srcfp
+        #print(srcfp)
         try:
             image_pair = ImagePair(srcfp, spatial_ref)
         except RuntimeError, e:
@@ -397,8 +397,8 @@ def exec_pansharpen(image_pair, pansh_dstfp, args):
     logger.info("Working Dir: %s" %wd)
 
     ####  Identify name pattern
-    print "Multispectral image: %s" %image_pair.mul_srcfp
-    print "Panchromatic image: %s" %image_pair.pan_srcfp
+    print("Multispectral image: {}".format(image_pair.mul_srcfp))
+    print("Panchromatic image: {}".format(image_pair.pan_srcfp))
 
     if args.dem is not None:
         dem_arg = '-d "%s" ' %args.dem
@@ -453,7 +453,7 @@ def exec_pansharpen(image_pair, pansh_dstfp, args):
             cmd = 'gdal_pansharpen{} -co BIGTIFF=IF_SAFER -co COMPRESS=LZW -co TILED=YES "{}" "{}" "{}"'.format(py_ext, pan_local_dstfp, mul_local_dstfp, pansh_local_dstfp)
             taskhandler.exec_cmd(cmd)
     else:
-        print "Pan or Multi warped image does not exist\n\t%s\n\t%s" %(pan_local_dstfp,mul_local_dstfp)
+        print("Pan or Multi warped image does not exist\n\t{}\n\t{}").format(pan_local_dstfp, mul_local_dstfp)
 
     #### Make pyramids
     if os.path.isfile(pansh_local_dstfp):
