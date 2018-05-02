@@ -4,7 +4,7 @@
 task handler classes and methods
 """
 
-import os, sys, string, shutil, glob, re, logging, subprocess, platform
+import os, sys, shutil, glob, re, logging, subprocess, platform
 import multiprocessing as mp
 
 #### Create Logger
