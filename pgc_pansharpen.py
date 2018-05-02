@@ -1,4 +1,4 @@
-import os, string, sys, shutil, math, glob, re, tarfile, argparse, subprocess, logging, platform
+import os, sys, shutil, math, glob, re, tarfile, argparse, subprocess, logging, platform
 from datetime import datetime, timedelta
 import gdal, ogr, osr, gdalconst
 
