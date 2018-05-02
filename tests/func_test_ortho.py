@@ -116,7 +116,7 @@ class TestOrthoFunc(unittest.TestCase):
         
             # dem: Y:/private/elevation/dem/RAMP/RAMPv2/ RAMPv2_wgs84_200m.tif
             # should fail: the image is not contained within the DEM
-            r"""python "{}" -r 10 --epsg 3413 --dem /mnt/agic/storage00/agic/private/elevation/dem/RAMP/RAMPv2/RAMPv2_wgs84_200m.tif %s/QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.NTF {}"""
+            r"""python "{}" -r 10 --epsg 3413 --dem /mnt/agic/storage00/agic/private/elevation/dem/RAMP/RAMPv2/RAMPv2_wgs84_200m.tif {}/QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.NTF {}"""
             .format(self.scriptpath, self.srcdir, self.dstdir)
         ]
         
