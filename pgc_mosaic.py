@@ -494,7 +494,7 @@ def run_mosaic(tile_builder_script, inpath, mosaicname, mosaic_dir, args, pos_ar
             if contrib_geom.Intersects(t.geom):
                 if args.median_remove:
                     ## parse median dct into text
-                    median_string = ";".join(["{}:{}".format(k, v) for k, v in iinfo.median.iteritems()])
+                    median_string = ";".join(["{}:{}".format(k, v) for k, v in iinfo.median.items()])
                     intersects.append("{},{}".format(iinfo.srcfp, median_string))
                 else:
                     intersects.append(iinfo.srcfp)
