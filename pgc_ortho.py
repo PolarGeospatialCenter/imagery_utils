@@ -192,7 +192,7 @@ def main():
                 src, dstfp, task_arg_obj = task.method_arg_list
                 
                 #### Set up processing log handler
-                logfile = os.path.splitext(dstfp)[0]+".log"
+                logfile = os.path.splitext(dstfp)[0] + ".log"
                 lfh = logging.FileHandler(logfile)
                 lfh.setLevel(logging.DEBUG)
                 formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s', '%m-%d-%Y %H:%M:%S')
@@ -206,7 +206,7 @@ def main():
                 logger.removeHandler(lfh)
             
             #### Print Images with Errors    
-            for k, v in results.iteritems():
+            for k, v in results.items():
                 if v != 0:
                     logger.warning("Failed Image: %s", k)
         
