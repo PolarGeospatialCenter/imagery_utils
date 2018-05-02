@@ -74,7 +74,7 @@ def main():
     #### Verify EPSG
     try:
         spatial_ref = utils.SpatialRef(args.epsg)
-    except RuntimeError, e:
+    except RuntimeError as e:
         parser.error(e)
 
     #### Verify that dem and ortho_height are not both specified
@@ -157,7 +157,7 @@ def main():
             l = "-l {}".format(args.l) if args.l else ""
             try:
                 task_handler = taskhandler.PBSTaskHandler(qsubpath, l)
-            except RuntimeError, e:
+            except RuntimeError as e:
                 logger.error(e)
             else:
                 if not args.dryrun:
@@ -166,7 +166,7 @@ def main():
         elif args.slurm:
             try:
                 task_handler = taskhandler.SLURMTaskHandler(qsubpath)
-            except RuntimeError, e:
+            except RuntimeError as e:
                 logger.error(e)
             else:
                 if not args.dryrun:
@@ -175,7 +175,7 @@ def main():
         elif args.parallel_processes > 1:
             try:
                 task_handler = taskhandler.ParallelTaskHandler(args.parallel_processes)
-            except RuntimeError, e:
+            except RuntimeError as e:
                 logger.error(e)
             else:
                 logger.info("Number of child processes to spawn: {0}".format(task_handler.num_processes))
