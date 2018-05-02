@@ -1,4 +1,4 @@
-import os, string, sys, shutil, math, glob, re, tarfile, logging, platform, argparse, subprocess
+import os, sys, shutil, math, glob, re, tarfile, logging, platform, argparse, subprocess
 from datetime import datetime, timedelta
 from xml.etree import cElementTree as ET
 import gdal, ogr, osr, gdalconst
@@ -1152,7 +1152,7 @@ def GetExactTrimmedGeom(image, step=4, tolerance=1):
                     poly_vts.append("{0:.16f} {1:.16f}".format(pts[0][0], pts[0][1]))
                 
                 if len(poly_vts) > 0:
-                    poly_wkt = 'POLYGON (( {} ))'.format(string.join(poly_vts, ", "))
+                    poly_wkt = 'POLYGON (( {} ))'.format(", ".join(poly_vts))
                     #print(poly_wkt)
                     
                     geom = ogr.CreateGeometryFromWkt(poly_wkt)
