@@ -53,7 +53,7 @@ class TestMetadata(unittest.TestCase):
             metapath = os.path.join(self.srcdir,mdf)
             try:
                 calib_dict = ortho_functions.getDGXmlData(metapath,self.stretch)
-            except xml.parsers.expat.ExpatError, e:
+            except xml.parsers.expat.ExpatError as e:
                 calib_dict = False
             
             self.assertEqual(bool(calib_dict),result)
