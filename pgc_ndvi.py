@@ -1,6 +1,6 @@
-import os, string, sys, shutil, math, glob, re, tarfile, argparse, subprocess, logging
+import os, sys, shutil, math, glob, re, tarfile, argparse, subprocess, logging
 from datetime import datetime, timedelta
-import gdal, ogr,osr, gdalconst, numpy
+import gdal, ogr, osr, gdalconst, numpy
 
 from lib import ortho_functions, utils, taskhandler
 
@@ -174,7 +174,7 @@ def main():
                 logger.removeHandler(lfh)
             
             #### Print Images with Errors    
-            for k, v in results.iteritems():
+            for k, v in results.items():
                 if v != 0:
                     logger.warning("Failed Image: %s", k)
         
