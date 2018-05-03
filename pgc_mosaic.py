@@ -366,7 +366,7 @@ def run_mosaic(tile_builder_script, inpath, mosaicname, mosaic_dir, args, pos_ar
                 imginfo_list4.append(iinfo)
                 centroid = geom.Centroid()
                 logger.info("%s: geometry acquired - centroid: %f, %f", iinfo.srcfn, centroid.GetX(), centroid.GetY())
-                #print geom
+                #print(geom)
         else:
             logger.debug("Image has an invalid score: %s --> %i", iinfo.srcfp, iinfo.score)
 
@@ -660,7 +660,7 @@ def build_shp(contribs, shp, args, params):
                 mean_list = []
                 stdev_list = []
                 px_cnt_list = []
-                keys = iinfo.stat_dct.keys()
+                keys = list(iinfo.stat_dct.keys())
                 keys.sort()
                 for band in keys:
                     imin, imax, imean, istdev = iinfo.stat_dct[band]
@@ -678,7 +678,7 @@ def build_shp(contribs, shp, args, params):
                 feat.SetField("STATS_PXCT", ",".join(px_cnt_list))
 
         if params.median_remove is True:
-            keys = iinfo.median.keys()
+            keys = list(iinfo.median.keys())
             keys.sort()
             median_list = [str(iinfo.median[band]) for band in keys]
             feat.SetField("MEDIAN", ",".join(median_list))

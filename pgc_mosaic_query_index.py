@@ -191,7 +191,7 @@ def main():
                         logger.error(e)
     
     else:
-        keys = tiles.keys()
+        keys = list(tiles.keys())
         keys.sort()
         for tile in keys:
             t = tiles[tile]

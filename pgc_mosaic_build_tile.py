@@ -235,10 +235,10 @@ def BandSubtractMedian(iinfo, dstfp):
         
         ## check if median was passed in, calculate if not
         try:
-            keys = iinfo.median.keys()
+            keys = list(iinfo.median.keys())
         except KeyError:
             iinfo.get_raster_median()
-            keys = iinfo.median.keys()
+            keys = list(iinfo.median.keys())
         
         keys.sort()
         for band in keys:
