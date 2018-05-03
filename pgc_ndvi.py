@@ -211,7 +211,7 @@ def calc_ndvi(srcfp, dstfp, args):
             pass
     logger.info("Working Dir: %s", wd)
 
-    print("Image: {}").format(srcfn)
+    print("Image: {}".format(srcfn))
    
     ## copy source image to working directory
     srcfp_local = os.path.join(wd, srcfn)
