@@ -68,7 +68,7 @@ class TestMetadata(unittest.TestCase):
                     self.assertGreater(calib_dict['BAND_P'][1],-0.029)
                     self.assertLess(calib_dict['BAND_P'][1],-0.0098)
                 if 'BAND_B' in calib_dict:
-                    self.assertGreater(calib_dict['BAND_B'][1],-0.1306)
+                    self.assertGreater(calib_dict['BAND_B'][1],-0.1305)
                     self.assertLess(calib_dict['BAND_B'][1],-0.0085)
                 if 'BAND_B' in calib_dict and 'BAND_G' in calib_dict: ### check bands are not equal
                     self.assertNotEqual(calib_dict['BAND_B'][0],calib_dict['BAND_G'][0])
