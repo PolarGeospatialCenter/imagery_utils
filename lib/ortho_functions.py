@@ -1450,7 +1450,7 @@ def calcEarthSunDist(t):
     hr = t.hour
     minute = t.minute
     sec = t.second
-    ut = hr + (minute/60) + (sec/3600)
+    ut = hr + (minute/60.) + (sec/3600.)
     #print ut
 
     if month <= 2:
