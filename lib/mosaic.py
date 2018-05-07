@@ -1136,7 +1136,7 @@ def GetExactTrimmedGeom(image, step=4, tolerance=1):
                 #print("Pixel Array length: {}".format(len(pixels))
                 
                 for px in pixels:
-                    x,y = pl2xy(gtf, inband, px[0], px[1])
+                    x, y = pl2xy(gtf, inband, px[0], px[1])
                     xs.append(x)
                     ys.append(y)
                     pts.append((x, y))
@@ -1158,7 +1158,7 @@ def GetExactTrimmedGeom(image, step=4, tolerance=1):
                     #### Simplify geom
                     #logger.debug("Simplification tolerance: {0:.10f}".format(tolerance))
                     if geom is not None:
-                        geom2  = geom.Simplify(tolerance)
+                        geom2 = geom.Simplify(tolerance)
         ds = None
 
     return geom2, xs, ys
