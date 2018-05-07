@@ -404,7 +404,7 @@ def exec_pansharpen(image_pair, pansh_dstfp, args):
     print("Panchromatic image: {}".format(image_pair.pan_srcfp))
 
     if args.dem is not None:
-        dem_arg = '-d "%s" ' %args.dem
+        dem_arg = '-d "{}" '.format(args.dem)
     else:
         dem_arg = ""
 
