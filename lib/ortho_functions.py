@@ -525,7 +525,6 @@ def stackIkBands(dstfp, members):
         #print("Merging bands")
         cmd = 'gdalbuildvrt -separate "{}" "{}"'.format(vrt, '" "'.join(members))
 
-        #
         (err, so, se) = taskhandler.exec_cmd(cmd)
         if err == 1:
             rc = 1
@@ -536,7 +535,7 @@ def stackIkBands(dstfp, members):
                                                                                        vrt,
                                                                                        dstfp)
 
-        (err,so,se) = taskhandler.exec_cmd(cmd)
+        (err, so, se) = taskhandler.exec_cmd(cmd)
         if err == 1:
             rc = 1
 
@@ -1448,7 +1447,7 @@ def ExtractRPB(item, rpb_p):
                     fpfh.write(tfstr)
                     fpfh.close()
                     tf.close()
-                    status = 0
+                    # status = 0
         except Exception:
             logger.error("Cannot open Tar file: %s", tar_p)
             rc = 1
@@ -1589,7 +1588,7 @@ def getDGXmlData(xmlpath, stretch):
     return calibDict
 
 
-def GetIKcalibDict(metafile,stretch):
+def GetIKcalibDict(metafile, stretch):
     fp_mode = "renamed"
     metadict = getIKMetadata(fp_mode, metafile)
     #print(metadict)
@@ -1657,8 +1656,8 @@ def getIKMetadata(fp_mode, metafile):
         logger.error("Unable to parse metadata from %s", metafile)
         return None
 
-    metad_map = dict((c, p) for p in metad.getiterator() for c in p)  # Child/parent mapping
-    attribs = ["Source_Image_ID", "Component_ID"]  # nodes we need the attributes of
+    # metad_map = dict((c, p) for p in metad.getiterator() for c in p)  # Child/parent mapping
+    # attribs = ["Source_Image_ID", "Component_ID"]  # nodes we need the attributes of
 
     # We must identify the exact Source_Image_ID and Component_ID for this image
     # before loading the dictionary
