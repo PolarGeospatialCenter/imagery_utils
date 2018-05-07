@@ -53,8 +53,7 @@ class ImageInfo:
     #"ona":None,
     #"date":None,
     #"tdi":None
-     
-        
+
     def get_attributes_from_record(self, feat, srs):
         
         i = feat.GetFieldIndex("S_FILEPATH")
@@ -106,7 +105,7 @@ class ImageInfo:
         self.xres = None
         self.yres = None
         self.datatype = None
-        
+
         self.sataz = None
         self.satel = None
         self.sunaz = None
@@ -155,8 +154,7 @@ class ImageInfo:
         
         geom = feat.GetGeometryRef()
         self.geom = geom.Clone()
-        
-    
+
     def get_attributes_from_file(self, srcfp):
         self.srcfp = srcfp
         self.srcdir, self.srcfn = os.path.split(srcfp)
@@ -234,7 +232,7 @@ class ImageInfo:
             self.yres = None
 
         ds = None
-        
+
         #### Set unknown attribs to None for now
         self.sataz = None
         self.satel = None
@@ -247,8 +245,8 @@ class ImageInfo:
         self.catid = None
         self.tdi = None
         self.acqdate = None
- 
-   
+
+
     def get_attributes_from_xml(self):
         dAttribs = {
             "cc": None,
@@ -500,8 +498,8 @@ class ImageInfo:
                         tdeltas.append(abs((datetime(y, params.m, params.d) - self.acqdate).days))
 
                     self.date_diff = min(tdeltas)
-            
-            
+
+
                 #### Assign weights
                 ccwt = 30
                 sunelwt = 10
@@ -1182,9 +1180,6 @@ def findVertices(xoff, yoff, xsize, ysize, band, nd):
     
     
 def pl2xy(gtf, band, p, l):
-    
-    cols = band.XSize
-    rows = band.YSize
     
     cellSizeX = gtf[1]
     cellSizeY = -1 * gtf[5]
