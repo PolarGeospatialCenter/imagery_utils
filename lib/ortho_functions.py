@@ -616,24 +616,24 @@ def calcStats(args,info):
         if vds is not None:
 
             for band in range(1,vds.RasterCount+1):
-                calfact,offset = CFlist[band-1]
-
                 if info.stretch == "ns":
                     LUT = "0:0,{}:{}".format(imax,omax)
-                elif info.stretch == "rf":
-                    #LUT = "0:0,%f:%f" %(imax,omax*imax*CFlist[band-1])
-                    LUT = "0:{},{}:{}".format(offset, imax, imax*calfact*omax+offset)
-                elif info.stretch == "rd":
-                    #LUT = "0:0,%f:%f" %(imax,imax*CFlist[band-1])
-                    LUT = "0:{},{}:{}" %(offset, imax, imax*calfact+offset)
-                elif info.stretch == "mr":
-                    # iLUT = [0, 0.125, 0.25, 0.375, 0.625, 1]
-                    # oLUT = [0, 0.375, 0.625, 0.75, 0.875, 1]
-                    iLUT = [0, 0.125, 0.25, 0.375, 1.0]
-                    oLUT = [0, 0.675, 0.85, 0.9675, 1.2]
-                    #lLUT = map(lambda x: "%f:%f"%(iLUT[x]/CFlist[band-1],oLUT[x]*omax), range(len(iLUT)))
-                    lLUT = map(lambda x: "{}:{}".format(iLUT[x]*imax, oLUT[x]*(calfact*omax*imax+offset)), range(len(iLUT)))
-                    LUT = ",".join(lLUT)
+                else:
+                    calfact,offset = CFlist[band-1]
+                    if info.stretch == "rf":
+                        #LUT = "0:0,%f:%f" %(imax,omax*imax*CFlist[band-1])
+                        LUT = "0:{},{}:{}".format(offset, imax, imax*calfact*omax+offset)
+                    elif info.stretch == "rd":
+                        #LUT = "0:0,%f:%f" %(imax,imax*CFlist[band-1])
+                        LUT = "0:{},{}:{}".format(offset, imax, imax*calfact+offset)
+                    elif info.stretch == "mr":
+                        # iLUT = [0, 0.125, 0.25, 0.375, 0.625, 1]
+                        # oLUT = [0, 0.375, 0.625, 0.75, 0.875, 1]
+                        iLUT = [0, 0.125, 0.25, 0.375, 1.0]
+                        oLUT = [0, 0.675, 0.85, 0.9675, 1.2]
+                        #lLUT = map(lambda x: "%f:%f"%(iLUT[x]/CFlist[band-1],oLUT[x]*omax), range(len(iLUT)))
+                        lLUT = map(lambda x: "{}:{}".format(iLUT[x]*imax, oLUT[x]*(calfact*omax*imax+offset)), range(len(iLUT)))
+                        LUT = ",".join(lLUT)
 
                 if info.stretch != "ns":
                     logger.debug("Band Calibration Factors: {} {} {}".format(band,
