@@ -1,9 +1,4 @@
-import os, string, sys, shutil, glob, re, tarfile, logging, argparse
-from datetime import datetime, timedelta
-
-from subprocess import *
-from math import *
-from xml.etree import cElementTree as ET
+import os, sys, shutil, glob, re, tarfile, logging, argparse
 
 from lib import mosaic, utils, taskhandler
 import numpy
@@ -12,7 +7,7 @@ import gdal, ogr, osr, gdalconst
 logger = logging.getLogger("logger")
 logger.setLevel(logging.DEBUG)
 
-gdal.SetConfigOption('GDAL_PAM_ENABLED','NO')
+gdal.SetConfigOption('GDAL_PAM_ENABLED', 'NO')
 
 
 def main():
@@ -34,17 +29,19 @@ def main():
     parser.add_argument("-e", "--extent", nargs=4, type=float,
                         help="extent of output mosaic -- xmin xmax ymin ymax (default is union of all inputs)")
     parser.add_argument("-t", "--tilesize", nargs=2, type=float,
-                        help="tile size in coordinate system units -- xsize ysize (default is 40,000 times output resolution)")
+                        help="tile size in coordinate system units -- xsize ysize (default is 40,000 times output "
+                             "resolution)")
     parser.add_argument("--force-pan-to-multi", action="store_true", default=False,
                         help="if output is multiband, force script to also use 1 band images")
     parser.add_argument("-b", "--bands", type=int,
                         help="number of output bands( default is number of bands in the first image)")
     parser.add_argument("--median-remove", action="store_true", default=False,
-                        help="subtract the median from each input image before forming the mosaic in order to correct for contrast")
+                        help="subtract the median from each input image before forming the mosaic in order to correct "
+                             "for contrast")
     parser.add_argument("--wd",
                         help="scratch space (default is mosaic directory)")
     parser.add_argument("--gtiff-compression", choices=mosaic.GTIFF_COMPRESSIONS, default="lzw",
-                        help="GTiff compression type. Default=lzw (%s)"%string.join(mosaic.GTIFF_COMPRESSIONS,','))
+                        help="GTiff compression type. Default=lzw ({})".format(','.join(mosaic.GTIFF_COMPRESSIONS)))
     
     #### Parse Arguments
     args = parser.parse_args()
@@ -55,14 +52,14 @@ def main():
     inpath = args.src
     tile = args.tile
     ref_xres, ref_yres = args.resolution
-    xmin,xmax,ymin,ymax = args.extent
-    dims = "-tr %s %s -te %s %s %s %s" %(ref_xres,ref_yres,xmin,ymin,xmax,ymax)
+    xmin, xmax, ymin, ymax = args.extent
+    dims = "-tr {} {} -te {} {} {} {}".format(ref_xres, ref_yres, xmin, ymin, xmax, ymax)
     
     ##### Configure Logger
-    logfile = os.path.splitext(tile)[0]+".log"
+    logfile = os.path.splitext(tile)[0] + ".log"
     lfh = logging.FileHandler(logfile)
     lfh.setLevel(logging.DEBUG)
-    formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s','%m-%d-%Y %H:%M:%S')
+    formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s', '%m-%d-%Y %H:%M:%S')
     lfh.setFormatter(formatter)
     logger.addHandler(lfh) 
     
@@ -78,46 +75,46 @@ def main():
     intersects = []
     
     if os.path.isfile(inpath):
-        t = open(inpath,'r')
+        t = open(inpath, 'r')
         for line in t.readlines():
             line = line.strip('\n').strip('\r')
             
             if ',' in line:
                 image, median_string = line.split(',')
-                iinfo = mosaic.ImageInfo(image,"IMAGE")
+                iinfo = mosaic.ImageInfo(image, "IMAGE")
                 median = {}
                 for stat in median_string.split(";"):
-                    k,v = stat.split(":")
+                    k, v = stat.split(":")
                     median[int(k)] = float(v)
                 if len(median) == iinfo.bands:
                     iinfo.set_raster_median(median)
                 else:
-                    logger.warning("Median dct length ({}) does not match band count ({})".format(len(median),iinfo.bands))
+                    logger.warning("Median dct length (%i) does not match band count (%i)", len(median), iinfo.bands)
             
             else:
-                iinfo = mosaic.ImageInfo(line,"IMAGE")
+                iinfo = mosaic.ImageInfo(line, "IMAGE")
             
             intersects.append(iinfo)
         t.close()
     else:
-        logger.error("Intersecting image file does not exist: {}".format(inpath))
+        logger.error("Intersecting image file does not exist: %i", inpath)
 
     logger.info(tile)
 
-    logger.info("Number of image found in source file: {}".format(len(intersects)))
+    logger.info("Number of image found in source file: %i", len(intersects))
     
-    wd = os.path.join(localpath,os.path.splitext(os.path.basename(tile))[0])
+    wd = os.path.join(localpath, os.path.splitext(os.path.basename(tile))[0])
     if not os.path.isdir(wd):
         os.makedirs(wd)
-    localtile2 = os.path.join(wd,os.path.basename(tile)) 
-    localtile1 = localtile2.replace(".tif","_temp.tif")
+    localtile2 = os.path.join(wd, os.path.basename(tile))
+    localtile1 = localtile2.replace(".tif", "_temp.tif")
     
     del_images = []
     images = {}
         
     #### Get Extent geometry 
-    poly_wkt = 'POLYGON (( %s %s, %s %s, %s %s, %s %s, %s %s ))' %(xmin,ymin,xmin,ymax,xmax,ymax,xmax,ymin,xmin,ymin)
-    tile_geom = ogr.CreateGeometryFromWkt(poly_wkt)
+    poly_wkt = 'POLYGON (( {} {}, {} {}, {} {}, {} {}, {} {} ))'.format(xmin, ymin, xmin, ymax, xmax, ymax, xmax, ymin,
+                                                                        xmin, ymin)
     
     c = 0
     for iinfo in intersects:
@@ -127,25 +124,27 @@ def main():
 
         if args.force_pan_to_multi and iinfo.bands > 1:
             if iinfo.bands == 1:
-                mergefile = os.path.join(wd,os.path.basename(iinfo.srcfp)[:-4])+"_merge.tif"
-                cmd = 'gdal_merge.py -ps %s %s -separate -o "%s" "%s"' %(ref_xres, ref_yres, mergefile, string.join(([iinfo.srcfp] * iinfo.bands),'" "'))
+                mergefile = os.path.join(wd, os.path.basename(iinfo.srcfp)[:-4]) + "_merge.tif"
+                cmd = 'gdal_merge.py -ps {} {} -separate -o "{}" "{}"'.format(ref_xres,
+                                                                              ref_yres,
+                                                                              mergefile,
+                                                                              '" "'.join([iinfo.srcfp] * iinfo.bands))
                 taskhandler.exec_cmd(cmd)
         srcnodata = " ".join([str(ndv) for ndv in iinfo.nodatavalue])
 
         if args.median_remove:
-            src = mergefile
-            dst = os.path.join(wd,os.path.basename(mergefile)[:-4])+"_median_removed.tif"
-            status = BandSubtractMedian(iinfo,dst)
+            dst = os.path.join(wd, os.path.basename(mergefile)[:-4]) + "_median_removed.tif"
+            status = BandSubtractMedian(iinfo, dst)
             if status == 1:
-                logger.error("BandSubtractMedian() failed on {}".format(mergefile))
+                logger.error("BandSubtractMedian() failed on %s", mergefile)
                 sys.exit(1)
             ds = gdal.Open(dst)
             if ds:
                 srcnodata_val = ds.GetRasterBand(1).GetNoDataValue()
-                srcnodata = string.join(([str(srcnodata_val)] * bands)," ")
+                srcnodata = " ".join([str(srcnodata_val)] * bands)
                 mergefile = dst
             else:
-                logger.error("BandSubtractMedian() failed at gdal.Open({})".format(dst))
+                logger.error("BandSubtractMedian() failed at gdal.Open(%s)", dst)
                 sys.exit(1)
             
         if c == 0:
@@ -153,11 +152,12 @@ def main():
                 logger.info("localtile1 already exists")
                 status = 1
                 break
-            cmd = 'gdalwarp %s -srcnodata "%s" -dstnodata "%s" "%s" "%s"' %(dims,srcnodata,srcnodata,mergefile,localtile1)
+            cmd = 'gdalwarp {} -srcnodata "{}" -dstnodata "{}" "{}" "{}"'.format(dims, srcnodata, srcnodata, mergefile,
+                                                                                 localtile1)
             taskhandler.exec_cmd(cmd)
             
         else:
-            cmd = 'gdalwarp -srcnodata "%s" "%s" "%s"' %(srcnodata,mergefile,localtile1)
+            cmd = 'gdalwarp -srcnodata "{}" "{}" "{}"'.format(srcnodata, mergefile, localtile1)
             taskhandler.exec_cmd(cmd)
             
         c += 1
@@ -173,20 +173,21 @@ def main():
             if args.gtiff_compression == 'lzw':
                 compress_option = '-co "compress=lzw"'
             elif args.gtiff_compression == 'jpeg95':
-                compress_option =  '-co "compress=jpeg" -co "jpeg_quality=95"'
+                compress_option = '-co "compress=jpeg" -co "jpeg_quality=95"'
                 
-            cmd = 'gdal_translate -stats -of GTiff %s -co "PHOTOMETRIC=MINISBLACK" -co "TILED=YES" -co "BIGTIFF=IF_SAFER" "%s" "%s"' %(compress_option,localtile1,localtile2)
+            cmd = 'gdal_translate -stats -of GTiff {} -co "PHOTOMETRIC=MINISBLACK" -co "TILED=YES" -co ' \
+                  '"BIGTIFF=IF_SAFER" "{}" "{}"'.format(compress_option, localtile1, localtile2)
             taskhandler.exec_cmd(cmd)
         
         ####  Build Pyramids        
         if os.path.isfile(localtile2):
-            cmd = 'gdaladdo "%s" 2 4 8 16 30' %(localtile2)
+            cmd = 'gdaladdo "{}" 2 4 8 16 30'.format(localtile2)
             taskhandler.exec_cmd(cmd)
         
         #### Copy tile to destination
         if os.path.isfile(localtile2):
             logger.info("Copying output files to destination dir")
-            mosaic.copyall(localtile2,os.path.dirname(tile))
+            mosaic.copyall(localtile2, os.path.dirname(tile))
             
         del_images.append(localtile2)
     
@@ -198,17 +199,16 @@ def main():
     logger.info("Done")
 
 
-def BandSubtractMedian(iinfo,dstfp):
+def BandSubtractMedian(iinfo, dstfp):
     # Subtract the median from each band of srcfp and write the result
     # to dstfp.
     # Band types byte, uint16 and int16 will be output as int16 with nodata -32768.
     # Band types uint32 and int32 will be output as int32 with nodata -2147483648.
 
-    
-    if not (iinfo.datatype in [1,2,3,4,5]):
+    if not (iinfo.datatype in [1, 2, 3, 4, 5]):
         logger.error("BandSubtractMedian only works on integer data types")
         return 1
-    elif (iinfo.datatype in [1,2,3]):
+    elif iinfo.datatype in [1, 2, 3]:
         out_datatype = 3
         out_nodataval = -32768
         out_min = -32767
@@ -218,16 +218,16 @@ def BandSubtractMedian(iinfo,dstfp):
         out_min = -2147483647
     
     if not os.path.isfile(dstfp):
-        gtiff_options = ['TILED=YES','COMPRESS=LZW','BIGTIFF=IF_SAFER']
+        gtiff_options = ['TILED=YES', 'COMPRESS=LZW', 'BIGTIFF=IF_SAFER']
         driver = gdal.GetDriverByName('GTiff')
-        out_ds = driver.Create(dstfp,iinfo.xsize,iinfo.ysize,iinfo.bands,out_datatype,gtiff_options)
+        out_ds = driver.Create(dstfp, iinfo.xsize, iinfo.ysize, iinfo.bands, out_datatype, gtiff_options)
         if not out_ds:
-            logger.error("BandSubtractMedian(): !driver.Create({})".format(dstfp))
+            logger.error("BandSubtractMedian(): !driver.Create(%s)", dstfp)
             return 1
         
         ds = gdal.Open(iinfo.srcfp)
         if not ds:
-            logger.error("BandSubtractMedian(): !gdal.Open({})".format(iinfo.srcfp))
+            logger.error("BandSubtractMedian(): !gdal.Open(%s)", iinfo.srcfp)
             return 1
         
         out_ds.SetGeoTransform(ds.GetGeoTransform())
@@ -235,10 +235,10 @@ def BandSubtractMedian(iinfo,dstfp):
         
         ## check if median was passed in, calculate if not
         try:
-            keys = iinfo.median.keys()
+            keys = list(iinfo.median.keys())
         except KeyError:
             iinfo.get_raster_median()
-            keys = iinfo.median.keys()
+            keys = list(iinfo.median.keys())
         
         keys.sort()
         for band in keys:
@@ -248,31 +248,31 @@ def BandSubtractMedian(iinfo,dstfp):
                 band_nodata = band_data.GetNoDataValue()
                 # default nodata to zero
                 if band_nodata is None:
-                    logger.info("Defaulting band {} nodata to zero".format(band))
+                    logger.info("Defaulting band %i nodata to zero", band)
                     band_nodata = 0.0 
                 band_array = numpy.array(band_data.ReadAsArray())
-                nodata_mask = (band_array==band_nodata)
-       
+                nodata_mask = (band_array == band_nodata)
+
                 if out_datatype == 3:
-                    band_corrected = numpy.full_like(band_array,fill_value=out_nodataval,dtype=numpy.int16)
+                    band_corrected = numpy.full_like(band_array, fill_value=out_nodataval, dtype=numpy.int16)
                 else:
-                    band_corrected = numpy.full_like(band_array,fill_value=out_nodataval,dtype=numpy.int32)  
+                    band_corrected = numpy.full_like(band_array, fill_value=out_nodataval, dtype=numpy.int32)
                 band_valid = band_array[~nodata_mask]
                 if band_valid.size != 0:          
                     band_min = numpy.min(band_valid)
-                    corr_min = numpy.subtract(float(band_min),float(band_median))
-                    if( corr_min < float(out_min) ):
-                        logger.error("BandSubtractMedian() returns min out of range for {} band {}".format(iinfo.srcfp,band))
+                    corr_min = numpy.subtract(float(band_min), float(band_median))
+                    if corr_min < float(out_min):
+                        logger.error("BandSubtractMedian() returns min out of range for %s band %i", iinfo.srcfp, band)
                         return 1
-                    band_corrected[~nodata_mask] = numpy.subtract(band_array[~nodata_mask],band_median)
+                    band_corrected[~nodata_mask] = numpy.subtract(band_array[~nodata_mask], band_median)
                 else:
-                    logger.warning("Band {} has no valid data".format(band))
+                    logger.warning("Band %i has no valid data", band)
                 out_band = out_ds.GetRasterBand(band)
                 out_band.WriteArray(band_corrected)
                 out_band.SetNoDataValue(out_nodataval)
 
             else:
-                logger.error("BandSubtractMedian(): iinfo.median[{}] is None, image {}".format(band,iinfo.srcfp))
+                logger.error("BandSubtractMedian(): iinfo.median[%i] is None, image %s", band, iinfo.srcfp)
                 return 1
         ds = None
         out_ds = None
@@ -282,7 +282,7 @@ def BandSubtractMedian(iinfo,dstfp):
     # taskhandler.exec_cmd(cmd)
 
     else:
-        logger.info("BandSubtractMedian(): {} exists".format(dstfp))
+        logger.info("BandSubtractMedian(): %s exists", dstfp)
 
     return 0
 

@@ -1,14 +1,10 @@
-import os, string, sys, shutil, math, glob, re, tarfile, logging, shlex, argparse, subprocess
-from datetime import datetime, timedelta
-from xml.dom import minidom
-from xml.etree import cElementTree as ET
-import gdal, ogr,osr, gdalconst
-
+import os, sys, logging, argparse
 from lib import ortho_functions, utils, taskhandler
 
 #### Create Loggers
 logger = logging.getLogger("logger")
 logger.setLevel(logging.DEBUG)
+
 
 def main():
 
@@ -20,17 +16,18 @@ def main():
     )
 
     parser.add_argument("--pbs", action='store_true', default=False,
-            help="submit tasks to PBS")
+                        help="submit tasks to PBS")
     parser.add_argument("--slurm", action='store_true', default=False,
-            help="submit tasks to SLURM")
+                        help="submit tasks to SLURM")
     parser.add_argument("--parallel-processes", type=int, default=1,
-            help="number of parallel processes to spawn (default 1)")
+                        help="number of parallel processes to spawn (default 1)")
     parser.add_argument("--qsubscript",
-            help="submission script to use in PBS/SLURM submission (PBS default is qsub_ortho.sh, SLURM default is slurm_ortho.py, in script root folder)")
+                        help="submission script to use in PBS/SLURM submission (PBS default is qsub_ortho.sh, SLURM "
+                             "default is slurm_ortho.py, in script root folder)")
     parser.add_argument("-l",
-            help="PBS resources requested (mimicks qsub syntax, PBS only)")
+                        help="PBS resources requested (mimicks qsub syntax, PBS only)")
     parser.add_argument("--dryrun", action='store_true', default=False,
-            help='print actions without executing')
+                        help='print actions without executing')
 
     #### Parse Arguments
     args = parser.parse_args()
@@ -45,25 +42,25 @@ def main():
         srctype = 'textfile'
     elif os.path.isfile(src) and os.path.splitext(src)[1].lower() in ortho_functions.exts:
         srctype = 'image'
-    elif os.path.isfile(src.replace('msi','blu')) and os.path.splitext(src)[1].lower() in ortho_functions.exts:
+    elif os.path.isfile(src.replace('msi', 'blu')) and os.path.splitext(src)[1].lower() in ortho_functions.exts:
         srctype = 'image'
     else:
-        parser.error("Error arg1 is not a recognized file path or file type: %s" %(src))
+        parser.error("Error arg1 is not a recognized file path or file type: {}".format(src))
 
     if not os.path.isdir(dstdir):
-        parser.error("Error arg2 is not a valid file path: %s" %(dstdir))
+        parser.error("Error arg2 is not a valid file path: {}".format(dstdir))
 
     ## Verify qsubscript
     if args.pbs or args.slurm:
         if args.qsubscript is None:
             if args.pbs:
-                qsubpath = os.path.join(os.path.dirname(scriptpath),'qsub_ortho.sh')
+                qsubpath = os.path.join(os.path.dirname(scriptpath), 'qsub_ortho.sh')
             if args.slurm:
-                qsubpath = os.path.join(os.path.dirname(scriptpath),'slurm_ortho.sh')
+                qsubpath = os.path.join(os.path.dirname(scriptpath), 'slurm_ortho.sh')
         else:
             qsubpath = os.path.abspath(args.qsubscript)
         if not os.path.isfile(qsubpath):
-            parser.error("qsub script path is not valid: %s" %qsubpath)
+            parser.error("qsub script path is not valid: {}".format(qsubpath))
 
     ## Verify processing options do not conflict
     if args.pbs and args.slurm:
@@ -74,7 +71,7 @@ def main():
     #### Verify EPSG
     try:
         spatial_ref = utils.SpatialRef(args.epsg)
-    except RuntimeError, e:
+    except RuntimeError as e:
         parser.error(e)
 
     #### Verify that dem and ortho_height are not both specified
@@ -84,12 +81,12 @@ def main():
     #### Test if DEM exists
     if args.dem:
         if not os.path.isfile(args.dem):
-            parser.error("DEM does not exist: %s" %args.dem)
+            parser.error("DEM does not exist: {}".format(args.dem))
 
     #### Set up console logging handler
     lso = logging.StreamHandler()
     lso.setLevel(logging.INFO)
-    formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s','%m-%d-%Y %H:%M:%S')
+    formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s', '%m-%d-%Y %H:%M:%S')
     lso.setFormatter(formatter)
     logger.addHandler(lso)
 
@@ -108,11 +105,11 @@ def main():
     ## Group Ikonos
     image_list2 = []
     for srcfp in image_list1:
-        srcdir,srcfn = os.path.split(srcfp)
+        srcdir, srcfn = os.path.split(srcfp)
         if "IK01" in srcfn and sum([b in srcfn for b in ortho_functions.ikMsiBands]) > 0:
             for b in ortho_functions.ikMsiBands:
                 if b in srcfn:
-                    newname = os.path.join(srcdir,srcfn.replace(b,"msi"))
+                    newname = os.path.join(srcdir, srcfn.replace(b, "msi"))
                     break
             image_list2.append(newname)
 
@@ -120,14 +117,14 @@ def main():
             image_list2.append(srcfp)
 
     image_list = list(set(image_list2))
-    logger.info('Number of src images: {}'.format(len(image_list)))
+    logger.info('Number of src images: %i', len(image_list))
     
     ## Build task queue
     i = 0
     task_queue = []
     for srcfp in image_list:
         srcdir, srcfn = os.path.split(srcfp)
-        dstfp = os.path.join(dstdir,"%s_%s%s%d%s" %(
+        dstfp = os.path.join(dstdir, "{}_{}{}{}{}".format(
             os.path.splitext(srcfn)[0],
             utils.get_bit_depth(args.outtype),
             args.stretch,
@@ -148,7 +145,7 @@ def main():
             )
             task_queue.append(task)
     
-    logger.info('Number of incomplete tasks: {}'.format(i)) 
+    logger.info('Number of incomplete tasks: %i', i)
     
     ## Run tasks
     if len(task_queue) > 0:
@@ -157,7 +154,7 @@ def main():
             l = "-l {}".format(args.l) if args.l else ""
             try:
                 task_handler = taskhandler.PBSTaskHandler(qsubpath, l)
-            except RuntimeError, e:
+            except RuntimeError as e:
                 logger.error(e)
             else:
                 if not args.dryrun:
@@ -166,7 +163,7 @@ def main():
         elif args.slurm:
             try:
                 task_handler = taskhandler.SLURMTaskHandler(qsubpath)
-            except RuntimeError, e:
+            except RuntimeError as e:
                 logger.error(e)
             else:
                 if not args.dryrun:
@@ -175,10 +172,10 @@ def main():
         elif args.parallel_processes > 1:
             try:
                 task_handler = taskhandler.ParallelTaskHandler(args.parallel_processes)
-            except RuntimeError, e:
+            except RuntimeError as e:
                 logger.error(e)
             else:
-                logger.info("Number of child processes to spawn: {0}".format(task_handler.num_processes))
+                logger.info("Number of child processes to spawn: %i", task_handler.num_processes)
                 if not args.dryrun:
                     task_handler.run_tasks(task_queue)
     
@@ -190,10 +187,10 @@ def main():
                 src, dstfp, task_arg_obj = task.method_arg_list
                 
                 #### Set up processing log handler
-                logfile = os.path.splitext(dstfp)[0]+".log"
+                logfile = os.path.splitext(dstfp)[0] + ".log"
                 lfh = logging.FileHandler(logfile)
                 lfh.setLevel(logging.DEBUG)
-                formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s','%m-%d-%Y %H:%M:%S')
+                formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s', '%m-%d-%Y %H:%M:%S')
                 lfh.setFormatter(formatter)
                 logger.addHandler(lfh)
                 
@@ -204,9 +201,9 @@ def main():
                 logger.removeHandler(lfh)
             
             #### Print Images with Errors    
-            for k,v in results.iteritems():
+            for k, v in results.items():
                 if v != 0:
-                    logger.warning("Failed Image: {}".format(k))
+                    logger.warning("Failed Image: %s", k)
         
         logger.info("Done")
         

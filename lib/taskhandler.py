@@ -4,7 +4,7 @@
 task handler classes and methods
 """
 
-import os, sys, string, shutil, glob, re, logging, subprocess, platform
+import os, sys, shutil, glob, re, logging, subprocess, platform
 import multiprocessing as mp
 
 #### Create Logger
@@ -32,7 +32,7 @@ class PBSTaskHandler(object):
             cmd = "pbsnodes"
             p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             so, se = p.communicate()
-        except OSError,e:
+        except OSError:
             raise RuntimeError("PBS job submission is not available on this system")
 
         self.qsubscript = qsubscript
@@ -64,7 +64,7 @@ class SLURMTaskHandler(object):
             cmd = "sinfo"
             p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             so, se = p.communicate()
-        except OSError,e:
+        except OSError:
             raise RuntimeError("SLURM job submission is not available on this system")
 
         self.qsubscript = qsubscript
@@ -91,16 +91,18 @@ class ParallelTaskHandler(object):
     def __init__(self, num_processes=1):
         self.num_processes = num_processes
         if mp.cpu_count() < num_processes:
-            raise RuntimeError("Specified number of processes ({0}) is higher than the system cpu count ({1})".format(num_processes,mp.count_cpu()))
+            raise RuntimeError("Specified number of processes ({0}) is higher than the system cpu count ({1})".
+                               format(num_processes, mp.cpu_count()))
         elif num_processes < 1:
-            raise RuntimeError("Specified number of processes ({0}) must be greater than 0, using default".format(num_processes,mp.count_cpu()))
+            raise RuntimeError("Specified number of processes ({0}) must be greater than 0, using default".
+                               format(num_processes))
 
     def run_tasks(self, tasks):
 
         task_queue = [[task.name, self._format_task(task)] for task in tasks]
         pool = mp.Pool(self.num_processes)
         try:
-            pool.map(exec_cmd_mp,task_queue,1)
+            pool.map(exec_cmd_mp, task_queue, 1)
         except KeyboardInterrupt:
             pool.terminate()
             raise RuntimeError("Processes terminated without file cleanup")
@@ -115,14 +117,14 @@ class ParallelTaskHandler(object):
 
 def exec_cmd_mp(job):
     job_name, cmd = job
-    logger.info('Running job: {0}'.format(job_name))
-    logger.debug('Cmd: {0}'.format(cmd))
+    logger.info('Running job: %s', job_name)
+    logger.debug('Cmd: %s', cmd)
     if platform.system() == "Windows":
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
     else:
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, preexec_fn=os.setsid)
     try:
-        (so,se) = p.communicate()
+        (so, se) = p.communicate()
     except KeyboardInterrupt:
         if platform.system() == "Windows":
             p.terminate()
@@ -138,19 +140,20 @@ def exec_cmd(cmd):
     logger.info(cmd)
 
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-    (so,se) = p.communicate()
+    (so, se) = p.communicate()
     rc = p.wait()
     err = 0
 
     if rc != 0:
-        logger.error("Error found - Return Code = %s:  %s" %(rc,cmd))
+        logger.error("Error found - Return Code = %s:  %s", rc, cmd)
         err = 1
     else:
-        logger.debug("Return Code = %s:  %s" %(rc,cmd))
+        logger.debug("Return Code = %s:  %s", rc, cmd)
 
-    logger.debug("STDOUT:  "+so)
-    logger.debug("STDERR:  "+se)
-    return (err,so,se)
+    logger.debug("STDOUT:  %s", so)
+    logger.debug("STDERR:  %s", se)
+    return err, so, se
+
 
 def convert_optional_args_to_string(args, positional_arg_keys, arg_keys_to_remove):
 
@@ -158,16 +161,16 @@ def convert_optional_args_to_string(args, positional_arg_keys, arg_keys_to_remov
     arg_list = []
 
     ## Add optional args to arg_list
-    for k,v in args_dict.iteritems():
+    for k, v in args_dict.items():
         if k not in positional_arg_keys and k not in arg_keys_to_remove and v is not None:
-            k = k.replace('_','-')
-            if isinstance(v,list) or isinstance(v,tuple):
-                arg_list.append("--{} {}".format(k,' '.join([str(item) for item in v])))
-            elif isinstance(v,bool):
+            k = k.replace('_', '-')
+            if isinstance(v, (list, tuple)):
+                arg_list.append("--{} {}".format(k, ' '.join([str(item) for item in v])))
+            elif isinstance(v, bool):
                 if v is True:
                     arg_list.append("--{}".format(k))
             else:
-                arg_list.append("--{} {}".format(k,str(v)))
+                arg_list.append("--{} {}".format(k, str(v)))
 
     arg_str_base = " ".join(arg_list)
     return arg_str_base

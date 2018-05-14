@@ -10,7 +10,7 @@ from lib import mosaic
 logger = logging.getLogger("logger")
 # lso = logging.StreamHandler()
 # lso.setLevel(logging.ERROR)
-# formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s','%m-%d-%Y %H:%M:%S')
+# formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s', '%m-%d-%Y %H:%M:%S')
 # lso.setFormatter(formatter)
 # logger.addHandler(lso)
 
@@ -18,11 +18,11 @@ logger = logging.getLogger("logger")
 class TestMosaicImageInfo(unittest.TestCase):
     
     def setUp(self):
-        self.srcdir = os.path.join(os.path.join(test_dir,'mosaic','ortho'))
+        self.srcdir = os.path.join(os.path.join(test_dir, 'mosaic', 'ortho'))
 
     def test_image_info_ge01(self):
         image = 'GE01_20090707163115_297600_5V090707P0002976004A222012202432M_001529596_u08mr3413.tif'
-        image_info = mosaic.ImageInfo(os.path.join(self.srcdir,image), 'IMAGE')
+        image_info = mosaic.ImageInfo(os.path.join(self.srcdir, image), 'IMAGE')
         
         self.assertEqual(image_info.xres, 16.0)
         self.assertEqual(image_info.yres, 16.0)
@@ -39,7 +39,7 @@ class TestMosaicImageInfo(unittest.TestCase):
         self.assertEqual(image_info.ona, 26.86)
         self.assertEqual(image_info.cloudcover, 0.0)
         self.assertEqual(image_info.tdi, 8.0)
-        self.assertEqual(image_info.panfactor ,1)
+        self.assertEqual(image_info.panfactor, 1)
         #self.assertEqual(image_info.exposure_factor, 0)
         self.assertEqual(image_info.date_diff, -9999)
         self.assertEqual(image_info.year_diff, -9999)
@@ -54,7 +54,7 @@ class TestMosaicImageInfo(unittest.TestCase):
 
     def test_image_info_wv01(self):
         image = 'WV01_20080807153945_1020010003A5AC00_08AUG07153945-P1BS-052060421010_01_P011_u08mr3413.tif'
-        image_info = mosaic.ImageInfo(os.path.join(self.srcdir,image), 'IMAGE')
+        image_info = mosaic.ImageInfo(os.path.join(self.srcdir, image), 'IMAGE')
         
         self.assertEqual(image_info.xres, 16.0)
         self.assertEqual(image_info.yres, 16.0)
@@ -71,7 +71,7 @@ class TestMosaicImageInfo(unittest.TestCase):
         self.assertEqual(image_info.ona, 18.5)
         self.assertEqual(image_info.cloudcover, 0.0)
         self.assertEqual(image_info.tdi, 16.0)
-        self.assertEqual(image_info.panfactor ,1)
+        self.assertEqual(image_info.panfactor, 1)
         #self.assertEqual(image_info.exposure_factor, 0)
         self.assertEqual(image_info.date_diff, -9999)
         self.assertEqual(image_info.year_diff, -9999)
@@ -85,9 +85,9 @@ class TestMosaicImageInfo(unittest.TestCase):
         self.assertEqual(image_info.datapixelcount_dct, datapixelcount_dct)
     
     def test_image_info_wv02_ndvi(self):
-        srcdir = os.path.join(os.path.join(test_dir,'mosaic','ndvi'))
+        srcdir = os.path.join(os.path.join(test_dir, 'mosaic', 'ndvi'))
         image = 'WV02_20110901210434_103001000B41DC00_11SEP01210434-M1BS-052730735130_01_P007_u16rf3413_ndvi.tif'
-        image_info = mosaic.ImageInfo(os.path.join(srcdir,image), 'IMAGE')
+        image_info = mosaic.ImageInfo(os.path.join(srcdir, image), 'IMAGE')
         
         self.assertEqual(image_info.xres, 64.0)
         self.assertEqual(image_info.yres, 64.0)
@@ -104,7 +104,7 @@ class TestMosaicImageInfo(unittest.TestCase):
         self.assertEqual(image_info.ona, 19.4)
         self.assertEqual(image_info.cloudcover, 0.0)
         self.assertEqual(image_info.tdi, 24.0)
-        self.assertEqual(image_info.panfactor ,1)
+        self.assertEqual(image_info.panfactor, 1)
         #self.assertEqual(image_info.exposure_factor, 0)
         self.assertEqual(image_info.date_diff, -9999)
         self.assertEqual(image_info.year_diff, -9999)
@@ -118,9 +118,9 @@ class TestMosaicImageInfo(unittest.TestCase):
         self.assertTrue(math.isnan(image_info.median[1]))
              
     def test_image_info_wv02_ndvi_int16(self):
-        srcdir = os.path.join(os.path.join(test_dir,'mosaic','pansh_ndvi'))
+        srcdir = os.path.join(os.path.join(test_dir, 'mosaic', 'pansh_ndvi'))
         image = 'WV02_20110901210434_103001000B41DC00_11SEP01210434-M1BS-052730735130_01_P007_u16rf3413_pansh_ndvi.tif'
-        image_info = mosaic.ImageInfo(os.path.join(srcdir,image), 'IMAGE')
+        image_info = mosaic.ImageInfo(os.path.join(srcdir, image), 'IMAGE')
         
         self.assertEqual(image_info.xres, 16.0)
         self.assertEqual(image_info.yres, 16.0)
@@ -137,7 +137,7 @@ class TestMosaicImageInfo(unittest.TestCase):
         self.assertEqual(image_info.ona, 19.4)
         self.assertEqual(image_info.cloudcover, 0.0)
         self.assertEqual(image_info.tdi, 24.0)
-        self.assertEqual(image_info.panfactor ,1)
+        self.assertEqual(image_info.panfactor, 1)
         #self.assertEqual(image_info.exposure_factor, 0)
         self.assertEqual(image_info.date_diff, -9999)
         self.assertEqual(image_info.year_diff, -9999)
@@ -152,7 +152,7 @@ class TestMosaicImageInfo(unittest.TestCase):
     
     def test_image_info_multispectral_dg_ge01(self):
         image = 'GE01_20130728161916_1050410002608900_13JUL28161916-M1BS-054448357040_01_P002_u08mr3413.tif'
-        image_info = mosaic.ImageInfo(os.path.join(self.srcdir,image), 'IMAGE')
+        image_info = mosaic.ImageInfo(os.path.join(self.srcdir, image), 'IMAGE')
         self.maxDiff = None
         
         self.assertEqual(image_info.xres, 32.0)
@@ -170,7 +170,7 @@ class TestMosaicImageInfo(unittest.TestCase):
         self.assertEqual(image_info.ona, 25.0)
         self.assertEqual(image_info.cloudcover, 0.0)
         self.assertEqual(image_info.tdi, 6.0)
-        self.assertEqual(image_info.panfactor ,1)
+        self.assertEqual(image_info.panfactor, 1)
         #self.assertEqual(image_info.exposure_factor, 0)
         self.assertEqual(image_info.date_diff, -9999)
         self.assertEqual(image_info.year_diff, -9999)
@@ -191,7 +191,7 @@ class TestMosaicImageInfo(unittest.TestCase):
     
     def test_image_info_wv01_with_tday_and_exposure(self):
         image = 'WV01_20080807153945_1020010003A5AC00_08AUG07153945-P1BS-052060421010_01_P011_u08mr3413.tif'
-        image_info = mosaic.ImageInfo(os.path.join(self.srcdir,image), 'IMAGE')
+        image_info = mosaic.ImageInfo(os.path.join(self.srcdir, image), 'IMAGE')
         
         self.assertEqual(image_info.xres, 16.0)
         self.assertEqual(image_info.yres, 16.0)
@@ -221,7 +221,7 @@ class TestMosaicImageInfo(unittest.TestCase):
 
     def test_image_info_wv01_with_tyear(self):
         image = 'WV01_20080807153945_1020010003A5AC00_08AUG07153945-P1BS-052060421010_01_P011_u08mr3413.tif'
-        image_info = mosaic.ImageInfo(os.path.join(self.srcdir,image), 'IMAGE')
+        image_info = mosaic.ImageInfo(os.path.join(self.srcdir, image), 'IMAGE')
 
         self.assertEqual(image_info.xres, 16.0)
         self.assertEqual(image_info.yres, 16.0)
@@ -247,7 +247,7 @@ class TestMosaicImageInfo(unittest.TestCase):
 
     def test_image_info_wv02_with_cc_max(self):
         image = 'WV02_20110504155551_103001000BA45E00_11MAY04155551-P1BS-500085264180_01_P002_u08mr3413.tif'
-        image_info = mosaic.ImageInfo(os.path.join(self.srcdir,image), 'IMAGE')
+        image_info = mosaic.ImageInfo(os.path.join(self.srcdir, image), 'IMAGE')
         
         self.assertEqual(image_info.xres, 16.0)
         self.assertEqual(image_info.yres, 16.0)
@@ -265,26 +265,29 @@ class TestMosaicImageInfo(unittest.TestCase):
         self.assertEqual(image_info.ona, 19.0)
         self.assertEqual(image_info.cloudcover, 0.29)
         self.assertEqual(image_info.tdi, 48.0)
-        self.assertEqual(image_info.panfactor ,1)
+        self.assertEqual(image_info.panfactor, 1)
         #self.assertEqual(image_info.exposure_factor, 0)
         self.assertEqual(image_info.date_diff, -9999)
         self.assertEqual(image_info.year_diff, -9999)
         self.assertAlmostEqual(image_info.score, -1)
         
         image_info.get_raster_stats()
-        stat_dct =  {1: [80.0, 191.0, 185.7102777536714, 6.965814755751974]}
-        datapixelcount_dct =  {1: 1152100}
+        stat_dct = {1: [80.0, 191.0, 185.7102777536714, 6.965814755751974]}
+        datapixelcount_dct = {1: 1152100}
         for i in range(len(image_info.stat_dct[1])):
             self.assertAlmostEqual(image_info.stat_dct[1][i], stat_dct[1][i])
         self.assertEqual(image_info.datapixelcount_dct, datapixelcount_dct)
 
     def test_filter_images(self):
-        image_list = glob.glob(os.path.join(self.srcdir,'*.tif'))
-        imginfo_list = [mosaic.ImageInfo(image,"IMAGE") for image in image_list]
+        image_list = glob.glob(os.path.join(self.srcdir, '*.tif'))
+        imginfo_list = [mosaic.ImageInfo(image, "IMAGE") for image in image_list]
         filter_list = [iinfo.srcfn for iinfo in imginfo_list]
-        self.assertIn('WV02_20110901210434_103001000B41DC00_11SEP01210434-M1BS-052730735130_01_P007_u08rf3413.tif', filter_list)
-        self.assertIn('GE01_20130728161916_1050410002608900_13JUL28161916-P1BS-054448357040_01_P002_u16rf3413.tif', filter_list)
-        self.assertIn('WV02_20131123162834_10300100293C3400_13NOV23162834-P1BS-500408660030_01_P005_u08mr3413.tif', filter_list)
+        self.assertIn('WV02_20110901210434_103001000B41DC00_11SEP01210434-M1BS-052730735130_01_P007_u08rf3413.tif',
+                      filter_list)
+        self.assertIn('GE01_20130728161916_1050410002608900_13JUL28161916-P1BS-054448357040_01_P002_u16rf3413.tif',
+                      filter_list)
+        self.assertIn('WV02_20131123162834_10300100293C3400_13NOV23162834-P1BS-500408660030_01_P005_u08mr3413.tif',
+                      filter_list)
 
         mosaic_args = MosaicArgs()
         mosaic_args.extent = [-820000.0, -800000.0, -2420000.0, -2400000.0]
@@ -295,13 +298,16 @@ class TestMosaicImageInfo(unittest.TestCase):
         filter_list = [iinfo.srcfn for iinfo in imginfo_list2]
         
         self.assertEqual(len(imginfo_list2), 8)
-        self.assertNotIn('WV02_20110901210434_103001000B41DC00_11SEP01210434-M1BS-052730735130_01_P007_u08rf3413.tif', filter_list)
-        self.assertNotIn('GE01_20130728161916_1050410002608900_13JUL28161916-P1BS-054448357040_01_P002_u16rf3413.tif', filter_list)
+        self.assertNotIn('WV02_20110901210434_103001000B41DC00_11SEP01210434-M1BS-052730735130_01_P007_u08rf3413.tif',
+                         filter_list)
+        self.assertNotIn('GE01_20130728161916_1050410002608900_13JUL28161916-P1BS-054448357040_01_P002_u16rf3413.tif',
+                         filter_list)
         
         imginfo_list3 = mosaic.filter_images_by_geometry(imginfo_list2, mosaic_params)
         filter_list = [iinfo.srcfn for iinfo in imginfo_list3]
         self.assertEqual(len(imginfo_list3), 7)
-        self.assertNotIn('WV02_20131123162834_10300100293C3400_13NOV23162834-P1BS-500408660030_01_P005_u08mr3413.tif', filter_list)
+        self.assertNotIn('WV02_20131123162834_10300100293C3400_13NOV23162834-P1BS-500408660030_01_P005_u08mr3413.tif',
+                         filter_list)
 
  
 class MosaicArgs(object):
@@ -335,10 +341,10 @@ if __name__ == '__main__':
     if args.testdata:
         test_dir = os.path.abspath(args.testdata)
     else:
-        test_dir = os.path.join(script_dir,'testdata')
+        test_dir = os.path.join(script_dir, 'testdata')
     
     if not os.path.isdir(test_dir):
-        parser.error("Test data folder does not exist: %s" %test_dir)
+        parser.error("Test data folder does not exist: {}".format(test_dir))
         
     test_cases = [
         TestMosaicImageInfo

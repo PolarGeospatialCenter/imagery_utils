@@ -1,6 +1,6 @@
-import os, string, sys, shutil, math, glob, re, tarfile, argparse, subprocess, logging, platform
+import os, sys, shutil, math, glob, re, tarfile, argparse, subprocess, logging, platform
 from datetime import datetime, timedelta
-import gdal, ogr,osr, gdalconst
+import gdal, ogr, osr, gdalconst
 
 from lib import ortho_functions, utils, taskhandler
 
@@ -56,19 +56,19 @@ class ImagePair(object):
         if self.sensor:
             
             self.pan_srcfn = self._get_panchromatic_name()
-            self.pan_srcfp = os.path.join(self.srcdir,self.pan_srcfn)
+            self.pan_srcfp = os.path.join(self.srcdir, self.pan_srcfn)
             if not os.path.isfile(self.pan_srcfp):
-                raise RuntimeError("Corresponding panchromatic image not found: %s" %(self.mul_srcfp))
+                raise RuntimeError("Corresponding panchromatic image not found: {}".format(self.mul_srcfp))
             else:
             ## get extent info for both images and calc intersect
                 mul_extent = self._get_image_info(self.mul_srcfp, spatial_ref)
                 pan_extent = self._get_image_info(self.pan_srcfp, spatial_ref)
                 self.intersection_geom = mul_extent.Intersection(pan_extent)
-                # print mul_extent
-                # print mul_extent.Contains(pan_extent)
-                # print pan_extent
-                # print pan_extent.Contains(mul_extent)
-                # print self.intersection_geom
+                # print(mul_extent)
+                # print(mul_extent.Contains(pan_extent))
+                # print(pan_extent)
+                # print(pan_extent.Contains(mul_extent))
+                # print(self.intersection_geom)
                 
         else:
             raise RuntimeError("Image does not match multispectral name pattern: {}".format(self.mul_srcfn))
@@ -76,24 +76,24 @@ class ImagePair(object):
     def _get_panchromatic_name(self):
     
         ####  check for pan version
-        if self.sensor in ["WV02","WV03","QB02"]:
-            pan_name = self.mul_srcfn.replace("-M","-P")
+        if self.sensor in ["WV02", "WV03", "QB02"]:
+            pan_name = self.mul_srcfn.replace("-M", "-P")
         elif self.sensor == "GE01":
             if "_5V" in self.mul_srcfn:
                 
-                pan_name_base = self.mul_srcfp[:-24].replace("M0","P0")
+                pan_name_base = self.mul_srcfp[:-24].replace("M0", "P0")
                 candidates = glob.glob(pan_name_base + "*")
-                candidates2 = [f for f in candidates if f.endswith(('.ntf','.NTF','.tif','.TIF'))]
+                candidates2 = [f for f in candidates if f.endswith(('.ntf', '.NTF', '.tif', '.TIF'))]
                 if len(candidates2) == 0:
                     pan_name = ''
                 elif len(candidates2) == 1:
                     pan_name = os.path.basename(candidates2[0])
                 else: #raise error for now. TODO: iterate through candidates for greatest overlap
                     pan_name = ''
-                    logger.error('{} panchromatic images match the multispectral image name {}'.format(len(candidates2),
-                                                                                                       self.mul_srcfn))
+                    logger.error('%i panchromatic images match the multispectral image name %s', len(candidates2),
+                                 self.mul_srcfn)
             else:
-                pan_name = self.mul_srcfn.replace("-M","-P")
+                pan_name = self.mul_srcfn.replace("-M", "-P")
         elif self.sensor == "IK01":
             pan_name = ["pan" if i in ["blu", "msi", "bgrn"] else i for i in self.mul_srcfn]
 
@@ -102,8 +102,8 @@ class ImagePair(object):
     def _get_image_info(self, src_image, spatial_ref):
 
         if self.sensor == 'IK01' and "_msi_" in src_image:
-            src_image_name = src_image("_msi_","_blu_")
-            src_image = os.path.join(self.srcdir,src_image_name)
+            src_image_name = src_image("_msi_", "_blu_")
+            src_image = os.path.join(self.srcdir, src_image_name)
     
         ds = gdal.Open(src_image, gdalconst.GA_ReadOnly)
         if ds is not None:
@@ -116,17 +116,18 @@ class ImagePair(object):
                 proj = ds.GetGCPProjection()
     
                 gcp_dict = {}
-                id_dict = {"UpperLeft":1,
-                           "1":1,
-                           "UpperRight":2,
-                           "2":2,
-                           "LowerLeft":4,
-                           "4":4,
-                           "LowerRight":3,
-                           "3":3}
+                id_dict = {"UpperLeft": 1,
+                           "1": 1,
+                           "UpperRight": 2,
+                           "2": 2,
+                           "LowerLeft": 4,
+                           "4": 4,
+                           "LowerRight": 3,
+                           "3": 3}
     
                 for gcp in gcps:
-                    gcp_dict[id_dict[gcp.Id]] = [float(gcp.GCPPixel), float(gcp.GCPLine), float(gcp.GCPX), float(gcp.GCPY), float(gcp.GCPZ)]
+                    gcp_dict[id_dict[gcp.Id]] = [float(gcp.GCPPixel), float(gcp.GCPLine), float(gcp.GCPX),
+                                                 float(gcp.GCPY), float(gcp.GCPZ)]
                 ulx = gcp_dict[1][2]
                 uly = gcp_dict[1][3]
                 urx = gcp_dict[2][2]
@@ -144,7 +145,7 @@ class ImagePair(object):
                 ysize = ds.RasterYSize
                 proj = ds.GetProjectionRef()
                 gtf = ds.GetGeoTransform()
-                print gtf
+                print(gtf)
     
                 ulx = gtf[0] + 0 * gtf[1] + 0 * gtf[2]
                 uly = gtf[3] + 0 * gtf[4] + 0 * gtf[5]
@@ -171,16 +172,16 @@ class ImagePair(object):
             #### Create srs objects
             s_srs = osr.SpatialReference(proj)
             t_srs = spatial_ref.srs
-            st_ct = osr.CoordinateTransformation(s_srs,t_srs)
+            st_ct = osr.CoordinateTransformation(s_srs, t_srs)
     
             #### Transform geoms to target srs
             if not s_srs.IsSame(t_srs):
                 extent_geom.Transform(st_ct)
-            #logger.info("Projected extent: %s" %str(extent_geom))
+            #logger.info("Projected extent: %s", str(extent_geom))
             return extent_geom
                    
         else:
-            logger.error("Cannot open dataset: %s" %src_image)
+            logger.error("Cannot open dataset: %s", src_image)
             return None
 
 
@@ -194,17 +195,18 @@ def main():
     )
 
     parser.add_argument("--pbs", action='store_true', default=False,
-                    help="submit tasks to PBS")
+                        help="submit tasks to PBS")
     parser.add_argument("--slurm", action='store_true', default=False,
-                    help="submit tasks to SLURM")
+                        help="submit tasks to SLURM")
     parser.add_argument("--parallel-processes", type=int, default=1,
-                    help="number of parallel processes to spawn (default 1)")
+                        help="number of parallel processes to spawn (default 1)")
     parser.add_argument("--qsubscript",
-            help="submission script to use in PBS/SLURM submission (PBS default is qsub_pansharpen.sh, SLURM default is slurm_pansharpen.py, in script root folder)")
+                        help="submission script to use in PBS/SLURM submission (PBS default is qsub_pansharpen.sh, "
+                             "SLURM default is slurm_pansharpen.py, in script root folder)")
     parser.add_argument("-l",
-                    help="PBS resources requested (mimicks qsub syntax, PBS only)")
+                        help="PBS resources requested (mimicks qsub syntax, PBS only)")
     parser.add_argument("--dryrun", action="store_true", default=False,
-                    help="print actions without executing")
+                        help="print actions without executing")
 
     #### Parse Arguments
     args = parser.parse_args()
@@ -219,25 +221,25 @@ def main():
         srctype = 'textfile'
     elif os.path.isfile(src) and os.path.splitext(src)[1].lower() in ortho_functions.exts:
         srctype = 'image'
-    elif os.path.isfile(src.replace('msi','blu')) and os.path.splitext(src)[1].lower() in ortho_functions.exts:
+    elif os.path.isfile(src.replace('msi', 'blu')) and os.path.splitext(src)[1].lower() in ortho_functions.exts:
         srctype = 'image'
     else:
-        parser.error("Error arg1 is not a recognized file path or file type: %s" %(src))
+        parser.error("Error arg1 is not a recognized file path or file type: {}".format(src))
 
     if not os.path.isdir(dstdir):
-        parser.error("Error arg2 is not a valid file path: %s" %(dstdir))
+        parser.error("Error arg2 is not a valid file path: {}".format(dstdir))
 
     # Verify qsubscript
     if args.pbs or args.slurm:
         if args.qsubscript is None:
             if args.pbs:
-                qsubpath = os.path.join(os.path.dirname(scriptpath),'qsub_pansharpen.sh')
+                qsubpath = os.path.join(os.path.dirname(scriptpath), 'qsub_pansharpen.sh')
             if args.slurm:
-                qsubpath = os.path.join(os.path.dirname(scriptpath),'slurm_pansharpen.sh')
+                qsubpath = os.path.join(os.path.dirname(scriptpath), 'slurm_pansharpen.sh')
         else:
             qsubpath = os.path.abspath(args.qsubscript)
         if not os.path.isfile(qsubpath):
-            parser.error("qsub script path is not valid: %s" %qsubpath)
+            parser.error("qsub script path is not valid: {}".format(qsubpath))
 
     ### Verify processing options do not conflict
     if args.pbs and args.slurm:
@@ -248,7 +250,7 @@ def main():
     #### Verify EPSG
     try:
         spatial_ref = utils.SpatialRef(args.epsg)
-    except RuntimeError, e:
+    except RuntimeError as e:
         parser.error(e)
         
     ## Check GDAL version (2.1.0 minimum)
@@ -256,13 +258,13 @@ def main():
     try:
         if int(gdal_version) < 2010000:
             parser.error("gdal_pansharpen requires GDAL version 2.1.0 or higher")
-    except ValueError, e:
+    except ValueError:
         parser.error("Cannot parse GDAL version: {}".format(gdal_version))
 
     #### Set up console logging handler
     lso = logging.StreamHandler()
     lso.setLevel(logging.DEBUG)
-    formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s','%m-%d-%Y %H:%M:%S')
+    formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s', '%m-%d-%Y %H:%M:%S')
     lso.setFormatter(formatter)
     logger.addHandler(lso)
     
@@ -280,16 +282,16 @@ def main():
 
     pair_list = []
     for srcfp in image_list1:
-        #print  srcfp
+        #print(srcfp)
         try:
             image_pair = ImagePair(srcfp, spatial_ref)
-        except RuntimeError, e:
+        except RuntimeError as e:
             logger.error(e)
         else:
-            logger.info("Image: {}, Sensor: {}".format(image_pair.mul_srcfn, image_pair.sensor))
+            logger.info("Image: %s, Sensor: %s", image_pair.mul_srcfn, image_pair.sensor)
             pair_list.append(image_pair)
                 
-    logger.info('Number of src image pairs: {}'.format(len(pair_list)))
+    logger.info('Number of src image pairs: %i', len(pair_list))
     
     ## Build task queue
     i = 0
@@ -297,10 +299,11 @@ def main():
     for image_pair in pair_list:
         
         bittype = utils.get_bit_depth(args.outtype)
-        pansh_dstfp = os.path.join(dstdir,"{}_{}{}{}_pansh.tif".format(os.path.splitext(image_pair.mul_srcfn)[0],bittype,args.stretch,args.epsg))
+        pansh_dstfp = os.path.join(dstdir, "{}_{}{}{}_pansh.tif".format(os.path.splitext(image_pair.mul_srcfn)[0],
+                                                                        bittype, args.stretch, args.epsg))
         
         if not os.path.isfile(pansh_dstfp):
-            i+=1
+            i += 1
             task = taskhandler.Task(
                 image_pair.mul_srcfn,
                 'Psh{:04g}'.format(i),
@@ -311,7 +314,7 @@ def main():
             )
             task_queue.append(task)
             
-    logger.info('Number of incomplete tasks: {}'.format(i)) 
+    logger.info('Number of incomplete tasks: %i', i)
 
     ## Run tasks
     if len(task_queue) > 0:
@@ -320,7 +323,7 @@ def main():
             l = "-l {}".format(args.l) if args.l else ""
             try:
                 task_handler = taskhandler.PBSTaskHandler(qsubpath, l)
-            except RuntimeError, e:
+            except RuntimeError as e:
                 logger.error(e)
             else:
                 if not args.dryrun:
@@ -329,7 +332,7 @@ def main():
         elif args.slurm:
             try:
                 task_handler = taskhandler.SLURMTaskHandler(qsubpath)
-            except RuntimeError, e:
+            except RuntimeError as e:
                 logger.error(e)
             else:
                 if not args.dryrun:
@@ -338,10 +341,10 @@ def main():
         elif args.parallel_processes > 1:
             try:
                 task_handler = taskhandler.ParallelTaskHandler(args.parallel_processes)
-            except RuntimeError, e:
+            except RuntimeError as e:
                 logger.error(e)
             else:
-                logger.info("Number of child processes to spawn: {0}".format(task_handler.num_processes))
+                logger.info("Number of child processes to spawn: %i", task_handler.num_processes)
                 if not args.dryrun:
                     task_handler.run_tasks(task_queue)
     
@@ -353,10 +356,10 @@ def main():
                 src, dstfp, task_arg_obj = task.method_arg_list
                 
                 #### Set up processing log handler
-                logfile = os.path.splitext(dstfp)[0]+".log"
+                logfile = os.path.splitext(dstfp)[0] + ".log"
                 lfh = logging.FileHandler(logfile)
                 lfh.setLevel(logging.DEBUG)
-                formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s','%m-%d-%Y %H:%M:%S')
+                formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s', '%m-%d-%Y %H:%M:%S')
                 lfh.setFormatter(formatter)
                 logger.addHandler(lfh)
                 
@@ -370,9 +373,9 @@ def main():
                 logger.removeHandler(lfh)
                 
             #### Print Images with Errors    
-            for k,v in results.iteritems():
+            for k, v in results.items():
                 if v != 0:
-                    logger.warning("Failed Image: {}".format(k))
+                    logger.warning("Failed Image: %s", k)
         
         logger.info("Done")
         
@@ -394,28 +397,28 @@ def exec_pansharpen(image_pair, pansh_dstfp, args):
             os.makedirs(wd)
         except OSError:
             pass
-    logger.info("Working Dir: %s" %wd)
+    logger.info("Working Dir: %s", wd)
 
     ####  Identify name pattern
-    print "Multispectral image: %s" %image_pair.mul_srcfp
-    print "Panchromatic image: %s" %image_pair.pan_srcfp
+    print("Multispectral image: {}".format(image_pair.mul_srcfp))
+    print("Panchromatic image: {}".format(image_pair.pan_srcfp))
 
     if args.dem is not None:
-        dem_arg = '-d "%s" ' %args.dem
+        dem_arg = '-d "{}" '.format(args.dem)
     else:
         dem_arg = ""
 
     bittype = utils.get_bit_depth(args.outtype)
     pan_basename = os.path.splitext(image_pair.pan_srcfn)[0]
     mul_basename = os.path.splitext(image_pair.mul_srcfn)[0]
-    pan_local_dstfp = os.path.join(wd,"{}_{}{}{}.tif".format(pan_basename,bittype,args.stretch,args.epsg))
-    mul_local_dstfp = os.path.join(wd,"{}_{}{}{}.tif".format(mul_basename,bittype,args.stretch,args.epsg))
-    pan_dstfp = os.path.join(dstdir,"{}_{}{}{}.tif".format(pan_basename,bittype,args.stretch,args.epsg))
-    mul_dstfp = os.path.join(dstdir,"{}_{}{}{}.tif".format(mul_basename,bittype,args.stretch,args.epsg))
-    pansh_tempfp = os.path.join(wd,"{}_{}{}{}_pansh_temp.tif".format(mul_basename,bittype,args.stretch,args.epsg))
-    pansh_local_dstfp = os.path.join(wd,"{}_{}{}{}_pansh.tif".format(mul_basename,bittype,args.stretch,args.epsg))
-    pansh_xmlfp = os.path.join(dstdir,"{}_{}{}{}_pansh.xml".format(mul_basename,bittype,args.stretch,args.epsg))
-    mul_xmlfp = os.path.join(dstdir,"{}_{}{}{}.xml".format(mul_basename,bittype,args.stretch,args.epsg))
+    pan_local_dstfp = os.path.join(wd, "{}_{}{}{}.tif".format(pan_basename, bittype, args.stretch, args.epsg))
+    mul_local_dstfp = os.path.join(wd, "{}_{}{}{}.tif".format(mul_basename, bittype, args.stretch, args.epsg))
+    pan_dstfp = os.path.join(dstdir, "{}_{}{}{}.tif".format(pan_basename, bittype, args.stretch, args.epsg))
+    mul_dstfp = os.path.join(dstdir, "{}_{}{}{}.tif".format(mul_basename, bittype, args.stretch, args.epsg))
+    pansh_tempfp = os.path.join(wd, "{}_{}{}{}_pansh_temp.tif".format(mul_basename, bittype, args.stretch, args.epsg))
+    pansh_local_dstfp = os.path.join(wd, "{}_{}{}{}_pansh.tif".format(mul_basename, bittype, args.stretch, args.epsg))
+    pansh_xmlfp = os.path.join(dstdir, "{}_{}{}{}_pansh.xml".format(mul_basename, bittype, args.stretch, args.epsg))
+    mul_xmlfp = os.path.join(dstdir, "{}_{}{}{}.xml".format(mul_basename, bittype, args.stretch, args.epsg))
     
     if not os.path.isdir(wd):
         os.makedirs(wd)
@@ -450,10 +453,11 @@ def exec_pansharpen(image_pair, pansh_dstfp, args):
     logger.info("Pansharpening multispectral image")
     if os.path.isfile(pan_local_dstfp) and os.path.isfile(mul_local_dstfp):
         if not os.path.isfile(pansh_local_dstfp):
-            cmd = 'gdal_pansharpen{} -co BIGTIFF=IF_SAFER -co COMPRESS=LZW -co TILED=YES "{}" "{}" "{}"'.format(py_ext, pan_local_dstfp, mul_local_dstfp, pansh_local_dstfp)
+            cmd = 'gdal_pansharpen{} -co BIGTIFF=IF_SAFER -co COMPRESS=LZW -co TILED=YES "{}" "{}" "{}"'.\
+                format(py_ext, pan_local_dstfp, mul_local_dstfp, pansh_local_dstfp)
             taskhandler.exec_cmd(cmd)
     else:
-        print "Pan or Multi warped image does not exist\n\t%s\n\t%s" %(pan_local_dstfp,mul_local_dstfp)
+        print("Pan or Multi warped image does not exist\n\t{}\n\t{}").format(pan_local_dstfp, mul_local_dstfp)
 
     #### Make pyramids
     if os.path.isfile(pansh_local_dstfp):
@@ -461,17 +465,14 @@ def exec_pansharpen(image_pair, pansh_dstfp, args):
         taskhandler.exec_cmd(cmd)
        
     ## Copy warped multispectral xml to pansharpened output
-    shutil.copy2(mul_xmlfp,pansh_xmlfp)
+    shutil.copy2(mul_xmlfp, pansh_xmlfp)
 
     #### Copy pansharpened output
-    if wd <> dstdir:
-        for local_path, dst_path in [
-            (pansh_local_dstfp, pansh_dstfp),
-            (pan_local_dstfp, pan_dstfp),
-            (mul_local_dstfp, mul_dstfp)
-        ]:
+    if wd != dstdir:
+        for local_path, dst_path in [(pansh_local_dstfp, pansh_dstfp), (pan_local_dstfp, pan_dstfp),
+                                     (mul_local_dstfp, mul_dstfp)]:
             if os.path.isfile(local_path) and not os.path.isfile(dst_path):
-                shutil.copy2(local_path,dst_path)
+                shutil.copy2(local_path, dst_path)
 
     #### Delete Temp Files
     wd_files = [
@@ -481,12 +482,12 @@ def exec_pansharpen(image_pair, pansh_dstfp, args):
     ]
 
     if not args.save_temps:
-        if wd <> dstdir:
+        if wd != dstdir:
             for f in wd_files:
                 try:
                     os.remove(f)
-                except Exception, e:
-                    logger.warning('Could not remove %s: %s' %(os.path.basename(f),e))
+                except Exception as e:
+                    logger.warning('Could not remove %s: %s', os.path.basename(f), e)
     
     if os.path.isfile(pansh_dstfp):
         return 0
