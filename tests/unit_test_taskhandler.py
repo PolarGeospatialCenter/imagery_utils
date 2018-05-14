@@ -10,9 +10,10 @@ from lib import taskhandler
 logger = logging.getLogger("logger")
 # lso = logging.StreamHandler()
 # lso.setLevel(logging.ERROR)
-# formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s','%m-%d-%Y %H:%M:%S')
+# formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s', '%m-%d-%Y %H:%M:%S')
 # lso.setFormatter(formatter)
 # logger.addHandler(lso)
+
 
 class TestConvertArgs(unittest.TestCase):
     

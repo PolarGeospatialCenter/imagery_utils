@@ -1,4 +1,4 @@
-import os, string, sys, shutil, math, glob, re, tarfile, logging, platform, argparse, subprocess
+import os, sys, shutil, math, glob, re, tarfile, logging, platform, argparse, subprocess
 from datetime import datetime, timedelta
 from xml.etree import cElementTree as ET
 import gdal, ogr, osr, gdalconst
@@ -10,9 +10,9 @@ from lib import utils
 logger = logging.getLogger("logger")
 logger.setLevel(logging.DEBUG)
 
-MODES = ["ALL","MOSAIC","SHP","TEST"]
-EXTS = [".tif",".ntf"]
-GTIFF_COMPRESSIONS = ["jpeg95","lzw"]
+MODES = ["ALL", "MOSAIC", "SHP", "TEST"]
+EXTS = [".tif", ".ntf"]
+GTIFF_COMPRESSIONS = ["jpeg95", "lzw"]
 
 #class Attribs:
 #    def __init__(self,dAttribs):
@@ -27,16 +27,13 @@ GTIFF_COMPRESSIONS = ["jpeg95","lzw"]
 #        self.panfact = dAttribs["panfact"]
 
 
-
 class ImageInfo:
-    def __init__(self,src,frmt,srs=None):
-        
+    def __init__(self, src, frmt, srs=None):
         self.frmt = frmt  #image format (IMAGE,RECORD)
-        
         if frmt == 'IMAGE':
             self.get_attributes_from_file(os.path.abspath(src))
         elif frmt == 'RECORD':
-            self.get_attributes_from_record(src,srs)
+            self.get_attributes_from_record(src, srs)
         else:
             logger.error("Image format must be RECORD or IMAGE")
            
@@ -56,19 +53,18 @@ class ImageInfo:
     #"ona":None,
     #"date":None,
     #"tdi":None
-     
-        
+
     def get_attributes_from_record(self, feat, srs):
         
         i = feat.GetFieldIndex("S_FILEPATH")
-        if i <> -1:
+        if i != -1:
             spath = feat.GetFieldAsString(i)
         else:
             logger.error("S_FILEPATH fields does not exist in record")
             spath = None
             
         i = feat.GetFieldIndex("O_FILEPATH")
-        if i <> -1:
+        if i != -1:
             opath = feat.GetFieldAsString(i)
         else:
             logger.error("O_FILEPATH fields does not exist in record")
@@ -78,16 +74,17 @@ class ImageInfo:
             path = spath
         elif opath and len(opath) > 1:
             path = opath
-        else: path = ""
+        else:
+            path = ""
         
         if r"V:/pgc/agic/private" in path:
-            srcfp = path.replace(r"V:/pgc",r'/mnt/agic/storage00')
+            srcfp = path.replace(r"V:/pgc", r'/mnt/agic/storage00')
         elif r"/pgc/agic/private" in path:
-            srcfp = path.replace(r"/pgc",r'/mnt/agic/storage00')
+            srcfp = path.replace(r"/pgc", r'/mnt/agic/storage00')
         elif r"V:/pgc/data" in path:
-            srcfp = path.replace(r"V:/pgc/data",r'/mnt/pgc/data')
+            srcfp = path.replace(r"V:/pgc/data", r'/mnt/pgc/data')
         elif r"/pgc/data" in path:
-            srcfp = path.replace(r"/pgc/data",r'/mnt/pgc/data')
+            srcfp = path.replace(r"/pgc/data", r'/mnt/pgc/data')
         else:
             srcfp = path
             
@@ -108,7 +105,7 @@ class ImageInfo:
         self.xres = None
         self.yres = None
         self.datatype = None
-        
+
         self.sataz = None
         self.satel = None
         self.sunaz = None
@@ -147,18 +144,17 @@ class ImageInfo:
                         self.tdi = int(item[7:])
                     if 'BAND_G' in item:
                         self.tdi = int(item[7:])
-                except ValueError, e:
-                    logger.error("cannot parse TDI field for {}: {}".format(self.scene_id,tdi_str))
+                except ValueError:
+                    logger.error("cannot parse TDI field for %s: %s", self.scene_id, tdi_str)
         
         i = feat.GetFieldIndex("ACQ_TIME")
         if i != -1:
             date_str = feat.GetFieldAsString(i)
-            self.acqdate = datetime.strptime(date_str[:19],"%Y-%m-%dT%H:%M:%S")
+            self.acqdate = datetime.strptime(date_str[:19], "%Y-%m-%dT%H:%M:%S")
         
         geom = feat.GetGeometryRef()
         self.geom = geom.Clone()
-        
-    
+
     def get_attributes_from_file(self, srcfp):
         self.srcfp = srcfp
         self.srcdir, self.srcfn = os.path.split(srcfp)
@@ -169,7 +165,7 @@ class ImageInfo:
             self.ysize = ds.RasterYSize
             self.proj = ds.GetProjectionRef() if ds.GetProjectionRef() != '' else ds.GetGCPProjection()
             self.bands = ds.RasterCount
-            self.nodatavalue = [ds.GetRasterBand(b).GetNoDataValue() for b in range(1,self.bands+1)]
+            self.nodatavalue = [ds.GetRasterBand(b).GetNoDataValue() for b in list(range(1, self.bands + 1))]
             self.datatype = ds.GetRasterBand(1).DataType
             self.datatype_readable = gdal.GetDataTypeName(self.datatype)
 
@@ -186,25 +182,25 @@ class ImageInfo:
                 ury = gtf[3] + self.xsize * gtf[4] + 0 * gtf[5]
                 llx = gtf[0] + 0 * gtf[1] + self.ysize * gtf[2]
                 lly = gtf[3] + 0 * gtf[4] + self.ysize * gtf[5]
-                lrx = gtf[0] + self.xsize * gtf[1] + self.ysize* gtf[2]
+                lrx = gtf[0] + self.xsize * gtf[1] + self.ysize * gtf[2]
                 lry = gtf[3] + self.xsize * gtf[4] + self.ysize * gtf[5]
-                
-            
+
             elif num_gcps == 4:
                 
                 gcps = ds.GetGCPs()
                 gcp_dict = {}
-                id_dict = {"UpperLeft":1,
-                           "1":1,
-                           "UpperRight":2,
-                           "2":2,
-                           "LowerLeft":4,
-                           "4":4,
-                           "LowerRight":3,
-                           "3":3}
+                id_dict = {"UpperLeft": 1,
+                           "1": 1,
+                           "UpperRight": 2,
+                           "2": 2,
+                           "LowerLeft": 4,
+                           "4": 4,
+                           "LowerRight": 3,
+                           "3": 3}
         
                 for gcp in gcps:
-                    gcp_dict[id_dict[gcp.Id]] = [float(gcp.GCPPixel), float(gcp.GCPLine), float(gcp.GCPX), float(gcp.GCPY), float(gcp.GCPZ)]
+                    gcp_dict[id_dict[gcp.Id]] = [float(gcp.GCPPixel), float(gcp.GCPLine), float(gcp.GCPX),
+                                                 float(gcp.GCPY), float(gcp.GCPZ)]
         
                 ulx = gcp_dict[1][2]
                 uly = gcp_dict[1][3]
@@ -215,16 +211,17 @@ class ImageInfo:
                 lrx = gcp_dict[3][2]
                 lry = gcp_dict[3][3]
         
-                self.xres = abs(math.sqrt((ulx - urx)**2 + (uly - ury)**2)/ self.xsize)
-                self.yres = abs(math.sqrt((ulx - llx)**2 + (uly - lly)**2)/ self.ysize)
+                self.xres = abs(math.sqrt((ulx - urx) ** 2 + (uly - ury) ** 2) / self.xsize)
+                self.yres = abs(math.sqrt((ulx - llx) ** 2 + (uly - lly) ** 2) / self.ysize)
                 
-            poly_wkt = 'POLYGON (( %.12f %.12f, %.12f %.12f, %.12f %.12f, %.12f %.12f, %.12f %.12f ))' %(ulx,uly,urx,ury,lrx,lry,llx,lly,ulx,uly)
+            poly_wkt = 'POLYGON (( {0:.12f} {1:.12f}, {2:.12f} {3:.12f}, {4:.12f} {5:.12f}, {6:.12f} {7:.12f}, ' \
+                       '{0:.12f} {1:.12f} ))'.format(ulx, uly, urx, ury, lrx, lry, llx, lly)
             self.geom = ogr.CreateGeometryFromWkt(poly_wkt)
-            self.xs = [ulx,urx,lrx,llx]
-            self.ys = [uly,ury,lry,lly]
+            self.xs = [ulx, urx, lrx, llx]
+            self.ys = [uly, ury, lry, lly]
 
         else:
-            logger.warning("Cannot open image: %s" %self.srcfp)
+            logger.warning("Cannot open image: %s", self.srcfp)
             self.xsize = None
             self.ysize = None
             self.proj = None
@@ -235,7 +232,7 @@ class ImageInfo:
             self.yres = None
 
         ds = None
-        
+
         #### Set unknown attribs to None for now
         self.sataz = None
         self.satel = None
@@ -248,66 +245,64 @@ class ImageInfo:
         self.catid = None
         self.tdi = None
         self.acqdate = None
- 
-   
+
+
     def get_attributes_from_xml(self):
- 
-        
         dAttribs = {
-            "cc":None,
-            "sunel":None,
-            "sunaz":None,
-            "satel":None,
-            "sataz":None,
-            "ona":None,
-            "date":None,
-            "tdi":None,
-            "catid":None,
-            "sensor":None
+            "cc": None,
+            "sunel": None,
+            "sunaz": None,
+            "satel": None,
+            "sataz": None,
+            "ona": None,
+            "date": None,
+            "tdi": None,
+            "catid": None,
+            "sensor": None
         }
     
         dTags = {
             ## DG tags
-            "CATID":"catid",
-            "SATID":"sensor",
-            "CLOUDCOVER":"cc",
-            "MEANSUNEL":"sunel",
-            "MEANSUNAZ":"sunaz",
-            "MEANSATEL":"satel",
-            "MEANSATAZ":"sataz",
-            "MEANOFFNADIRVIEWANGLE":"ona",
-            "FIRSTLINETIME":"date",
-            "TDILEVEL":"tdi",
+            "CATID": "catid",
+            "SATID": "sensor",
+            "CLOUDCOVER": "cc",
+            "MEANSUNEL": "sunel",
+            "MEANSUNAZ": "sunaz",
+            "MEANSATEL": "satel",
+            "MEANSATAZ": "sataz",
+            "MEANOFFNADIRVIEWANGLE": "ona",
+            "FIRSTLINETIME": "date",
+            "TDILEVEL": "tdi",
             
             ## GE tags
-            "archiveId":"catid",
-            "satelliteName":"sensor",
-            "percentCloudCover":"cc",
-            "firstLineAzimuthAngle":"sataz",
-            "firstLineSunAzimuthAngle":"sunaz",
-            "firstLineSunElevationAngle":"sunel",
-            "firstLineElevationAngle":"satel",
-            "firstLineAcquisitionDateTime":"date",
-            "tdiMode":"tdi",
+            "archiveId": "catid",
+            "satelliteName": "sensor",
+            "percentCloudCover": "cc",
+            "firstLineAzimuthAngle": "sataz",
+            "firstLineSunAzimuthAngle": "sunaz",
+            "firstLineSunElevationAngle": "sunel",
+            "firstLineElevationAngle": "satel",
+            "firstLineAcquisitionDateTime": "date",
+            "tdiMode": "tdi",
             
             ## IK tags
-            "Source_Image_ID":"catid",
-            "Sensor":"sensor",
-            "Percent_Component_Cloud_Cover":"cc",
-            "Nominal_Collection_Azimuth":"sataz",
-            "Nominal_Collection_Elevation":"satel",
-            "Sun_Angle_Elevation":"sunel",
-            "Sun_Angle_Azimuth":"sunaz",
-            "Acquisition_Date_Time":"date",
-            "Pachchromatic_TDI_Mode":"tdi",
+            "Source_Image_ID": "catid",
+            "Sensor": "sensor",
+            "Percent_Component_Cloud_Cover": "cc",
+            "Nominal_Collection_Azimuth": "sataz",
+            "Nominal_Collection_Elevation": "satel",
+            "Sun_Angle_Elevation": "sunel",
+            "Sun_Angle_Azimuth": "sunaz",
+            "Acquisition_Date_Time": "date",
+            "Pachchromatic_TDI_Mode": "tdi",
             
         }
             
         paths = (
-            os.path.splitext(self.srcfp)[0]+'.xml',
-            os.path.splitext(self.srcfp)[0]+'.XML',
-            os.path.splitext(self.srcfp)[0]+'.txt',
-            os.path.splitext(self.srcfp)[0]+'.pvl',
+            os.path.splitext(self.srcfp)[0] + '.xml',
+            os.path.splitext(self.srcfp)[0] + '.XML',
+            os.path.splitext(self.srcfp)[0] + '.txt',
+            os.path.splitext(self.srcfp)[0] + '.pvl',
         )
         
         metapath = None
@@ -317,7 +312,7 @@ class ImageInfo:
                 break
         
         if not metapath:
-            logger.debug("No metadata found for %s" %self.srcfp)
+            logger.debug("No metadata found for %s", self.srcfp)
         
         else:
             metad = None
@@ -326,20 +321,20 @@ class ImageInfo:
             if os.path.splitext(metapath)[1].lower() == '.xml':
                 try:
                     metad = ET.parse(metapath)
-                except ET.ParseError, err:
-                    logger.debug("ERROR parsing metadata: %s, %s" %(err,metapath))
+                except ET.ParseError as err:
+                    logger.debug("ERROR parsing metadata: %s, %s", err, metapath)
             
             else:
                 try:
                     metad = utils.getGEMetadataAsXml(metapath)
-                except Exception, err:
-                    logger.debug("ERROR parsing metadata: %s, %s" %(err,metapath))
+                except Exception as err:
+                    logger.debug("ERROR parsing metadata: %s, %s", err, metapath)
                 #### Write IK01 code 
         
             if metad is not None:
                 
                 for tag in dTags:
-                    taglist = metad.findall(".//%s"%tag)
+                    taglist = metad.findall(".//{}".format(tag))
                     vallist = []
                     for elem in taglist:
                         
@@ -351,18 +346,17 @@ class ImageInfo:
                                     "Acquisition_Date_Time",
                                     "FIRSTLINETIME",
                                     "firstLineAcquisitionDateTime",
-                                    
                                     "CATID",
                                     "archiveId",
-                                    
                                     "SATID",
                                 ]:
                                     val = text
                                 elif tag in ["Source_Image_ID"]:
                                     val = elem.attrib['id']
                                 elif tag in ["percentCloudCover", "Percent_Component_Cloud_Cover"]:
-                                    val = float(text)/100
-                                elif tag in ["Sun_Angle_Azimuth","Sun_Angle_Elevation","Nominal_Collection_Azimuth","Nominal_Collection_Elevation"]:
+                                    val = float(text) / 100
+                                elif tag in ["Sun_Angle_Azimuth", "Sun_Angle_Elevation", "Nominal_Collection_Azimuth",
+                                             "Nominal_Collection_Elevation"]:
                                     val = text.strip(" degrees")
                                 elif tag == "satelliteName":
                                     val = "GE01"
@@ -373,8 +367,8 @@ class ImageInfo:
                                     
                                 vallist.append(val)
                                 
-                            except Exception, e:
-                                logger.debug("Error reading metadata values: %s, %s" %(metapath,e))
+                            except Exception as e:
+                                logger.debug("Error reading metadata values: %s, %s", metapath, e)
                                 
                     if dTags[tag] == 'tdi' and len(taglist) > 1:    
                         #### use pan or green band TDI for exposure calculation
@@ -382,12 +376,14 @@ class ImageInfo:
                             dAttribs['tdi'] = vallist[1]
                         elif len(vallist) == 5 and self.bands == 1: #pan image
                             dAttribs['tdi'] = vallist[4]
-                        elif len(vallist) == 5 and self.bands in [3,4]: #multi image
+                        elif len(vallist) == 5 and self.bands in [3, 4]: #multi image
                             dAttribs['tdi'] = vallist[1]
                         elif len(vallist) == 8:
                             dAttribs['tdi'] = vallist[3]
                         else:
-                            logger.debug("Unexpected number of TDI values and band count ( TDI: expected 1, 4, 5, or 8 - found %d ; Band cound, expected 1, 4, or 8 - found %d) %s" %(len(vallist), self.bands, metapath))
+                            logger.debug("Unexpected number of TDI values and band count ( TDI: expected 1, 4, 5, or 8 "
+                                         "- found %i ; Band count, expected 1, 4, or 8 - found %i) %s", len(vallist),
+                                         self.bands, metapath)
                     
                     elif dTags[tag] == 'sensor' and len(taglist) > 1:
                         val = vallist[0]
@@ -398,7 +394,7 @@ class ImageInfo:
                         dAttribs[dTags[tag]] = val
                         
                     elif len(taglist) > 1:
-                        logger.debug("Unexpected number of {} values ({}), {}".format(tag,len(taglist),metapath))
+                        logger.debug("Unexpected number of %s values (%i), %s", tag, len(taglist), metapath)
                 
                 self.sataz = float(dAttribs["sataz"])
                 self.satel = float(dAttribs["satel"])
@@ -406,7 +402,7 @@ class ImageInfo:
                 self.sunel = float(dAttribs["sunel"])
                 try:
                     self.ona = dAttribs["ona"] if dAttribs["ona"] else 90 - self.satel
-                except TypeError, e:
+                except TypeError:
                     pass
                 self.cloudcover = dAttribs["cc"]
                 self.sensor = dAttribs["sensor"]
@@ -415,15 +411,14 @@ class ImageInfo:
                 
                 if dAttribs["date"]:
                     try:
-                        self.acqdate = datetime.strptime(dAttribs["date"],"%Y-%m-%dT%H:%M:%S.%fZ")
-                    except ValueError, e:
+                        self.acqdate = datetime.strptime(dAttribs["date"], "%Y-%m-%dT%H:%M:%S.%fZ")
+                    except ValueError:
                         try:
-                            self.acqdate = datetime.strptime(dAttribs["date"],"%Y-%m-%d %H:%M GMT")
-                        except ValueError, e:
-                            logger.error("Cannot parse date string {} from {}".format(dAttribs['date'],metapath))
+                            self.acqdate = datetime.strptime(dAttribs["date"], "%Y-%m-%d %H:%M GMT")
+                        except ValueError:
+                            logger.error("Cannot parse date string %s from %s", dAttribs['date'], metapath)
 
-
-    def getScore(self,params):
+    def getScore(self, params):
         
         score = 0
        
@@ -441,7 +436,8 @@ class ImageInfo:
         status = [val is None for val in required_attribs]
         
         if sum(status) != 0:
-            logger.error("Cannot determine score for image {0}:\n  Sun elev\t{1}\n  Off nadir\t{2}\n  Cloudcover\t{3}\n  Sensor\t{4}".format(self.srcfn,self.sunel,self.ona,self.cloudcover,self.sensor))
+            logger.error("Cannot determine score for image %s:\n  Sun elev\t%s\n  Off nadir\t%s\n  Cloudcover\t%s\n"
+                         "  Sensor\t%s", self.srcfn, self.sunel, self.ona, self.cloudcover, self.sensor)
             score = -1
         
         else:
@@ -455,55 +451,55 @@ class ImageInfo:
             #### Test if TDI is needed, get exposure factor
             if params.useExposure is True:
                 if self.tdi is None:
-                    logger.error("Cannot get tdi for image to determine exposure settings: {0}".format(self.srcfp))
+                    logger.error("Cannot get tdi for image to determine exposure settings: %s", self.srcfp)
                     self.exposure_factor = None
                 else:
                     exfact = self.tdi * self.sunel
                     self.exposure_factor = exfact
                     
                     pan_exposure_thresholds = {
-                        "WV01":1400,
-                        "WV02":1400,
-                        "WV03":1400,
-                        "QB02":500,
+                        "WV01": 1400,
+                        "WV02": 1400,
+                        "WV03": 1400,
+                        "QB02": 500,
                         #"GE01":,
                     }
                     
                     multi_exposure_thresholds = {
-                        "WV02":400,
-                        "WV03":400,
-                        "GE01":170,
-                        "QB02":25,
+                        "WV02": 400,
+                        "WV03": 400,
+                        "GE01": 170,
+                        "QB02": 25,
                     }
                     
                     #### Remove images with high exposure settings (tdi_pan (or tdi_grn) * sunel)
                     if params.bands == 1:
                         if self.sensor in pan_exposure_thresholds:
                             if exfact > pan_exposure_thresholds[self.sensor]:
-                                logger.debug("Image overexposed: %s --> %i" %(self.srcfp,exfact))
+                                logger.debug("Image overexposed: %s --> %i", self.srcfp, exfact)
                                 score = -1
                     
                     else:
                         if self.sensor in multi_exposure_thresholds:
                             if exfact > multi_exposure_thresholds[self.sensor]:
-                                logger.debug("Image overexposed: %s --> %i" %(self.srcfp,exfact))
+                                logger.debug("Image overexposed: %s --> %i", self.srcfp, exfact)
                                 score = -1
             
             #### Test if acqdate if needed, get date difference
             if params.m != 0:
                 if self.acqdate is None:
-                    logger.error("Cannot get acqdate for image to determine date-based score: {0}".format(self.srcfn))
+                    logger.error("Cannot get acqdate for image to determine date-based score: %s", self.srcfn)
                     self.date_diff = -9999
                     
                 else:
                     #### Find nearest year for target day
                     tdeltas = []
-                    for y in range(self.acqdate.year-1,self.acqdate.year+2):
-                        tdeltas.append(abs((datetime(y,params.m,params.d) - self.acqdate).days))
-                    
+                    for y in list(range(self.acqdate.year - 1, self.acqdate.year + 2)):
+                        tdeltas.append(abs((datetime(y, params.m, params.d) - self.acqdate).days))
+
                     self.date_diff = min(tdeltas)
-            
-            
+
+
                 #### Assign weights
                 ccwt = 30
                 sunelwt = 10
@@ -519,7 +515,7 @@ class ImageInfo:
 
             if params.y != 0:
                 if self.acqdate is None:
-                    logger.error("Cannot get acqdate for image to determine date-based score: {0}".format(self.srcfn))
+                    logger.error("Cannot get acqdate for image to determine date-based score: %s", self.srcfn)
                     self.year_diff = -9999
 
                 else:
@@ -549,24 +545,25 @@ class ImageInfo:
                 self.cloudcover = params.max_cc
             
             if self.cloudcover > params.max_cc:
-                logger.debug("Image too cloudy (>%s): %s --> %f" %(params.max_cc,self.srcfp,self.cloudcover))
+                logger.debug("Image too cloudy (>%s): %s --> %f", params.max_cc, self.srcfp, self.cloudcover)
                 score = -1
             
             #### Handle ridiculously low sun el values, these images will result is spurious TOA values
             if self.sunel < 2:
-                logger.debug("Sun elevation too low (<2 degrees): %s --> %f" %(self.srcfp,self.sunel))
+                logger.debug("Sun elevation too low (<2 degrees): %s --> %f", self.srcfp, self.sunel)
                 score = -1
                         
             if not score == -1:
-                rawscore = ccwt * (1-self.cloudcover) + sunelwt * (self.sunel/90) + onawt * ((90-self.ona)/90.0) + \
-                           datediffwt * ((183 - self.date_diff)/183.0) + yeardiffwt * (1.0 / (self.year_diff + 1))
+                rawscore = ccwt * (1 - self.cloudcover) + sunelwt * (self.sunel / 90) + onawt * \
+                           ((90 - self.ona) / 90.0) + datediffwt * ((183 - self.date_diff) / 183.0) + \
+                           yeardiffwt * (1.0 / (self.year_diff + 1))
                 score = rawscore * self.panfactor  
         
         self.score = score
         return self.score
 
 
-    def get_raster_stats(self,get_stats=True,get_median=True):
+    def get_raster_stats(self, get_stats=True, get_median=True):
         
         self.stat_dct = {}
         self.datapixelcount_dct = {}
@@ -579,7 +576,7 @@ class ImageInfo:
             ny = ds.RasterYSize
  
             #### get stats and store in dictionaries
-            for bandnum in range(1,self.bands+1):
+            for bandnum in list(range(1, self.bands + 1)):
 
                 # read band
                 band = ds.GetRasterBand(bandnum)
@@ -587,45 +584,44 @@ class ImageInfo:
                 # get nodata value (default to zero)
                 band_nodata = band.GetNoDataValue()
                 if band_nodata is None:
-                    logger.info("Defaulting band {} nodata value to zero".format(bandnum))
+                    logger.info("Defaulting band %i nodata value to zero", bandnum)
                     band_nodata = 0.0
 
                 # read band as a numpy array
-                logger.debug("Reading band {} ".format(bandnum))
-                band_array = band.ReadAsArray(0,0,nx,ny)
+                logger.debug("Reading band %i ", bandnum)
+                band_array = band.ReadAsArray(0, 0, nx, ny)
 
                 # generate mask for nodata
-                logger.debug("Calculating band {} no data mask".format(bandnum))
+                logger.debug("Calculating band %i no data mask", bandnum)
                 band_nodata_mask = (band_array == band_nodata)
                 band_valid = band_array[~band_nodata_mask]
                 self.datapixelcount_dct[bandnum] = band_valid.size
                 
                 ## initialize arrays
-                stats = numpy.array([band_nodata,band_nodata,band_nodata,band_nodata],numpy.float64)
+                stats = numpy.array([band_nodata, band_nodata, band_nodata, band_nodata], numpy.float64)
                 band_median = numpy.float64(band_nodata)
                 if band_valid.size == 0: 
-                    logger.warning("Band {} contains no valid data".format(bandnum))
+                    logger.warning("Band %i contains no valid data", bandnum)
                 
                 ## calc stats  
                 else:
                     if get_stats:
-                        logger.debug("Calculating band {} min".format(bandnum))
+                        logger.debug("Calculating band %i min", bandnum)
                         band_min = numpy.amin(band_valid)
-                        logger.debug("Calculating band {} max".format(bandnum))
+                        logger.debug("Calculating band %i max", bandnum)
                         band_max = numpy.amax(band_valid)
-                        logger.debug("Calculating band {} mean".format(bandnum))
-                        band_mean = numpy.mean(band_valid,dtype=numpy.float64)
-                        logger.debug("Calculating band {} stdev".format(bandnum))
-                        band_std = numpy.std(band_valid,dtype=numpy.float64)
-                        stats = numpy.array([band_min,band_max,band_mean,band_std],numpy.float64)
-                        logger.info("band {} min {}, max {}, mean {}, stdev {}".format(
-                            bandnum,band_min,band_max,band_mean,band_std
-                        ))
+                        logger.debug("Calculating band %i mean", bandnum)
+                        band_mean = numpy.mean(band_valid, dtype=numpy.float64)
+                        logger.debug("Calculating band %i stdev", bandnum)
+                        band_std = numpy.std(band_valid, dtype=numpy.float64)
+                        stats = numpy.array([band_min, band_max, band_mean, band_std], numpy.float64)
+                        logger.info("band %i min %f, max %f, mean %f, stdev %f", bandnum, band_min, band_max,
+                                    band_mean, band_std)
                                
                     if get_median:
-                        logger.debug("Calculating band {} median".format(bandnum))
+                        logger.debug("Calculating band %i median", bandnum)
                         band_median = numpy.float64(numpy.median(band_valid))
-                        logger.info("band {} median {}".format(bandnum,band_median))                
+                        logger.info("band %i median %f", bandnum, band_median)
                 
                 self.median[bandnum] = band_median
                 self.stat_dct[bandnum] = stats
@@ -637,7 +633,7 @@ class ImageInfo:
             ds = None
 
         else:
-            logger.warning("Cannot open image: %s" %self.srcfp)
+            logger.warning("Cannot open image: %s", self.srcfp)
   
             
     def set_raster_median(self, median):
@@ -645,7 +641,7 @@ class ImageInfo:
         
         
 class DemInfo:
-    def __init__(self,src,frmt,srs=None):
+    def __init__(self, src, frmt, srs=None):
         
         self.frmt = frmt  #image format (IMAGE,RECORD)
         self.pairname = None
@@ -660,7 +656,7 @@ class DemInfo:
         if frmt == 'IMAGE':
             self.get_attributes_from_file(src)
         elif frmt == 'RECORD':
-            self.get_attributes_from_record(src,srs)
+            self.get_attributes_from_record(src, srs)
         else:
             logger.error("Image format must be RECORD or IMAGE")
         
@@ -695,7 +691,7 @@ class DemInfo:
         i = feat.GetFieldIndex("ACQDATE")
         if i != -1:
             date_str = feat.GetFieldAsString(i)
-            self.acqdate = datetime.strptime(date_str[:19],"%Y-%m-%d")
+            self.acqdate = datetime.strptime(date_str[:19], "%Y-%m-%d")
 
         # Fields from SETSM indices
         i = feat.GetFieldIndex("DENSITY")
@@ -730,7 +726,8 @@ class DemInfo:
         status2 = [val is None for val in required_attribs2]
 
         if sum(status1) != 0 and sum(status2) != 0:
-            logger.error("Cannot determine score for image {0}:\n  Sun elev\t{1}\n  Cloudcover\t{2}\n  Sensor\t{3}\n  Density\t{4}".format(self.pairname,self.sunel,self.cloudcover,self.sensor,self.density)) 
+            logger.error("Cannot determine score for image %s:\n  Sun elev\t%f\n  Cloudcover\t%f\n  Sensor\t%s\n  "
+                         "Density\t%f", self.pairname, self.sunel, self.cloudcover, self.sensor, self.density)
             score = -1
             
         elif self.sensor == 'QB02':
@@ -741,19 +738,18 @@ class DemInfo:
             #### Test if acqdate if needed, get date difference
             if target_date:
                 if self.acqdate is None:
-                    logger.error("Cannot get acqdate for image to determine date-based score: {0}".format(self.srcfn))
+                    logger.error("Cannot get acqdate for image to determine date-based score: %s", self.srcfn)
                     self.date_diff = -9999
                     
                 else:
                     #### Find nearest year for target day
                     tdeltas = []
                     target_month, target_day = target_date[0]
-                    for y in range(self.acqdate.year-1,self.acqdate.year+2):
-                        tdeltas.append(abs((datetime(y,target_month,target_day) - self.acqdate).days))
+                    for y in list(range(self.acqdate.year-1, self.acqdate.year + 2)):
+                        tdeltas.append(abs((datetime(y, target_month, target_day) - self.acqdate).days))
                     
                     self.date_diff = min(tdeltas)
-            
-            
+
                 #### Assign weights
                 ccwt = 75
                 sunelwt = 5
@@ -766,35 +762,35 @@ class DemInfo:
                 datediffwt = 0
                 densitywt = 100
                 self.date_diff = -9999
-                
-                
+
             #### Handle nonesense or nodata cloud cover values
             if self.cloudcover:
                 if self.cloudcover < 0 or self.cloudcover > 1:
                     self.cloudcover = 0.5
             
                 if self.cloudcover > 0.2:
-                    logger.debug("Stereopair too cloudy (>20 percent): %s --> %f" %(self.pairname,self.cloudcover))
+                    logger.debug("Stereopair too cloudy (>20 percent): %s --> %f", self.pairname, self.cloudcover)
                     score = -1
             
             #### Handle ridiculously low sun el values
             if self.sunel and self.sunel < 1:
-                logger.debug("Sun elevation too low (<1 degrees): %s --> %f" %(self.pairname,self.sunel))
+                logger.debug("Sun elevation too low (<1 degrees): %s --> %f", self.pairname, self.sunel)
                 score = -1
                         
             if not score == -1:
                 # determine score method
                 if sum(status1) == 0:
-                    score = ccwt * (1-self.cloudcover) + sunelwt * (self.sunel/90) + datediffwt * ((183 - self.date_diff)/183.0)
+                    score = ccwt * (1 - self.cloudcover) + sunelwt * (self.sunel / 90) + datediffwt * \
+                            ((183 - self.date_diff) / 183.0)
                 elif sum(status2) == 0:
-                    score = densitywt * self.density + datediffwt * ((183 - self.date_diff)/183.0)
+                    score = densitywt * self.density + datediffwt * ((183 - self.date_diff) / 183.0)
         
         self.score = score
         return self.score
 
         
 class DGInfo:
-    def __init__(self,src,frmt,srs=None):
+    def __init__(self, src, frmt, srs=None):
         
         self.frmt = frmt  #image format (IMAGE,RECORD)
         self.pairname = None
@@ -807,11 +803,10 @@ class DGInfo:
         self.dem_id = None
         
         if frmt == 'RECORD':
-            self.get_attributes_from_record(src,srs)
+            self.get_attributes_from_record(src, srs)
         else:
             logger.error("Image format must be RECORD")
-        
-        
+
     def get_attributes_from_record(self, feat, srs):
                 
         self.proj = srs.ExportToWkt()
@@ -822,7 +817,7 @@ class DGInfo:
             self.sunel = feat.GetFieldAsDouble(i)
         i = feat.GetFieldIndex("CLOUDCOVER")
         if i != -1:
-            self.cloudcover = feat.GetFieldAsDouble(i)/100.0
+            self.cloudcover = feat.GetFieldAsDouble(i) / 100.0
         i = feat.GetFieldIndex("PLATFORM")
         if i != -1:
             self.sensor = feat.GetFieldAsString(i)
@@ -836,11 +831,10 @@ class DGInfo:
         i = feat.GetFieldIndex("ACQDATE")
         if i != -1:
             date_str = feat.GetFieldAsString(i)
-            self.acqdate = datetime.strptime(date_str[:19],"%Y-%m-%d")
+            self.acqdate = datetime.strptime(date_str[:19], "%Y-%m-%d")
         
         geom = feat.GetGeometryRef()
         self.geom = geom.Clone()
-        
 
     def getScore(self, target_date=None):
         
@@ -856,7 +850,8 @@ class DGInfo:
         status1 = [val is None for val in required_attribs1]
 
         if sum(status1) != 0:
-            logger.error("Cannot determine score for image {0}:\n  Sun elev\t{1}\n  Cloudcover\t{2}\n  Sensor\t{3}".format(self.pairname,self.sunel,self.cloudcover,self.sensor)) 
+            logger.error("Cannot determine score for image %s:\n  Sun elev\t%f\n  Cloudcover\t%f\n  Sensor\t%s",
+                         self.pairname, self.sunel, self.cloudcover, self.sensor)
             score = -1
         
         else:
@@ -864,15 +859,15 @@ class DGInfo:
             #### Test if acqdate if needed, get date difference
             if target_date:
                 if self.acqdate is None:
-                    logger.error("Cannot get acqdate for image to determine date-based score: {0}".format(self.srcfn))
+                    logger.error("Cannot get acqdate for image to determine date-based score: %s", self.srcfn)
                     self.date_diff = -9999
                     
                 else:
                     #### Find nearest year for target day
                     tdeltas = []
                     target_month, target_day = target_date[0]
-                    for y in range(self.acqdate.year-1,self.acqdate.year+2):
-                        tdeltas.append(abs((datetime(y,target_month,target_day) - self.acqdate).days))
+                    for y in list(range(self.acqdate.year - 1, self.acqdate.year + 2)):
+                        tdeltas.append(abs((datetime(y, target_month, target_day) - self.acqdate).days))
                     
                     self.date_diff = min(tdeltas)
             
@@ -887,26 +882,26 @@ class DGInfo:
                 sunelwt = 10
                 datediffwt = 0
                 self.date_diff = -9999
-                
-                
+
             #### Handle nonesense or nodata cloud cover values
             if self.cloudcover:
                 if self.cloudcover < 0 or self.cloudcover > 1:
                     self.cloudcover = 0.5
             
                 if self.cloudcover > 0.2:
-                    logger.debug("Catid too cloudy (>20 percent): %s --> %f" %(self.pairname,self.cloudcover))
+                    logger.debug("Catid too cloudy (>20 percent): %s --> %f", self.pairname, self.cloudcover)
                     score = -1
             
             #### Handle ridiculously low sun el values
             if self.sunel and self.sunel < 1:
-                logger.debug("Sun elevation too low (<1 degrees): %s --> %f" %(self.pairname,self.sunel))
+                logger.debug("Sun elevation too low (<1 degrees): %s --> %f", self.pairname, self.sunel)
                 score = -1
                         
             if not score == -1:
                 # determine score method
                 if sum(status1) == 0:
-                    score = ccwt * (1-self.cloudcover) + sunelwt * (self.sunel/90) + datediffwt * ((183 - self.date_diff)/183.0)
+                    score = ccwt * (1 - self.cloudcover) + sunelwt * (self.sunel / 90) + datediffwt * \
+                            ((183 - self.date_diff) / 183.0)
         
         self.score = score
         return self.score
@@ -917,7 +912,7 @@ class MosaicParams:
 
 
 class TileParams:
-    def __init__(self,x,x2,y,y2,j,i,name):
+    def __init__(self, x, x2, y, y2, j, i, name):
         self.xmin = x
         self.xmax = x2
         self.ymin = y
@@ -925,7 +920,7 @@ class TileParams:
         self.i = i
         self.j = j
         self.name = name
-        poly_wkt = 'POLYGON (( %f %f, %f %f, %f %f, %f %f, %f %f ))' %(x,y,x,y2,x2,y2,x2,y,x,y)
+        poly_wkt = 'POLYGON (( {} {}, {} {}, {} {}, {} {}, {} {} ))'.format(x, y, x, y2, x2, y2, x2, y, x, y)
         self.geom = ogr.CreateGeometryFromWkt(poly_wkt)
         
 
@@ -941,22 +936,22 @@ def determine_contributors(imginfo_list, tile_geom, contribution_threshold):
     for iinfo in imginfo_list:
         diff = iinfo.geom.Difference(union_geom)
         if diff is None:
-            logger.info("Function Error: {}".format(iinfo.srcfp))
+            logger.info("Function Error: %s", iinfo.srcfp)
         elif diff.IsEmpty():
-            logger.debug("Non-contributing image: {}".format(iinfo.srcfp))
+            logger.debug("Non-contributing image: %s", iinfo.srcfp)
         else:
             ## test if contributing area is within tile extent
             if not diff.Intersects(tile_geom):
-                logger.debug("Non-contributing image: {}".format(iinfo.srcfp))
+                logger.debug("Non-contributing image: %s", iinfo.srcfp)
             else:
                 contrib_geom = diff.Intersection(tile_geom)
                 
                 ## Filter based on contribution area
                 if contrib_geom.Area() >= contribution_threshold:                
                     union_geom = union_geom.Union(iinfo.geom)
-                    contribs.append((iinfo,contrib_geom))
+                    contribs.append((iinfo, contrib_geom))
                 else:
-                    logger.debug("Image below minimum area threshold: {}".format(iinfo.srcfp))
+                    logger.debug("Image below minimum area threshold: %s", iinfo.srcfp)
                     area_threshold_images.append(iinfo)
                     
     # after first round, check if any of the images below the min area threshold fill a gap
@@ -964,25 +959,25 @@ def determine_contributors(imginfo_list, tile_geom, contribution_threshold):
         for iinfo in area_threshold_images:
             diff = iinfo.geom.Difference(union_geom)
             if diff is None:
-                logger.info("Function Error: {}".format(iinfo.srcfp))
+                logger.info("Function Error: %s", iinfo.srcfp)
             elif not diff.IsEmpty():
                 ## test if contributing area is within tile extent
                 if diff.Intersects(tile_geom):
                     contrib_geom = diff.Intersection(tile_geom)
                     union_geom = union_geom.Union(iinfo.geom)
-                    contribs.append((iinfo,contrib_geom))
-                    logger.debug("Adding image with contribution area below threshold to fill a gap: {}".format(iinfo.srcfp))
+                    contribs.append((iinfo, contrib_geom))
+                    logger.debug("Adding image with contribution area below threshold to fill a gap: %s", iinfo.srcfp)
     
     # reverse list so highest score is last
     contribs.reverse()
     return contribs
     
 
-def filterMatchingImages(imginfo_list,params):
+def filterMatchingImages(imginfo_list, params):
     imginfo_list2 = []
    
     for iinfo in imginfo_list:
-        #print iinfo.srcfp, iinfo.proj
+        #print(iinfo.srcfp, iinfo.proj)
         isSame = True
         p = osr.SpatialReference()
         p.ImportFromWkt(iinfo.proj)
@@ -990,13 +985,14 @@ def filterMatchingImages(imginfo_list,params):
         rp.ImportFromWkt(params.proj)
         if p.IsSame(rp) is False:
             isSame = False
-            logger.debug("Image projection differs from mosaic params: %s" %iinfo.srcfp)
-        if iinfo.bands != params.bands and not (params.force_pan_to_multi is True and iinfo.bands == 1) and not (params.include_all_ms is True): 
+            logger.debug("Image projection differs from mosaic params: %s", iinfo.srcfp)
+        if iinfo.bands != params.bands and not (params.force_pan_to_multi is True and iinfo.bands == 1) and not \
+                (params.include_all_ms is True):
             isSame = False
-            logger.debug("Image band count differs from mosaic params: %s" %iinfo.srcfp)
+            logger.debug("Image band count differs from mosaic params: %s", iinfo.srcfp)
         if iinfo.datatype != params.datatype:
             isSame = False
-            logger.debug("Image datatype differs from mosaic params: %s" %iinfo.srcfp)
+            logger.debug("Image datatype differs from mosaic params: %s", iinfo.srcfp)
             
         if isSame is True:
             imginfo_list2.append(iinfo)
@@ -1011,13 +1007,13 @@ def filter_images_by_geometry(imginfo_list, params):
             if params.extent_geom.Intersect(iinfo.geom):
                 imginfo_list2.append(iinfo)
             else:
-                logger.debug("Image does not intersect mosaic extent: %s" %iinfo.srcfn)
+                logger.debug("Image does not intersect mosaic extent: %s", iinfo.srcfn)
         else: # remove from list if no geom
-            logger.debug("Null geometry for image: %s" %iinfo.srcfn)
+            logger.debug("Null geometry for image: %s ", iinfo.srcfn)
     return imginfo_list2
 
 
-def getMosaicParameters(iinfo,options):
+def getMosaicParameters(iinfo, options):
     
     params = MosaicParams()
     
@@ -1050,7 +1046,7 @@ def getMosaicParameters(iinfo,options):
             params.y = [options.tyear]
         else:
             yrs = options.tyear.split('-')
-            params.y = range(int(yrs[0]), int(yrs[1]) + 1)
+            params.y = list(range(int(yrs[0]), int(yrs[1]) + 1))
     else:
         params.y = 0
 
@@ -1059,7 +1055,10 @@ def getMosaicParameters(iinfo,options):
         params.ymin = options.extent[2]
         params.xmax = options.extent[1]
         params.ymax = options.extent[3]
-        poly_wkt = 'POLYGON (( %f %f, %f %f, %f %f, %f %f, %f %f ))' %(params.xmin,params.ymin,params.xmin,params.ymax,params.xmax,params.ymax,params.xmax,params.ymin,params.xmin,params.ymin)
+        poly_wkt = 'POLYGON (( {} {}, {} {}, {} {}, {} {}, {} {} ))'.format(params.xmin, params.ymin, params.xmin,
+                                                                            params.ymax, params.xmax, params.ymax,
+                                                                            params.xmax, params.ymin, params.xmin,
+                                                                            params.ymin)
         params.extent_geom = ogr.CreateGeometryFromWkt(poly_wkt)
     
     try:
@@ -1076,9 +1075,9 @@ def getMosaicParameters(iinfo,options):
             params.ytilesize = None
         
     if options.max_cc is not None:
-    	params.max_cc = options.max_cc
+        params.max_cc = options.max_cc
     else:
-    	params.max_cc = 0.5
+        params.max_cc = 0.5
     
     params.force_pan_to_multi = True if params.bands > 1 and options.force_pan_to_multi else False # determine if force pan to multi is applicable and true
 
@@ -1091,11 +1090,12 @@ def getMosaicParameters(iinfo,options):
 
     return params
 
+
 def GetExactTrimmedGeom(image, step=4, tolerance=1):
     
     geom2 = None
     geom = None
-    xs,ys = [],[]
+    xs, ys = [], []
     ds = gdal.Open(image)
     if ds is not None:
         if ds.RasterCount > 0:
@@ -1105,67 +1105,67 @@ def GetExactTrimmedGeom(image, step=4, tolerance=1):
             if nd is None:
                 nd = 0
             
-            #print ("Image NoData Value: %d" %nd )
+            #print("Image NoData Value: {}".format(nd))
             gtf = ds.GetGeoTransform()
             pixelst = []
             pixelsb = []
             pts = []
             
             #### For every other line, find first and last data pixel
-            lines = xrange(0, inband.YSize, step)
+            lines = list(range(0, inband.YSize, step))
             xsize = inband.XSize
             
             try:
-                lines_flatnonzero = [flatnonzero(inband.ReadAsArray(0,l,xsize,1) != nd) for l in lines]    
-            except AttributeError, e:
+                lines_flatnonzero = [flatnonzero(inband.ReadAsArray(0, l, xsize, 1) != nd) for l in lines]
+            except AttributeError:
                 logger.error("Error reading image block.  Check image for corrupt data.")
             
             else:
-                #print lines_flatnonzero
+                #print(lines_flatnonzero)
                 i = 0
                 for nz in lines_flatnonzero:
                     nzmin = nz[0] if nz.size > 0 else 0
                     nzmax = nz[-1] if nz.size > 0 else 0
                     if nz.size > 0:
-                        pixelst.append((nzmax+1,i))
-                        pixelsb.append((nzmin,i))           
+                        pixelst.append((nzmax + 1, i))
+                        pixelsb.append((nzmin, i))
                     i += step
                 pixelsb.reverse()
                 pixels = pixelst + pixelsb
                 
-                #print "Pixel Array length:", len(pixels)
+                #print("Pixel Array length: {}".format(len(pixels))
                 
                 for px in pixels:
-                    x,y = pl2xy(gtf,inband,px[0],px[1])
+                    x, y = pl2xy(gtf, inband, px[0], px[1])
                     xs.append(x)
                     ys.append(y)
-                    pts.append((x,y))
-                    #print px[0],px[1],x,y
+                    pts.append((x, y))
+                    #print(px[0], px[1], x, y)
                 
                 #### create geometry
                 poly_vts = []
                 for pt in pts:
-                    poly_vts.append("%.16f %.16f" %(pt[0],pt[1]))
+                    poly_vts.append("{0:.16f} {1:.16f}".format(pt[0], pt[1]))
                 if len(pts) > 0:
-                    poly_vts.append("%.16f %.16f" %(pts[0][0],pts[0][1]))
+                    poly_vts.append("{0:.16f} {1:.16f}".format(pts[0][0], pts[0][1]))
                 
                 if len(poly_vts) > 0:
-                    poly_wkt = 'POLYGON (( %s ))' %(string.join(poly_vts,", "))
-                    #print poly_wkt
+                    poly_wkt = 'POLYGON (( {} ))'.format(", ".join(poly_vts))
+                    #print(poly_wkt)
                     
                     geom = ogr.CreateGeometryFromWkt(poly_wkt)
-                    #print geom
+                    #print(geom)
                     #### Simplify geom
-                    #logger.debug("Simplification tolerance: %.10f" %tolerance)
+                    #logger.debug("Simplification tolerance: {0:.10f}".format(tolerance))
                     if geom is not None:
-                        geom2  = geom.Simplify(tolerance)
+                        geom2 = geom.Simplify(tolerance)
         ds = None
 
-    return geom2,xs,ys 
+    return geom2, xs, ys
 
     
 def findVertices(xoff, yoff, xsize, ysize, band, nd):
-    line = band.ReadAsArray(xoff,yoff,xsize,ysize,xsize,ysize)
+    line = band.ReadAsArray(xoff, yoff, xsize, ysize, xsize, ysize)
     if line is not None:
         nz = numpy.flatnonzero(line != nd)
     
@@ -1173,16 +1173,13 @@ def findVertices(xoff, yoff, xsize, ysize, band, nd):
         nzmin = nz[0] if nz.size > 0 else 0
         nzmax = nz[-1] if nz.size > 0 else 0
         
-        return(nzbool, nzmin, nzmax)
+        return nzbool, nzmin, nzmax
     
     else:
-        return (False,0,0)
+        return False, 0, 0
     
     
-def pl2xy(gtf,band,p,l):
-    
-    cols = band.XSize
-    rows = band.YSize
+def pl2xy(gtf, band, p, l):
     
     cellSizeX = gtf[1]
     cellSizeY = -1 * gtf[5]
@@ -1194,7 +1191,7 @@ def pl2xy(gtf,band,p,l):
     x = cellSizeX * p + minx
     y = maxy - cellSizeY * l - cellSizeY * 0.5
     
-    return x,y
+    return x, y
  
  
 def drange(start, stop, step):
@@ -1204,19 +1201,17 @@ def drange(start, stop, step):
         r += step
 
 
-def buffernum(num,buf):
+def buffernum(num, buf):
     sNum = str(num)
-    while len(sNum)<buf:
-        sNum = "0%s" %sNum
+    while len(sNum) < buf:
+        sNum = "0{}".format(sNum)
     return sNum
    
                     
-def copyall(srcfile,dstdir):
-    for fpi in glob.glob("%s.*" %os.path.splitext(srcfile)[0]):
-        fpo = os.path.join(dstdir,os.path.basename(fpi))
+def copyall(srcfile, dstdir):
+    for fpi in glob.glob("{}.*".format(os.path.splitext(srcfile)[0])):
+        fpo = os.path.join(dstdir, os.path.basename(fpi))
         try:
-            shutil.copy2(fpi,fpo)
+            shutil.copy2(fpi, fpo)
         except WindowsError as e:
             logger.warning(e)
-
-

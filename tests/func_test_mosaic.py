@@ -18,7 +18,7 @@ logger = logging.getLogger("logger")
 class TestMosaicFunc(unittest.TestCase):
     
     def setUp(self):
-        self.srcdir = os.path.join(os.path.join(test_dir,'mosaic','ortho'))
+        self.srcdir = os.path.join(os.path.join(test_dir, 'mosaic', 'ortho'))
         self.scriptpath = os.path.join(root_dir, "pgc_mosaic.py")
         self.dstdir = os.path.join(script_dir, 'testdata', 'output')
         # if os.path.isdir(self.dstdir):
@@ -39,10 +39,10 @@ class TestMosaicFunc(unittest.TestCase):
             mosaicname,
             args
         )
-        p = subprocess.Popen(cmd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell=True)
-        se,so = p.communicate()
-        # print so
-        # print se
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        se, so = p.communicate()
+        # print(so)
+        # print(se)
         
         self.assertTrue(os.path.isfile(mosaicname + '_1_1.tif'))
         self.assertTrue(os.path.isfile(mosaicname + '_1_2.tif'))
@@ -54,20 +54,19 @@ class TestMosaicFunc(unittest.TestCase):
         
         ## test if intersects files have correct number of files
         intersects_files = {
-            mosaicname+'_1_1_intersects.txt':2,
-            mosaicname+'_2_1_intersects.txt':3,
-            mosaicname+'_1_2_intersects.txt':2,
-            mosaicname+'_2_2_intersects.txt':2,
+            mosaicname + '_1_1_intersects.txt': 2,
+            mosaicname + '_2_1_intersects.txt': 3,
+            mosaicname + '_1_2_intersects.txt': 2,
+            mosaicname + '_2_2_intersects.txt': 2,
         }
         
-        for f,cnt in intersects_files.iteritems():
+        for f, cnt in intersects_files.items():
             fh = open(f)
             lines = fh.readlines()
-            self.assertEqual(len(lines),cnt)
+            self.assertEqual(len(lines), cnt)
             
         ## TODO test if culines does not have stats and median
-            
-    
+
     #@unittest.skip("skipping")
     def test_bgrn_mosaic_with_stats(self):   
         # extent = -3260000, -3240000, 520000, 540000
@@ -81,10 +80,10 @@ class TestMosaicFunc(unittest.TestCase):
             mosaicname,
             args
         )
-        p = subprocess.Popen(cmd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell=True)
-        se,so = p.communicate()
-        # print so
-        # print se
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        se, so = p.communicate()
+        # print(so)
+        # print(se)
         
         self.assertTrue(os.path.isfile(mosaicname + '_1_1.tif'))
         self.assertTrue(os.path.isfile(mosaicname + '_1_2.tif'))
@@ -101,7 +100,7 @@ class TestMosaicFunc(unittest.TestCase):
         # extent = -3260000, -3240000, 520000, 540000
         # tilesize = 10000, 10000
         # bands = 1
-        srcdir = os.path.join(os.path.join(test_dir,'mosaic','pansh_ndvi'))
+        srcdir = os.path.join(os.path.join(test_dir, 'mosaic', 'pansh_ndvi'))
         mosaicname = os.path.join(self.dstdir, 'testmosaic3')
         args = '--component-shp -e -3260000 -3240000 520000 540000 -t 10000 10000 -b 1'
         cmd = 'python {} {} {} {}'.format(
@@ -110,10 +109,10 @@ class TestMosaicFunc(unittest.TestCase):
             mosaicname,
             args
         )
-        p = subprocess.Popen(cmd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell=True)
-        se,so = p.communicate()
-        # print so
-        # print se
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        se, so = p.communicate()
+        # print(so)
+        # print(se)
         
         self.assertTrue(os.path.isfile(mosaicname + '_1_1.tif'))
         self.assertTrue(os.path.isfile(mosaicname + '_1_2.tif'))
@@ -122,14 +121,13 @@ class TestMosaicFunc(unittest.TestCase):
         self.assertTrue(os.path.isfile(mosaicname + '_cutlines.shp'))
         self.assertTrue(os.path.isfile(mosaicname + '_components.shp'))
         self.assertTrue(os.path.isfile(mosaicname + '_tiles.shp'))
-        
-    
+
     #@unittest.skip("skipping")    
     def test_ndvi_pansh_mosaic_with_stats(self):   
         # extent = -3260000, -3240000, 520000, 540000
         # tilesize = 10000, 10000
         # bands = 1
-        srcdir = os.path.join(os.path.join(test_dir,'mosaic','pansh_ndvi'))
+        srcdir = os.path.join(os.path.join(test_dir, 'mosaic', 'pansh_ndvi'))
         mosaicname = os.path.join(self.dstdir, 'testmosaic4')
         args = '--component-shp -e -3260000 -3240000 520000 540000 -t 10000 10000 -b 1 --calc-stats --median-remove'
         cmd = 'python {} {} {} {}'.format(
@@ -138,10 +136,10 @@ class TestMosaicFunc(unittest.TestCase):
             mosaicname,
             args
         )
-        p = subprocess.Popen(cmd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell=True)
-        se,so = p.communicate()
-        # print so
-        # print se
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        se, so = p.communicate()
+        # print(so)
+        # print(se)
         
         self.assertTrue(os.path.isfile(mosaicname + '_1_1.tif'))
         self.assertTrue(os.path.isfile(mosaicname + '_1_2.tif'))
@@ -150,13 +148,12 @@ class TestMosaicFunc(unittest.TestCase):
         self.assertTrue(os.path.isfile(mosaicname + '_cutlines.shp'))
         self.assertTrue(os.path.isfile(mosaicname + '_components.shp'))
         self.assertTrue(os.path.isfile(mosaicname + '_tiles.shp'))
-        
-        
+
     # def tearDown(self):
     #     shutil.rmtree(self.dstdir)
-        
-    
+
     ## test_mosaic_pbs
+
 
 if __name__ == '__main__':
     
@@ -174,10 +171,10 @@ if __name__ == '__main__':
     if args.testdata:
         test_dir = os.path.abspath(args.testdata)
     else:
-        test_dir = os.path.join(script_dir,'testdata')
+        test_dir = os.path.join(script_dir, 'testdata')
     
     if not os.path.isdir(test_dir):
-        parser.error("Test data folder does not exist: %s" %test_dir)
+        parser.error("Test data folder does not exist: {}".format(test_dir))
         
     test_cases = [
         TestMosaicFunc
