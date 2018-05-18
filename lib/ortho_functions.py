@@ -633,7 +633,7 @@ def calcStats(args, info):
                     calfact,offset = CFlist[band-1]
                     if info.stretch == "rf":
                         #LUT = "0:0,%f:%f" %(imax,omax*imax*CFlist[band-1])
-                        LUT = "0:{},{}:{}".format(offset, imax, imax*calfact*omax+offset)
+                        LUT = "0:{},{}:{}".format(offset, imax, (imax*calfact+offset)*omax)
                     elif info.stretch == "rd":
                         #LUT = "0:0,%f:%f" %(imax,imax*CFlist[band-1])
                         LUT = "0:{},{}:{}".format(offset, imax, imax*calfact+offset)
@@ -642,9 +642,13 @@ def calcStats(args, info):
                         # oLUT = [0, 0.375, 0.625, 0.75, 0.875, 1]
                         iLUT = [0, 0.125, 0.25, 0.375, 1.0]
                         oLUT = [0, 0.675, 0.85, 0.9675, 1.2]
-                        #lLUT = map(lambda x: "%f:%f"%(iLUT[x]/CFlist[band-1],oLUT[x]*omax), range(len(iLUT)))
-                        lLUT = map(lambda x: "{}:{}".format(iLUT[x]*imax, oLUT[x]*(calfact*omax*imax+offset)), range(len(iLUT)))
-                        LUT = ",".join(lLUT)
+                        lLUT = map(lambda x: "{}:{}".format(
+                            iLUT[x]*imax,
+                            (iLUT[x]*imax*calfact+offset)*omax*oLUT[x]/iLUT[x]
+                        ), range(1,len(iLUT)))
+                        lLUT2 = ["0:0"]
+                        logger.info(lLUT2+lLUT)
+                        LUT = ",".join(lLUT2+lLUT)
                         
                 if info.stretch != "ns":
                     logger.debug("Band Calibration Factors: %i %i %i", band, CFlist[band - 1][0], CFlist[band - 1][1])
@@ -1574,9 +1578,10 @@ def getDGXmlData(xmlpath, stretch):
 
                 logger.info("%s: \n\tabsCalFactor %f\n\teffectiveBandwidth %f\n\tEarth-Sun distance %f"
                             "\n\tEsun %f\n\tSun angle %f\n\tSun elev %f\n\tGain %f\n\tBias %f"
-                            "\n\tUnits factor %f\n\tReflectance correction %f\n\tRadiance correction %f", satband,
-                            abscal, effbandw, des, Esun, sunAngle, sunEl, gain, bias, units_factor, refl_fact,
-                            rad_fact)
+                            "\n\tUnits factor %f\n\tReflectance correction %f\n\tReflectance offset %f"
+                            "\n\tRadiance correction %f\n\tRadiance offset %f", satband,abscal, effbandw,
+                            des, Esun, sunAngle, sunEl, gain, bias, units_factor, refl_fact, refl_offset,
+                            rad_fact, bias)
 
                 if stretch == "rd":
                     calibDict[band] = (rad_fact, bias)
