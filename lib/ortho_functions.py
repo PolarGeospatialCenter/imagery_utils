@@ -263,11 +263,13 @@ def buildParentArgumentParser():
                         help="skip warping step")
     parser.add_argument("--skip-dem-overlap-check", action='store_true', default=False,
                         help="skip verification of image-DEM overlap")
-    parser.add_argument("--no-pyramids", action='store_true', default=False, help='suppress calculation of output '
-                                                                                  'image pyramids')
+    parser.add_argument("--no-pyramids", action='store_true', default=False,
+                        help='suppress calculation of output image pyramids')
     parser.add_argument("--pyramid-type", choices=['near', 'cubic'], default='near', help='pyramid resampling strategy')
-    parser.add_argument("--ortho-height", type=int, help='constant elevation to use for orthorectification (value '
-                                                         'should be in meters above the wgs84 ellipoid)')
+    parser.add_argument("--ortho-height", type=int,
+                        help='constant elevation to use for orthorectification (value should be in meters above '
+                        'the wgs84 ellipoid)')
+    parser.add_argument("--version", action='version', version="imagery_utils v{}".format(utils.package_version))
 
     return parser, pos_arg_keys
 
