@@ -633,22 +633,23 @@ def calcStats(args, info):
                     calfact,offset = CFlist[band-1]
                     if info.stretch == "rf":
                         #LUT = "0:0,%f:%f" %(imax,omax*imax*CFlist[band-1])
-                        LUT = "0:{},{}:{}".format(offset, imax, (imax*calfact+offset)*omax)
+                        LUT = "0:{},{}:{}".format(offset*omax, imax, (imax*calfact+offset)*omax)
                     elif info.stretch == "rd":
                         #LUT = "0:0,%f:%f" %(imax,imax*CFlist[band-1])
                         LUT = "0:{},{}:{}".format(offset, imax, imax*calfact+offset)
                     elif info.stretch == "mr":
-                        # iLUT = [0, 0.125, 0.25, 0.375, 0.625, 1]
-                        # oLUT = [0, 0.375, 0.625, 0.75, 0.875, 1]
-                        iLUT = [0, 0.125, 0.25, 0.375, 1.0]
-                        oLUT = [0, 0.675, 0.85, 0.9675, 1.2]
+                        iLUT = [0, 0.125, 0.25, 0.375, 0.625, 1]
+                        oLUT = [0, 0.375, 0.625, 0.75, 0.875, 1]
+                        #iLUT = [0, 0.125, 0.25, 0.375, 1.0]
+                        #oLUT = [0, 0.675, 0.85, 0.9675, 1.2]
                         lLUT = map(lambda x: "{}:{}".format(
                             iLUT[x]*imax,
                             (iLUT[x]*imax*calfact+offset)*omax*oLUT[x]/iLUT[x]
                         ), range(1,len(iLUT)))
                         lLUT2 = ["0:0"]
-                        logger.info(lLUT2+lLUT)
+                        lLUT3=lLUT2+lLUT
                         LUT = ",".join(lLUT2+lLUT)
+                    logger.info(LUT)
                         
                 if info.stretch != "ns":
                     logger.debug("Band Calibration Factors: %i %i %i", band, CFlist[band - 1][0], CFlist[band - 1][1])
