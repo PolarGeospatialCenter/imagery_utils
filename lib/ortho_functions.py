@@ -651,7 +651,7 @@ def calcStats(args, info):
                         lLUT2 = ["0:0"]
                         lLUT3=lLUT2+lLUT
                         LUT = ",".join(lLUT2+lLUT)
-                    logger.info(LUT)
+                    #logger.info(LUT)
                         
                 if info.stretch != "ns":
                     logger.debug("Band Calibration Factors: %i %i %i", band, CFlist[band - 1][0], CFlist[band - 1][1])
@@ -1143,6 +1143,7 @@ def WriteOutputMetadata(args, info):
 
     ####  Determine custom MD
     dMD = {}
+    dMD["VERSION"] = "imagery_utils v{}".format(utils.package_version)
     tm = datetime.today()
     dMD["PROCESS_DATE"] = tm.strftime("%d-%b-%Y %H:%M:%S")
     if not args.skip_warp:

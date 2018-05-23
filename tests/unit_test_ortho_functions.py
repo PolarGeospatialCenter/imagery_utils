@@ -16,7 +16,7 @@ from lib import ortho_functions, utils
 # logger.addHandler(lso)
 
 
-class TestMetadata(unittest.TestCase):
+class TestReadMetadata(unittest.TestCase):
     
     def setUp(self):
         self.stretch = 'rf'
@@ -189,6 +189,41 @@ class TestMetadata(unittest.TestCase):
                 if 0 in calib_dict and 1 in calib_dict: ### check bands are not equal
                     self.assertNotEqual(calib_dict[0][0], calib_dict[1])
 
+
+class TestWriteMetadata(unittest.TestCase):
+    
+    def setUp(self):
+        self.fn = 'WV01_20091004222215_1020010009B33500_09OCT04222215-P1BS-052532098020_01_P019.ntf'
+        self.mf = os.path.join(os.path.join(test_dir, 'output', 'WV01_20091004222215_1020010009B33500_09OCT04222215-P1BS-052532098020_01_P019.xml'))
+        
+        self.test_lines = [
+            '<BITDEPTH>Byte</BITDEPTH>',
+            '<COMPRESSION>lzw</COMPRESSION>',
+            '<EPSG_CODE>4326</EPSG_CODE>',
+            '<FORMAT>GTiff</FORMAT>',
+            '<STRETCH>rf</STRETCH>',
+            '<VERSION>imagery_utils v{}</VERSION>'.format(utils.package_version),
+            '<ORTHO_HEIGHT>2568.0</ORTHO_HEIGHT>',
+            '<RESAMPLEMETHOD>near</RESAMPLEMETHOD>'
+        ]
+    
+    #@unittest.skip("skipping")
+    def test_parse_DG_md_file(self):
+        args = ProcessArgs(4326,'rf')
+        info = ImageInfo(self.fn, 'DigitalGlobe', 'WV01')
+        metafile = ortho_functions.GetDGMetadataPath(info.localsrc)
+        info.metapath = metafile
+        rc = ortho_functions.WriteOutputMetadata(args, info)
+        ## read meta and check content
+        f = open(self.mf)
+        contents = f.read()
+        for test_line in self.test_lines:
+            self.assertTrue(test_line in contents)
+    
+    def tearDown(self):
+        os.remove(self.mf)
+        
+        
                     
 class TestCollectFiles(unittest.TestCase):
     
@@ -245,28 +280,39 @@ class TestTargetExtent(unittest.TestCase):
         
     def test_target_extent(self):
         wkt = 'POLYGON ((810287 2505832,811661 2487415,807201 2487233,805772 2505802,810287 2505832))'
+        fn = 'GE01_20110307105821_1050410001518E00_11MAR07105821-M1BS-500657359080_01_P008.ntf'
         target_extent_geom = ogr.CreateGeometryFromWkt(wkt)
-        args = ProcessArgs()
-        info = ImageInfo()
+        args = ProcessArgs(32629, 'rf')
+        info = ImageInfo(fn)
         rc = ortho_functions.GetImageStats(args, info, target_extent_geom)
         self.assertEqual(info.extent,
                          '-te 805772.000000000000 2487233.000000000000 811661.000000000000 2505832.000000000000 ')
    
         
 class ProcessArgs(object):
-    def __init__(self):
-        self.epsg = 32629
+    def __init__(self,epsg,stretch):
+        self.epsg = epsg
         self.resolution = None
         self.rgb = False
         self.bgrn = False
-        self.stretch = 'rf'
+        self.skip_warp = False
+        self.dem = None
+        self.ortho_height = None
+        self.resample = 'near'
+        self.outtype = 'Byte'
+        self.format = "GTiff"
+        self.gtiff_compression = "lzw"
+        self.stretch = stretch
         self.spatial_ref = utils.SpatialRef(self.epsg)
 
 
 class ImageInfo(object):
-    def __init__(self):
-        self.srcfn = 'GE01_20110307105821_1050410001518E00_11MAR07105821-M1BS-500657359080_01_P008.ntf'
+    def __init__(self, fn, vendor=None, sat=None):
+        self.srcfn = fn
         self.localsrc = os.path.join(os.path.join(test_dir, 'ortho', self.srcfn))
+        self.localdst = os.path.join(os.path.join(test_dir, 'output', self.srcfn))
+        self.vendor = vendor
+        self.sat = sat
 
 
 if __name__ == '__main__':
@@ -291,7 +337,8 @@ if __name__ == '__main__':
         parser.error("Test data folder does not exist: {}".format(test_dir))
         
     test_cases = [
-        TestMetadata,
+        TestReadMetadata,
+        TestWriteMetadata,
         TestCollectFiles,
         TestDEMOverlap,
         TestTargetExtent
