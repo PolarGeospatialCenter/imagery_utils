@@ -39,6 +39,8 @@ def main():
     parser.add_argument("-l", help="PBS resources requested (mimicks qsub syntax, PBS only)")
     parser.add_argument("--dryrun", action="store_true", default=False,
                         help="print actions without executing")
+    parser.add_argument("--version", action='version', version="imagery_utils v{}".format(utils.package_version))
+
 
     #### Parse Arguments
     args = parser.parse_args()
