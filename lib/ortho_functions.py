@@ -66,55 +66,106 @@ PGC_IK_FILE = re.compile(r"""
                          """, re.I | re.X)
 
 
-EsunDict = {  # Spectral Irradiance in W/m2/um
-    'QB02_BAND_P': 1381.79,
-    'QB02_BAND_B': 1924.59,
-    'QB02_BAND_G': 1843.08,
-    'QB02_BAND_R': 1574.77,
-    'QB02_BAND_N': 1113.71,
+# EsunDict = {  # Spectral Irradiance in W/m2/um (from WRC)
+#     'QB02_BAND_P': 1381.79,
+#     'QB02_BAND_B': 1924.59,
+#     'QB02_BAND_G': 1843.08,
+#     'QB02_BAND_R': 1574.77,
+#     'QB02_BAND_N': 1113.71,
+# 
+#     'WV01_BAND_P': 1487.54715,
+# 
+#     'WV02_BAND_P': 1580.8140,
+#     'WV02_BAND_C': 1758.2229,
+#     'WV02_BAND_B': 1974.2416,
+#     'WV02_BAND_G': 1856.4104,
+#     'WV02_BAND_Y': 1738.4791,
+#     'WV02_BAND_R': 1559.4555,
+#     'WV02_BAND_RE': 1342.0695,
+#     'WV02_BAND_N': 1069.7302,
+#     'WV02_BAND_N2': 861.2866,
+# 
+#     'WV03_BAND_P': 1588.54256,
+#     'WV03_BAND_C': 1803.910899,
+#     'WV03_BAND_B': 1982.448496,
+#     'WV03_BAND_G': 1857.123219,
+#     'WV03_BAND_Y': 1746.59472,
+#     'WV03_BAND_R': 1556.972971,
+#     'WV03_BAND_RE': 1340.682185,
+#     'WV03_BAND_N': 1072.526674,
+#     'WV03_BAND_N2': 871.105797,
+#     'WV03_BAND_S1': 494.4049774,
+#     'WV03_BAND_S2': 261.6434525,
+#     'WV03_BAND_S3': 230.4614177,
+#     'WV03_BAND_S4': 196.7908515,
+#     'WV03_BAND_S5': 80.35901853,
+#     'WV03_BAND_S6': 74.81263622,
+#     'WV03_BAND_S7': 69.01250464,
+#     'WV03_BAND_S8': 59.79459729,
+# 
+#     'GE01_BAND_P': 1617,
+#     'GE01_BAND_B': 1960,
+#     'GE01_BAND_G': 1853,
+#     'GE01_BAND_R': 1505,
+#     'GE01_BAND_N': 1039,
+# 
+#     'IK01_BAND_P': 1375.8,
+#     'IK01_BAND_B': 1930.9,
+#     'IK01_BAND_G': 1854.8,
+#     'IK01_BAND_R': 1556.5,
+#     'IK01_BAND_N': 1156.9
+# }
 
-    'WV01_BAND_P': 1487.54715,
+EsunDict = {  # Spectral Irradiance in W/m2/um (from Thuillier 2003 - used by DG calibration team as of 2016)
+    'QB02_BAND_P': 1370.92,
+    'QB02_BAND_B': 1949.59,
+    'QB02_BAND_G': 1823.64,
+    'QB02_BAND_R': 1553.78,
+    'QB02_BAND_N': 1102.85,
 
-    'WV02_BAND_P': 1580.8140,
-    'WV02_BAND_C': 1758.2229,
-    'WV02_BAND_B': 1974.2416,
-    'WV02_BAND_G': 1856.4104,
-    'WV02_BAND_Y': 1738.4791,
-    'WV02_BAND_R': 1559.4555,
-    'WV02_BAND_RE': 1342.0695,
-    'WV02_BAND_N': 1069.7302,
-    'WV02_BAND_N2': 861.2866,
+    'WV01_BAND_P': 1478.62,
 
-    'WV03_BAND_P': 1588.54256,
-    'WV03_BAND_C': 1803.910899,
-    'WV03_BAND_B': 1982.448496,
-    'WV03_BAND_G': 1857.123219,
-    'WV03_BAND_Y': 1746.59472,
-    'WV03_BAND_R': 1556.972971,
-    'WV03_BAND_RE': 1340.682185,
-    'WV03_BAND_N': 1072.526674,
-    'WV03_BAND_N2': 871.105797,
-    'WV03_BAND_S1': 494.4049774,
-    'WV03_BAND_S2': 261.6434525,
-    'WV03_BAND_S3': 230.4614177,
-    'WV03_BAND_S4': 196.7908515,
-    'WV03_BAND_S5': 80.35901853,
-    'WV03_BAND_S6': 74.81263622,
-    'WV03_BAND_S7': 69.01250464,
-    'WV03_BAND_S8': 59.79459729,
+    'WV02_BAND_P': 1571.36,
+    'WV02_BAND_C': 1773.81,
+    'WV02_BAND_B': 2007.27,
+    'WV02_BAND_G': 1829.62,
+    'WV02_BAND_Y': 1701.85,
+    'WV02_BAND_R': 1538.85,
+    'WV02_BAND_RE': 1346.09,
+    'WV02_BAND_N': 1053.21,
+    'WV02_BAND_N2': 856.599,
 
-    'GE01_BAND_P': 1617,
-    'GE01_BAND_B': 1960,
-    'GE01_BAND_G': 1853,
-    'GE01_BAND_R': 1505,
-    'GE01_BAND_N': 1039,
+    'WV03_BAND_P': 1574.41,
+    'WV03_BAND_C': 1757.89,
+    'WV03_BAND_B': 2004.61,
+    'WV03_BAND_G': 1830.18,
+    'WV03_BAND_Y': 1712.07,
+    'WV03_BAND_R': 1535.33,
+    'WV03_BAND_RE': 1348.08,
+    'WV03_BAND_N': 1055.94,
+    'WV03_BAND_N2': 858.77,
+    'WV03_BAND_S1': 479.019,
+    'WV03_BAND_S2': 263.797,
+    'WV03_BAND_S3': 225.283,
+    'WV03_BAND_S4': 197.552,
+    'WV03_BAND_S5': 90.4178,
+    'WV03_BAND_S6': 85.0642,
+    'WV03_BAND_S7': 76.9507,
+    'WV03_BAND_S8': 68.0988,
 
-    'IK01_BAND_P': 1375.8,
-    'IK01_BAND_B': 1930.9,
-    'IK01_BAND_G': 1854.8,
-    'IK01_BAND_R': 1556.5,
-    'IK01_BAND_N': 1156.9
+    'GE01_BAND_P': 1610.73,
+    'GE01_BAND_B': 1993.18,
+    'GE01_BAND_G': 1828.83,
+    'GE01_BAND_R': 1491.49,
+    'GE01_BAND_N': 1022.58,
+
+    'IK01_BAND_P': 1353.25,
+    'IK01_BAND_B': 1921.26,
+    'IK01_BAND_G': 1803.28,
+    'IK01_BAND_R': 1517.76,
+    'IK01_BAND_N': 1145.8
 }
+
 
 GainDict = {  # Spectral Irradiance in W/m2/um
     'QB02_BAND_P': 0.870,
@@ -640,13 +691,16 @@ def calcStats(args, info):
                         #LUT = "0:0,%f:%f" %(imax,imax*CFlist[band-1])
                         LUT = "0:{},{}:{}".format(offset, imax, imax*calfact+offset)
                     elif info.stretch == "mr":
-                        iLUT = [0, 0.125, 0.25, 0.375, 0.625, 1]
-                        oLUT = [0, 0.375, 0.625, 0.75, 0.875, 1]
+                        # modified reflectance is rf with a non-linear curve applied according to the following histgram points
+                        iLUT = [0, 0.125, 0.25, 0.375, 0.625, 1, 1.375]
+                        oLUT = [0, 0.375, 0.625, 0.75, 0.875, 1, 1.125]
                         #iLUT = [0, 0.125, 0.25, 0.375, 1.0]
                         #oLUT = [0, 0.675, 0.85, 0.9675, 1.2]
                         lLUT = map(lambda x: "{}:{}".format(
-                            iLUT[x]*imax,
-                            (iLUT[x]*imax*calfact+offset)*omax*oLUT[x]/iLUT[x]
+                            #iLUT[x]*imax,
+                            (iLUT[x]-offset)/calfact,
+                            #(iLUT[x]*imax*calfact+offset)*omax*oLUT[x]/iLUT[x]
+                            omax*oLUT[x]
                         ), range(1,len(iLUT)))
                         lLUT2 = ["0:0"]
                         lLUT3=lLUT2+lLUT
@@ -654,7 +708,7 @@ def calcStats(args, info):
                     #logger.info(LUT)
                         
                 if info.stretch != "ns":
-                    logger.debug("Band Calibration Factors: %i %i %i", band, CFlist[band - 1][0], CFlist[band - 1][1])
+                    logger.debug("Band Calibration Factors: %i %f %f", band, CFlist[band - 1][0], CFlist[band - 1][1])
                 logger.debug("Band stretch parameters: %i %s", band, LUT)
 
                 ComplexSourceXML = ('<ComplexSource>'
