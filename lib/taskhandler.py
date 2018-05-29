@@ -137,7 +137,7 @@ def exec_cmd_mp(job):
 
 
 def exec_cmd(cmd):
-    logger.info(cmd)
+    logger.debug(cmd)
 
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
     (so, se) = p.communicate()

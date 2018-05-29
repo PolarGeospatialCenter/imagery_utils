@@ -1627,14 +1627,12 @@ def getDGXmlData(xmlpath, stretch):
 
                 abscal, effbandw = abscalfact_dict[band]
 
-                #print(abscal,des,Esun,math.cos(math.radians(sunAngle)),effbandw)
-
                 rad_fact = units_factor * gain * abscal / effbandw
                 refl_fact = units_factor * (gain * abscal * des ** 2 * math.pi) / \
                             (Esun * math.cos(math.radians(sunAngle)) * effbandw)
                 refl_offset = units_factor * (bias * des ** 2 * math.pi) / (Esun * math.cos(math.radians(sunAngle)))
 
-                logger.info("%s: \n\tabsCalFactor %f\n\teffectiveBandwidth %f\n\tEarth-Sun distance %f"
+                logger.debug("%s: \n\tabsCalFactor %f\n\teffectiveBandwidth %f\n\tEarth-Sun distance %f"
                             "\n\tEsun %f\n\tSun angle %f\n\tSun elev %f\n\tGain %f\n\tBias %f"
                             "\n\tUnits factor %f\n\tReflectance correction %f\n\tReflectance offset %f"
                             "\n\tRadiance correction %f\n\tRadiance offset %f", satband,abscal, effbandw,
