@@ -1,6 +1,7 @@
 import unittest, os, sys, glob, shutil, argparse, logging
 import gdal, ogr, osr, gdalconst
 import xml
+import numpy as np
 
 script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
 root_dir = os.path.dirname(script_dir)
@@ -287,8 +288,123 @@ class TestTargetExtent(unittest.TestCase):
         rc = ortho_functions.GetImageStats(args, info, target_extent_geom)
         self.assertEqual(info.extent,
                          '-te 805772.000000000000 2487233.000000000000 811661.000000000000 2505832.000000000000 ')
-   
-        
+
+
+def img_as_array(img_file, band=1):
+    """
+    Open image as numpy array using GDAL.
+
+    :param img_file: <str> path to image file
+    :param band: <int> band to be opened (default=1)
+    :return: <numpy.ndarray> image as 2d array
+    """
+    new_img = gdal.Open(img_file, gdal.GA_ReadOnly)
+    band = new_img.GetRasterBand(band)
+    new_arr = band.ReadAsArray()
+
+    return new_arr
+
+
+class TestOutputDataValues(unittest.TestCase):
+
+    def setUp(self):
+        image_new = os.path.join(test_dir, 'output')
+        image_old = os.path.join(test_dir, 'output_static')
+
+        # find images
+        self.new_imgs = sorted(glob.glob(os.path.join(image_new, "*.tif")))
+        self.old_imgs = sorted(glob.glob(os.path.join(image_old, "*.tif")))
+
+        # if no images found, explain why
+        if not self.new_imgs:
+            print("No images in self.new_imgs; run 'func_test_ortho.py' to generate images")
+        elif not self.old_imgs:
+            print("No images in self.old_imgs; create or populate 'output_static' directory with images using previous "
+                  "version of the codebase")
+
+        if not self.new_imgs or not self.old_imgs:
+            sys.exit(-1)
+
+    # GE01
+    def test_GE01_rf_image_equivalence(self):
+        # select images
+        target_image = 'GE01_11OCT122053047-P1BS-10504100009FD100_u08rf3031.tif'
+        new = self.new_imgs[target_image in self.new_imgs]
+        old = self.old_imgs[target_image in self.old_imgs]
+
+        self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
+
+    # IK01
+    def test_IK01_rf_image_equivalence(self):
+        # select images
+        target_image = 'IK01_20050319201700_2005031920171340000011627450_po_333838_msi_0000000_u08rf3413.tif'
+        new = self.new_imgs[target_image in self.new_imgs]
+        old = self.old_imgs[target_image in self.old_imgs]
+
+        self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
+
+    # QB02
+    def test_QB02_ns_image_equivalence(self):
+        # select images
+        target_image = 'QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006_u08ns3413.tif'
+        new = self.new_imgs[target_image in self.new_imgs]
+        old = self.old_imgs[target_image in self.old_imgs]
+
+        self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
+
+    def test_QB02_rd_image_equivalence(self):
+        # select images
+        target_image = 'QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006_u16rd3413.tif'
+        new = self.new_imgs[target_image in self.new_imgs]
+        old = self.old_imgs[target_image in self.old_imgs]
+
+        self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
+
+    def test_QB02_rf_image_equivalence(self):
+        # select images
+        target_image = 'QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006_u08rf3413.tif'
+        new = self.new_imgs[target_image in self.new_imgs]
+        old = self.old_imgs[target_image in self.old_imgs]
+
+        self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
+
+    def test_QB02_mr_image_equivalence(self):
+        # select images
+        target_image = 'QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006_f32mr3413.img'
+        new = self.new_imgs[target_image in self.new_imgs]
+        old = self.old_imgs[target_image in self.old_imgs]
+
+        self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
+
+    # WV01
+    def test_WV01_rf_image_equivalence(self):
+        # select images
+        target_image = 'WV01_20120326222942_102001001B02FA00_12MAR26222942-P1BS-052596100010_03_P007_u08rf3413.tif'
+        new = self.new_imgs[target_image in self.new_imgs]
+        old = self.old_imgs[target_image in self.old_imgs]
+
+        self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
+
+    # WV02
+    def test_WV02_rf_image_equivalence(self):
+        # select images
+        target_image = \
+            'WV02_20100423190859_1030010005C7AF00_10APR23190859-M2AS_R1C1-052462689010_01_P001_u08rf26910.tif'
+        new = self.new_imgs[target_image in self.new_imgs]
+        old = self.old_imgs[target_image in self.old_imgs]
+
+        self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
+
+    # WV03
+    def test_WV03_rf_image_equivalence(self):
+        # select images
+        target_image = 'WV03_20140919212947_104001000227BF00_14SEP19212947-M1BS-500191821040_01_P002_u08rf3413.tif'
+        new = self.new_imgs[target_image in self.new_imgs]
+        old = self.old_imgs[target_image in self.old_imgs]
+
+        self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
+
+
 class ProcessArgs(object):
     def __init__(self,epsg,stretch):
         self.epsg = epsg
@@ -341,7 +457,8 @@ if __name__ == '__main__':
         TestWriteMetadata,
         TestCollectFiles,
         TestDEMOverlap,
-        TestTargetExtent
+        TestTargetExtent,
+        TestOutputDataValues
     ]
     
     suites = []
