@@ -218,6 +218,7 @@ class TestWriteMetadata(unittest.TestCase):
         ## read meta and check content
         f = open(self.mf)
         contents = f.read()
+        f.close()
         for test_line in self.test_lines:
             self.assertTrue(test_line in contents)
     
