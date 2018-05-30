@@ -1,5 +1,6 @@
 import unittest, os, sys, glob, shutil, argparse, logging, math
 import gdal, ogr, osr, gdalconst
+import numpy as np
 
 script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
 root_dir = os.path.dirname(script_dir)
@@ -309,7 +310,79 @@ class TestMosaicImageInfo(unittest.TestCase):
         self.assertNotIn('WV02_20131123162834_10300100293C3400_13NOV23162834-P1BS-500408660030_01_P005_u08mr3413.tif',
                          filter_list)
 
- 
+
+def img_as_array(img_file, band=1):
+    """
+    Open image as numpy array using GDAL.
+
+    :param img_file: <str> path to image file
+    :param band: <int> band to be opened (default=1)
+    :return: <numpy.ndarray> image as 2d array
+    """
+    new_img = gdal.Open(img_file, gdal.GA_ReadOnly)
+    band = new_img.GetRasterBand(band)
+    new_arr = band.ReadAsArray()
+
+    return new_arr
+
+
+class TestMosaicDataValues(unittest.TestCase):
+
+    def setUp(self):
+        image_new = os.path.join(test_dir, 'output')
+        image_old = os.path.join(test_dir, 'output_static')
+
+        # find images
+        self.new_imgs = sorted(glob.glob(os.path.join(image_new, "*.tif")))
+        self.old_imgs = sorted(glob.glob(os.path.join(image_old, "*.tif")))
+
+        # if no images found, explain why
+        if not self.new_imgs:
+            print("No images in self.new_imgs; run 'func_test_mosaic.py' to generate images")
+        elif not self.old_imgs:
+            print("No images in self.old_imgs; create or populate 'output_static' directory with mosaics using "
+                  "previous version of the codebase")
+
+        if not self.new_imgs or not self.old_imgs:
+            sys.exit(-1)
+
+    # one
+    def test_mosaic_one_equivalence(self):
+        # select images
+        target_image = 'testmosaic1_1_1.tif'
+        new = self.new_imgs[target_image in self.new_imgs]
+        old = self.old_imgs[target_image in self.old_imgs]
+
+        self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
+
+    # two
+    def test_mosaic_two_equivalence(self):
+        # select images
+        target_image = 'testmosaic2_1_1.tif'
+        new = self.new_imgs[target_image in self.new_imgs]
+        old = self.old_imgs[target_image in self.old_imgs]
+
+        self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
+
+    # three
+    def test_mosaic_three_equivalence(self):
+        # select images
+        target_image = 'testmosaic3_1_1.tif'
+        new = self.new_imgs[target_image in self.new_imgs]
+        old = self.old_imgs[target_image in self.old_imgs]
+
+        self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
+
+    # four
+    def test_mosaic_four_equivalence(self):
+        # select images
+        target_image = 'testmosaic4_1_1.tif'
+        new = self.new_imgs[target_image in self.new_imgs]
+        old = self.old_imgs[target_image in self.old_imgs]
+
+        self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
+
+
 class MosaicArgs(object):
     def __init__(self):
         self.resolution = None
@@ -347,7 +420,8 @@ if __name__ == '__main__':
         parser.error("Test data folder does not exist: {}".format(test_dir))
         
     test_cases = [
-        TestMosaicImageInfo
+        TestMosaicImageInfo,
+        TestMosaicDataValues
     ]
     
     suites = []
