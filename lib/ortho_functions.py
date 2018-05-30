@@ -651,7 +651,14 @@ def calcStats(args, info):
             omax = 2047.0
         elif args.outtype == "Float32":
             omax = 2047.0
-    else:
+    elif info.stretch == 'mr':
+        if args.outtype == "Byte":
+            omax = 255.0
+        elif args.outtype == "UInt16":
+            omax = 2047.0
+        elif args.outtype == "Float32":
+            omax = 1.0
+    elif info.stretch == 'rf':
         if args.outtype == "Byte":
             omax = 200.0
         elif args.outtype == "UInt16":
@@ -685,27 +692,19 @@ def calcStats(args, info):
                 else:
                     calfact,offset = CFlist[band-1]
                     if info.stretch == "rf":
-                        #LUT = "0:0,%f:%f" %(imax,omax*imax*CFlist[band-1])
                         LUT = "0:{},{}:{}".format(offset*omax, imax, (imax*calfact+offset)*omax)
                     elif info.stretch == "rd":
-                        #LUT = "0:0,%f:%f" %(imax,imax*CFlist[band-1])
                         LUT = "0:{},{}:{}".format(offset, imax, imax*calfact+offset)
                     elif info.stretch == "mr":
                         # modified reflectance is rf with a non-linear curve applied according to the following histgram points
-                        iLUT = [0, 0.125, 0.25, 0.375, 0.625, 1, 1.375]
-                        oLUT = [0, 0.375, 0.625, 0.75, 0.875, 1, 1.125]
-                        #iLUT = [0, 0.125, 0.25, 0.375, 1.0]
-                        #oLUT = [0, 0.675, 0.85, 0.9675, 1.2]
+                        iLUT = [0, 0.125, 0.25, 0.375, 0.625, 1]
+                        oLUT = [0, 0.375, 0.625, 0.75, 0.875, 1]
                         lLUT = map(lambda x: "{}:{}".format(
-                            #iLUT[x]*imax,
-                            (iLUT[x]-offset)/calfact,
-                            #(iLUT[x]*imax*calfact+offset)*omax*oLUT[x]/iLUT[x]
-                            omax*oLUT[x]
-                        ), range(1,len(iLUT)))
-                        lLUT2 = ["0:0"]
-                        lLUT3=lLUT2+lLUT
-                        LUT = ",".join(lLUT2+lLUT)
-                    #logger.info(LUT)
+                            (iLUT[x]-offset)/calfact, ## find original DN for each 0-1 iLUT step by applying reverse reflectance transformation
+                            omax*oLUT[x] ## output value for each 0-1 oLUT step multiplied by omax
+                        ), range(len(iLUT)))
+                        LUT = ",".join(lLUT)
+                    #logger.debug(LUT)
                         
                 if info.stretch != "ns":
                     logger.debug("Band Calibration Factors: %i %f %f", band, CFlist[band - 1][0], CFlist[band - 1][1])
