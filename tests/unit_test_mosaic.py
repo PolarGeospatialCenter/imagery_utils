@@ -383,6 +383,124 @@ class TestMosaicDataValues(unittest.TestCase):
         self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
 
 
+# same function used to create 'cutlines' and 'components', hence only 'cutlines' being verified here
+class TestMosaicCutlines(unittest.TestCase):
+
+
+    def setUp(self):
+        shp_new = os.path.join(test_dir, 'output')
+        shp_old = os.path.join(test_dir, 'output_static')
+
+        # find images
+        self.new_shps = sorted(glob.glob(os.path.join(shp_new, "*cutlines.shp")))
+        self.old_shps = sorted(glob.glob(os.path.join(shp_old, "*cutlines.shp")))
+
+        # if no images found, explain why
+        if not self.new_shps:
+            print("No cutline shapefiles in self.new_shps; run 'func_test_mosaic.py' to generate images")
+        elif not self.old_shps:
+            print("No cutline shapefiles in self.old_shps; create or populate 'output_static' directory with "
+                  "shapefiles using previous version of the codebase")
+
+        if not self.new_shps or not self.old_shps:
+            sys.exit(-1)
+
+
+    def test_cutline_one_equivalence(self):
+
+        # select shapefiles
+        target_image = 'testmosaic1_cutlines.shp'
+        new = self.new_shps[target_image in self.new_shps]
+        old = self.old_shps[target_image in self.old_shps]
+
+        # get layers
+        new_shp = ogr.Open(new)
+        new_lyr = new_shp.GetLayer()
+
+        old_shp = ogr.Open(old)
+        old_lyr = old_shp.GetLayer()
+
+        # run tests
+        self.assertEqual(new_lyr.GetExtent(), old_lyr.GetExtent())  # layer extent tuples
+        self.assertEqual(new_lyr.GetSpatialRef().ExportToWkt(), old_lyr.GetSpatialRef().ExportToWkt())  # spatial ref
+        self.assertEqual(new_lyr.GetGeomType(), old_lyr.GetGeomType())  # geom type
+        self.assertEqual(new_lyr.GetLayerDefn().GetGeomFieldCount(), old_lyr.GetLayerDefn().GetGeomFieldCount())  # field ct
+        self.assertEqual(new_lyr.GetFeatureCount(), old_lyr.GetFeatureCount())  # feature ct
+        self.assertEqual(new_lyr.GetFeature(0).ExportToJson(), old_lyr.GetFeature(0).ExportToJson()) # first feature's data + geom
+
+
+    def test_cutline_two_equivalence(self):
+
+        # select shapefiles
+        target_image = 'testmosaic2_cutlines.shp'
+        new = self.new_shps[target_image in self.new_shps]
+        old = self.old_shps[target_image in self.old_shps]
+
+        # get layers
+        new_shp = ogr.Open(new)
+        new_lyr = new_shp.GetLayer()
+
+        old_shp = ogr.Open(old)
+        old_lyr = old_shp.GetLayer()
+
+        # run tests
+        self.assertEqual(new_lyr.GetExtent(), old_lyr.GetExtent())  # layer extent tuples
+        self.assertEqual(new_lyr.GetSpatialRef().ExportToWkt(), old_lyr.GetSpatialRef().ExportToWkt())  # spatial ref
+        self.assertEqual(new_lyr.GetGeomType(), old_lyr.GetGeomType())  # geom type
+        self.assertEqual(new_lyr.GetLayerDefn().GetGeomFieldCount(), old_lyr.GetLayerDefn().GetGeomFieldCount())  # field ct
+        self.assertEqual(new_lyr.GetFeatureCount(), old_lyr.GetFeatureCount())  # feature ct
+        self.assertEqual(new_lyr.GetFeature(0).ExportToJson(), old_lyr.GetFeature(0).ExportToJson()) # first feature's data + geom
+
+
+    def test_cutline_three_equivalence(self):
+
+        # select shapefiles
+        target_image = 'testmosaic3_cutlines.shp'
+        new = self.new_shps[target_image in self.new_shps]
+        old = self.old_shps[target_image in self.old_shps]
+
+        # get layers
+        new_shp = ogr.Open(new)
+        new_lyr = new_shp.GetLayer()
+
+        old_shp = ogr.Open(old)
+        old_lyr = old_shp.GetLayer()
+
+        # run tests
+        self.assertEqual(new_lyr.GetExtent(), old_lyr.GetExtent())  # layer extent tuples
+        self.assertEqual(new_lyr.GetSpatialRef().ExportToWkt(), old_lyr.GetSpatialRef().ExportToWkt())  # spatial ref
+        self.assertEqual(new_lyr.GetGeomType(), old_lyr.GetGeomType())  # geom type
+        self.assertEqual(new_lyr.GetLayerDefn().GetGeomFieldCount(), old_lyr.GetLayerDefn().GetGeomFieldCount())  # field ct
+        self.assertEqual(new_lyr.GetFeatureCount(), old_lyr.GetFeatureCount())  # feature ct
+        self.assertEqual(new_lyr.GetFeature(0).ExportToJson(), old_lyr.GetFeature(0).ExportToJson()) # first feature's data + geom
+
+
+    def test_cutline_four_equivalence(self):
+
+        # select shapefiles
+        target_image = 'testmosaic4_cutlines.shp'
+        new = self.new_shps[target_image in self.new_shps]
+        old = self.old_shps[target_image in self.old_shps]
+
+        # get layers
+        new_shp = ogr.Open(new)
+        new_lyr = new_shp.GetLayer()
+
+        old_shp = ogr.Open(old)
+        old_lyr = old_shp.GetLayer()
+
+        # run tests
+        self.assertEqual(new_lyr.GetExtent(), old_lyr.GetExtent())  # layer extent tuples
+        self.assertEqual(new_lyr.GetSpatialRef().ExportToWkt(), old_lyr.GetSpatialRef().ExportToWkt())  # spatial ref
+        self.assertEqual(new_lyr.GetGeomType(), old_lyr.GetGeomType())  # geom type
+        self.assertEqual(new_lyr.GetLayerDefn().GetGeomFieldCount(), old_lyr.GetLayerDefn().GetGeomFieldCount())  # field ct
+        self.assertEqual(new_lyr.GetFeatureCount(), old_lyr.GetFeatureCount())  # feature ct
+        self.assertEqual(new_lyr.GetFeature(0).ExportToJson(), old_lyr.GetFeature(0).ExportToJson()) # first feature's data + geom
+
+
+# TODO: check tile shp?
+
+
 class MosaicArgs(object):
     def __init__(self):
         self.resolution = None
@@ -421,7 +539,8 @@ if __name__ == '__main__':
         
     test_cases = [
         TestMosaicImageInfo,
-        TestMosaicDataValues
+        TestMosaicDataValues,
+        TestMosaicCutlines
     ]
     
     suites = []
