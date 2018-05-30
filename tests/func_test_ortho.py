@@ -57,7 +57,7 @@ class TestOrthoFunc(unittest.TestCase):
         for test_image, epsg in test_images:
             
             srcfp = os.path.join(self.srcdir, test_image)
-            cmd = r"""python "{}" --wd /local -r 10 -p {} "{}" "{}" """.format(self.scriptpath, epsg, srcfp,
+            cmd = r"""python "{}" -r 10 -p {} "{}" "{}" """.format(self.scriptpath, epsg, srcfp,
                                                                                self.dstdir)
             p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
             se, so = p.communicate()
