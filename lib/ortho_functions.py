@@ -1433,7 +1433,7 @@ def GetCalibrationFactors(info):
             if band in calibDict:
                 CFlist.append(calibDict[band])
 
-    logger.info("Calibration factor list: %s", CFlist)
+    logger.debug("Calibration factor list: %s", CFlist)
     return CFlist
 
 
@@ -1634,10 +1634,10 @@ def getDGXmlData(xmlpath, stretch):
                 logger.debug("%s: \n\tabsCalFactor %f\n\teffectiveBandwidth %f\n\tEarth-Sun distance %f"
                             "\n\tEsun %f\n\tSun angle %f\n\tSun elev %f\n\tGain %f\n\tBias %f"
                             "\n\tUnits factor %f\n\tReflectance correction %f\n\tReflectance offset %f"
-                            "\n\tRadiance correction %f\n\tRadiance offset %f", satband,abscal, effbandw,
+                            "\n\tRadiance correction %f\n\tRadiance offset %f", satband, abscal, effbandw,
                             des, Esun, sunAngle, sunEl, gain, bias, units_factor, refl_fact, refl_offset,
                             rad_fact, bias)
-
+                
                 if stretch == "rd":
                     calibDict[band] = (rad_fact, bias)
                 else:
@@ -1662,6 +1662,7 @@ def GetIKcalibDict(metafile, stretch):
     for band in range(0, 5, 1):
         sunElStr = metadict["Sun_Angle_Elevation"]
         sunAngle = float(sunElStr.strip(" degrees"))
+        theta = 90.0 - sunAngle
         datestr = metadict["Acquisition_Date_Time"] # 2011-12-09 18:43 GMT
         d = datetime.strptime(datestr, "%Y-%m-%d %H:%M GMT")
         des = calcEarthSunDist(d)
@@ -1677,9 +1678,9 @@ def GetIKcalibDict(metafile, stretch):
 
         #print(sunAngle, des, gain, Esun)
         rad_fact = 10000.0 / (calCoef * bw)
-        refl_fact = (10000.0 * des ** 2 * math.pi) / (calCoef * bw * Esun * math.cos(math.radians(sunAngle)))
+        refl_fact = (10000.0 * des ** 2 * math.pi) / (calCoef * bw * Esun * math.cos(math.radians(theta)))
 
-        logger.info("%i: calibration coef %f, Earth-Sun distance %f, Esun %f, sun angle %f, bandwidth %f, "
+        logger.debug("%i: calibration coef %f, Earth-Sun distance %f, Esun %f, sun angle %f, bandwidth %f, "
                     "reflectance factor %f radiance factor %f", band, calCoef, des, Esun, sunAngle, bw, refl_fact,
                     rad_fact)
 
@@ -1777,14 +1778,15 @@ def GetGEcalibDict(metafile, stretch):
 
     for band in metadict["gain"].keys():
         sunAngle = float(metadict["firstLineSunElevationAngle"])
+        theta = 90.0 - sunAngle
         datestr = metadict["originalFirstLineAcquisitionDateTime"] # 2009-11-01T01:49:33.685421Z
         des = calcEarthSunDist(datetime.strptime(datestr, "%Y-%m-%dT%H:%M:%S.%fZ"))
         gain = float(metadict["gain"][band])
         Esun = EsunDict[band - 1]
 
-        #print(sunAngle, des, gain, Esun)
-        rad_fact = gain
-        refl_fact = (gain * des ** 2 * math.pi) / (Esun * math.cos(math.radians(sunAngle)))
+        logger.debug("Band {}, Sun elev: {}, Earth-Sun distance: {}, Gain: {}, Esun: {}".format(band, theta, des, gain, Esun))
+        rad_fact = gain * 10 # multiply by 10 to convert from mW/cm2/um to W/m2/um
+        refl_fact = (gain * des ** 2 * math.pi) / (Esun * math.cos(math.radians(theta)))
 
         if stretch == "rd":
             calibDict[band] = (rad_fact, 0)
