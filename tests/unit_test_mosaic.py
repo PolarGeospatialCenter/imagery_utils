@@ -339,7 +339,7 @@ class TestMosaicDataValues(unittest.TestCase):
         # if no images found, explain why
         if not self.new_imgs:
             print("No images in self.new_imgs; run 'func_test_mosaic.py' to generate images")
-        elif not self.old_imgs:
+        if not self.old_imgs:
             print("No images in self.old_imgs; create or populate 'output_static' directory with mosaics using "
                   "previous version of the codebase")
 
@@ -398,7 +398,7 @@ class TestMosaicCutlinesShp(unittest.TestCase):
         # if no images found, explain why
         if not self.new_shps:
             print("No cutline shapefiles in self.new_shps; run 'func_test_mosaic.py' to generate shapefiles")
-        elif not self.old_shps:
+        if not self.old_shps:
             print("No cutline shapefiles in self.old_shps; create or populate 'output_static' directory with "
                   "shapefiles using previous version of the codebase")
 
@@ -512,7 +512,7 @@ class TestMosaicTilesShp(unittest.TestCase):
         # if no images found, explain why
         if not self.new_shps:
             print("No tiles shapefiles in self.new_shps; run 'func_test_mosaic.py' to generate shapefiles")
-        elif not self.old_shps:
+        if not self.old_shps:
             print("No tiles shapefiles in self.old_shps; create or populate 'output_static' directory with "
                   "shapefiles using previous version of the codebase")
 
