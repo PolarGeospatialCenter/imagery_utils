@@ -128,11 +128,11 @@ class TestReadMetadata(unittest.TestCase):
             if calib_dict:
                 
                 if 5 in calib_dict:  # pan band
-                    self.assertGreater(calib_dict[5][0], 0.01)
-                    self.assertLess(calib_dict[5][0], 0.02)
+                    self.assertGreater(calib_dict[5][0], 0.1)
+                    self.assertLess(calib_dict[5][0], 0.2)
                 if 1 in calib_dict:  # blue band
-                    self.assertGreater(calib_dict[1][0], 0.01)
-                    self.assertLess(calib_dict[1][0], 0.02)
+                    self.assertGreater(calib_dict[1][0], 0.1)
+                    self.assertLess(calib_dict[1][0], 0.2)
                 if 5 in calib_dict:  # pan band bias
                     self.assertEqual(calib_dict[5][1], 0)
                 if 1 in calib_dict:  # blue band bias
@@ -159,10 +159,10 @@ class TestReadMetadata(unittest.TestCase):
                 #print(calib_dict)
                 if 4 in calib_dict:  # pan band
                     self.assertGreater(calib_dict[4][0], 0.0004)
-                    self.assertLess(calib_dict[4][0], 0.0006)
+                    self.assertLess(calib_dict[4][0], 0.0007)
                 if 0 in calib_dict:  # blue band
                     self.assertGreater(calib_dict[0][0], 0.0003)
-                    self.assertLess(calib_dict[0][0], 0.0006)
+                    self.assertLess(calib_dict[0][0], 0.0007)
                 if 4 in calib_dict:  # pan band bias
                     self.assertEqual(calib_dict[4][1], 0)
                 if 0 in calib_dict:  # blue band bias
