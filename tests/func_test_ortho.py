@@ -51,7 +51,7 @@ class TestOrthoFunc(unittest.TestCase):
             ('QB02_20070918204906_10100100072E5100_07SEP18204906-M3AS_R1C1-005656156020_01_P001.ntf',3413),
             ('WV02_20100804230742_1030010006A15800_10AUG04230742-M3DM_R1C3-052672098020_01_P001.tif',3413),
             ('GE01_11OCT122053047-P1BS-10504100009FD100.ntf',3031), #### GE01 image wth abscalfact in W/m2/um
-            ('GE01_14APR022119147-M1BS-1050410010473600.ntf',3413), #### GE01 image wth abscalfact in W/cm2/nm            
+            ('GE01_14APR022119147-M1BS-1050410010473600.ntf',3413), #### GE01 image wth abscalfact in W/cm2/nm
         ]
         
         for test_image, epsg in test_images:
@@ -121,9 +121,9 @@ class TestOrthoFunc(unittest.TestCase):
         
         for cmd in cmds:
             p = subprocess.Popen(cmd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell=True)
-            se,so = p.communicate()
-            print so
-            print se
+            se, so = p.communicate()
+            print(so)
+            print(se)
             
     # def tearDown(self):
     #     shutil.rmtree(self.dstdir)
