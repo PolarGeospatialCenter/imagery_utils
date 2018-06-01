@@ -1,5 +1,6 @@
 """Runs pgc_ortho with a variety of images and input parameters to achieve test coverage."""
 import unittest, os, sys, glob, shutil, argparse, logging, subprocess
+import platform
 import gdal, ogr, osr, gdalconst
 
 script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
@@ -22,6 +23,14 @@ class TestOrthoFunc(unittest.TestCase):
         self.srcdir = os.path.join(os.path.join(test_dir, 'ortho'))
         self.scriptpath = os.path.join(root_dir, "pgc_ortho.py")
         self.dstdir = os.path.join(script_dir, 'testdata', 'output')
+
+        if platform.system() == 'Windows':
+            self.gimpdem = r'Y:\elevation\dem\GIMP\GIMPv2\gimpdem_v2_30m.tif'
+            self.rampdem = r'Y:\elevation\dem\RAMP\RAMPv2\RAMPv2_wgs84_200m.tif'
+        else:
+            self.gimpdem = '/mnt/agic/storage00/agic/private/elevation/dem/GIMP/GIMPv2/gimpdem_v2_30m.tif'
+            self.rampdem = '/mnt/agic/storage00/agic/private/elevation/dem/RAMP/RAMPv2/RAMPv2_wgs84_200m.tif'
+
         # if os.path.isdir(self.dstdir):
         #     shutil.rmtree(self.dstdir)
         if not os.path.isdir(self.dstdir):
@@ -80,8 +89,8 @@ class TestOrthoFunc(unittest.TestCase):
             # outtype: Byte
             # gtiff compression: jpeg95
             # dem: Y:/private/elevation/dem/GIMP/GIMPv2/gimpdem_v2_30m.tif
-            r"""python "{}" -r 10 --epsg 3413 --stretch ns --resample cubic --format GTiff --outtype Byte --gtiff-compression jpeg95 --dem /mnt/agic/storage00/agic/private/elevation/dem/GIMP/GIMPv2/gimpdem_v2_30m.tif {}/QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.NTF {}"""
-            .format(self.scriptpath, self.srcdir, self.dstdir),
+            r"""python "{}" -r 10 --epsg 3413 --stretch ns --resample cubic --format GTiff --outtype Byte --gtiff-compression jpeg95 --dem {} {}/QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.NTF {}"""
+            .format(self.scriptpath, self.gimpdem, self.srcdir, self.dstdir),
            
             # epsg: 3413
             # stretch: rf
@@ -90,8 +99,8 @@ class TestOrthoFunc(unittest.TestCase):
             # outtype: Byte
             # gtiff compression: lzw
             # dem: Y:/private/elevation/dem/GIMP/GIMPv2/gimpdem_v2_30m.tif
-            r"""python "{}" -r 10 --epsg 3413 --stretch rf --resample near --format ENVI --outtype Byte --gtiff-compression lzw --dem /mnt/agic/storage00/agic/private/elevation/dem/GIMP/GIMPv2/gimpdem_v2_30m.tif {}/QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.NTF {}"""
-            .format(self.scriptpath, self.srcdir, self.dstdir),
+            r"""python "{}" -r 10 --epsg 3413 --stretch rf --resample near --format ENVI --outtype Byte --gtiff-compression lzw --dem {} {}/QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.NTF {}"""
+            .format(self.scriptpath, self.gimpdem, self.srcdir, self.dstdir),
     
             # epsg: 3413
             # stretch: mr
@@ -100,8 +109,8 @@ class TestOrthoFunc(unittest.TestCase):
             # outtype: Float32
             # gtiff compression: lzw
             # dem: Y:/private/elevation/dem/GIMP/GIMPv2/gimpdem_v2_30m.tif
-            r"""python "{}" -r 10 --epsg 3413 --stretch mr --resample near --format HFA --outtype Float32 --gtiff-compression lzw --dem /mnt/agic/storage00/agic/private/elevation/dem/GIMP/GIMPv2/gimpdem_v2_30m.tif {}/QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.NTF {}"""
-            .format(self.scriptpath, self.srcdir, self.dstdir),
+            r"""python "{}" -r 10 --epsg 3413 --stretch mr --resample near --format HFA --outtype Float32 --gtiff-compression lzw --dem {} {}/QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.NTF {}"""
+            .format(self.scriptpath, self.gimpdem, self.srcdir, self.dstdir),
     
             # epsg: 3413
             # stretch: rd
@@ -115,8 +124,8 @@ class TestOrthoFunc(unittest.TestCase):
         
             # dem: Y:/private/elevation/dem/RAMP/RAMPv2/ RAMPv2_wgs84_200m.tif
             # should fail: the image is not contained within the DEM
-            r"""python "{}" -r 10 --epsg 3413 --dem /mnt/agic/storage00/agic/private/elevation/dem/RAMP/RAMPv2/RAMPv2_wgs84_200m.tif {}/QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.NTF {}"""
-            .format(self.scriptpath, self.srcdir, self.dstdir)
+            r"""python "{}" -r 10 --epsg 3413 --dem {} {}/QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.NTF {}"""
+            .format(self.scriptpath, self.rampdem, self.srcdir, self.dstdir)
         ]
         
         for cmd in cmds:
