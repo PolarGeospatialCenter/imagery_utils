@@ -66,55 +66,106 @@ PGC_IK_FILE = re.compile(r"""
                          """, re.I | re.X)
 
 
-EsunDict = {  # Spectral Irradiance in W/m2/um
-    'QB02_BAND_P': 1381.79,
-    'QB02_BAND_B': 1924.59,
-    'QB02_BAND_G': 1843.08,
-    'QB02_BAND_R': 1574.77,
-    'QB02_BAND_N': 1113.71,
+# EsunDict = {  # Spectral Irradiance in W/m2/um (from WRC)
+#     'QB02_BAND_P': 1381.79,
+#     'QB02_BAND_B': 1924.59,
+#     'QB02_BAND_G': 1843.08,
+#     'QB02_BAND_R': 1574.77,
+#     'QB02_BAND_N': 1113.71,
+# 
+#     'WV01_BAND_P': 1487.54715,
+# 
+#     'WV02_BAND_P': 1580.8140,
+#     'WV02_BAND_C': 1758.2229,
+#     'WV02_BAND_B': 1974.2416,
+#     'WV02_BAND_G': 1856.4104,
+#     'WV02_BAND_Y': 1738.4791,
+#     'WV02_BAND_R': 1559.4555,
+#     'WV02_BAND_RE': 1342.0695,
+#     'WV02_BAND_N': 1069.7302,
+#     'WV02_BAND_N2': 861.2866,
+# 
+#     'WV03_BAND_P': 1588.54256,
+#     'WV03_BAND_C': 1803.910899,
+#     'WV03_BAND_B': 1982.448496,
+#     'WV03_BAND_G': 1857.123219,
+#     'WV03_BAND_Y': 1746.59472,
+#     'WV03_BAND_R': 1556.972971,
+#     'WV03_BAND_RE': 1340.682185,
+#     'WV03_BAND_N': 1072.526674,
+#     'WV03_BAND_N2': 871.105797,
+#     'WV03_BAND_S1': 494.4049774,
+#     'WV03_BAND_S2': 261.6434525,
+#     'WV03_BAND_S3': 230.4614177,
+#     'WV03_BAND_S4': 196.7908515,
+#     'WV03_BAND_S5': 80.35901853,
+#     'WV03_BAND_S6': 74.81263622,
+#     'WV03_BAND_S7': 69.01250464,
+#     'WV03_BAND_S8': 59.79459729,
+# 
+#     'GE01_BAND_P': 1617,
+#     'GE01_BAND_B': 1960,
+#     'GE01_BAND_G': 1853,
+#     'GE01_BAND_R': 1505,
+#     'GE01_BAND_N': 1039,
+# 
+#     'IK01_BAND_P': 1375.8,
+#     'IK01_BAND_B': 1930.9,
+#     'IK01_BAND_G': 1854.8,
+#     'IK01_BAND_R': 1556.5,
+#     'IK01_BAND_N': 1156.9
+# }
 
-    'WV01_BAND_P': 1487.54715,
+EsunDict = {  # Spectral Irradiance in W/m2/um (from Thuillier 2003 - used by DG calibration team as of 2016)
+    'QB02_BAND_P': 1370.92,
+    'QB02_BAND_B': 1949.59,
+    'QB02_BAND_G': 1823.64,
+    'QB02_BAND_R': 1553.78,
+    'QB02_BAND_N': 1102.85,
 
-    'WV02_BAND_P': 1580.8140,
-    'WV02_BAND_C': 1758.2229,
-    'WV02_BAND_B': 1974.2416,
-    'WV02_BAND_G': 1856.4104,
-    'WV02_BAND_Y': 1738.4791,
-    'WV02_BAND_R': 1559.4555,
-    'WV02_BAND_RE': 1342.0695,
-    'WV02_BAND_N': 1069.7302,
-    'WV02_BAND_N2': 861.2866,
+    'WV01_BAND_P': 1478.62,
 
-    'WV03_BAND_P': 1588.54256,
-    'WV03_BAND_C': 1803.910899,
-    'WV03_BAND_B': 1982.448496,
-    'WV03_BAND_G': 1857.123219,
-    'WV03_BAND_Y': 1746.59472,
-    'WV03_BAND_R': 1556.972971,
-    'WV03_BAND_RE': 1340.682185,
-    'WV03_BAND_N': 1072.526674,
-    'WV03_BAND_N2': 871.105797,
-    'WV03_BAND_S1': 494.4049774,
-    'WV03_BAND_S2': 261.6434525,
-    'WV03_BAND_S3': 230.4614177,
-    'WV03_BAND_S4': 196.7908515,
-    'WV03_BAND_S5': 80.35901853,
-    'WV03_BAND_S6': 74.81263622,
-    'WV03_BAND_S7': 69.01250464,
-    'WV03_BAND_S8': 59.79459729,
+    'WV02_BAND_P': 1571.36,
+    'WV02_BAND_C': 1773.81,
+    'WV02_BAND_B': 2007.27,
+    'WV02_BAND_G': 1829.62,
+    'WV02_BAND_Y': 1701.85,
+    'WV02_BAND_R': 1538.85,
+    'WV02_BAND_RE': 1346.09,
+    'WV02_BAND_N': 1053.21,
+    'WV02_BAND_N2': 856.599,
 
-    'GE01_BAND_P': 1617,
-    'GE01_BAND_B': 1960,
-    'GE01_BAND_G': 1853,
-    'GE01_BAND_R': 1505,
-    'GE01_BAND_N': 1039,
+    'WV03_BAND_P': 1574.41,
+    'WV03_BAND_C': 1757.89,
+    'WV03_BAND_B': 2004.61,
+    'WV03_BAND_G': 1830.18,
+    'WV03_BAND_Y': 1712.07,
+    'WV03_BAND_R': 1535.33,
+    'WV03_BAND_RE': 1348.08,
+    'WV03_BAND_N': 1055.94,
+    'WV03_BAND_N2': 858.77,
+    'WV03_BAND_S1': 479.019,
+    'WV03_BAND_S2': 263.797,
+    'WV03_BAND_S3': 225.283,
+    'WV03_BAND_S4': 197.552,
+    'WV03_BAND_S5': 90.4178,
+    'WV03_BAND_S6': 85.0642,
+    'WV03_BAND_S7': 76.9507,
+    'WV03_BAND_S8': 68.0988,
 
-    'IK01_BAND_P': 1375.8,
-    'IK01_BAND_B': 1930.9,
-    'IK01_BAND_G': 1854.8,
-    'IK01_BAND_R': 1556.5,
-    'IK01_BAND_N': 1156.9
+    'GE01_BAND_P': 1610.73,
+    'GE01_BAND_B': 1993.18,
+    'GE01_BAND_G': 1828.83,
+    'GE01_BAND_R': 1491.49,
+    'GE01_BAND_N': 1022.58,
+
+    'IK01_BAND_P': 1353.25,
+    'IK01_BAND_B': 1921.26,
+    'IK01_BAND_G': 1803.28,
+    'IK01_BAND_R': 1517.76,
+    'IK01_BAND_N': 1145.8
 }
+
 
 GainDict = {  # Spectral Irradiance in W/m2/um
     'QB02_BAND_P': 0.870,
@@ -600,7 +651,14 @@ def calcStats(args, info):
             omax = 2047.0
         elif args.outtype == "Float32":
             omax = 2047.0
-    else:
+    elif info.stretch == 'mr':
+        if args.outtype == "Byte":
+            omax = 255.0
+        elif args.outtype == "UInt16":
+            omax = 2047.0
+        elif args.outtype == "Float32":
+            omax = 1.0
+    elif info.stretch == 'rf':
         if args.outtype == "Byte":
             omax = 200.0
         elif args.outtype == "UInt16":
@@ -634,29 +692,22 @@ def calcStats(args, info):
                 else:
                     calfact,offset = CFlist[band-1]
                     if info.stretch == "rf":
-                        #LUT = "0:0,%f:%f" %(imax,omax*imax*CFlist[band-1])
                         LUT = "0:{},{}:{}".format(offset*omax, imax, (imax*calfact+offset)*omax)
                     elif info.stretch == "rd":
-                        #LUT = "0:0,%f:%f" %(imax,imax*CFlist[band-1])
                         LUT = "0:{},{}:{}".format(offset, imax, imax*calfact+offset)
                     elif info.stretch == "mr":
+                        # modified reflectance is rf with a non-linear curve applied according to the following histgram points
                         iLUT = [0, 0.125, 0.25, 0.375, 0.625, 1]
                         oLUT = [0, 0.375, 0.625, 0.75, 0.875, 1]
-                        #iLUT = [0, 0.125, 0.25, 0.375, 1.0]
-                        #oLUT = [0, 0.675, 0.85, 0.9675, 1.2]
                         lLUT = map(lambda x: "{}:{}".format(
-                            iLUT[x]*imax,
-                            (iLUT[x]*imax*calfact+offset)*omax*oLUT[x]/iLUT[x]
-                        ), range(1,len(iLUT)))
-                        lLUT2 = ["0:0"]
-                        lLUT3=lLUT2+lLUT
-                        LUT = ",".join(lLUT2+lLUT)
-                    #logger.info(LUT)
-
+                            (iLUT[x]-offset)/calfact, ## find original DN for each 0-1 iLUT step by applying reverse reflectance transformation
+                            omax*oLUT[x] ## output value for each 0-1 oLUT step multiplied by omax
+                        ), range(len(iLUT)))
+                        LUT = ",".join(lLUT)
+                    #logger.debug(LUT)
+                        
                 if info.stretch != "ns":
-                    logger.debug("Band Calibration Factors: {} {} {}".format(band,
-                                                                             CFlist[band - 1][0],
-                                                                             CFlist[band - 1][1]))
+                    logger.debug("Band Calibration Factors: %i %f %f", band, CFlist[band - 1][0], CFlist[band - 1][1])
                 logger.debug("Band stretch parameters: %i %s", band, LUT)
 
                 ComplexSourceXML = ('<ComplexSource>'
@@ -1382,7 +1433,7 @@ def GetCalibrationFactors(info):
             if band in calibDict:
                 CFlist.append(calibDict[band])
 
-    logger.info("Calibration factor list: %s", CFlist)
+    logger.debug("Calibration factor list: %s", CFlist)
     return CFlist
 
 
@@ -1575,20 +1626,18 @@ def getDGXmlData(xmlpath, stretch):
 
                 abscal, effbandw = abscalfact_dict[band]
 
-                #print(abscal,des,Esun,math.cos(math.radians(sunAngle)),effbandw)
-
                 rad_fact = units_factor * gain * abscal / effbandw
                 refl_fact = units_factor * (gain * abscal * des ** 2 * math.pi) / \
                             (Esun * math.cos(math.radians(sunAngle)) * effbandw)
                 refl_offset = units_factor * (bias * des ** 2 * math.pi) / (Esun * math.cos(math.radians(sunAngle)))
 
-                logger.info("%s: \n\tabsCalFactor %f\n\teffectiveBandwidth %f\n\tEarth-Sun distance %f"
+                logger.debug("%s: \n\tabsCalFactor %f\n\teffectiveBandwidth %f\n\tEarth-Sun distance %f"
                             "\n\tEsun %f\n\tSun angle %f\n\tSun elev %f\n\tGain %f\n\tBias %f"
                             "\n\tUnits factor %f\n\tReflectance correction %f\n\tReflectance offset %f"
-                            "\n\tRadiance correction %f\n\tRadiance offset %f", satband,abscal, effbandw,
+                            "\n\tRadiance correction %f\n\tRadiance offset %f", satband, abscal, effbandw,
                             des, Esun, sunAngle, sunEl, gain, bias, units_factor, refl_fact, refl_offset,
                             rad_fact, bias)
-
+                
                 if stretch == "rd":
                     calibDict[band] = (rad_fact, bias)
                 else:
@@ -1613,6 +1662,7 @@ def GetIKcalibDict(metafile, stretch):
     for band in range(0, 5, 1):
         sunElStr = metadict["Sun_Angle_Elevation"]
         sunAngle = float(sunElStr.strip(" degrees"))
+        theta = 90.0 - sunAngle
         datestr = metadict["Acquisition_Date_Time"] # 2011-12-09 18:43 GMT
         d = datetime.strptime(datestr, "%Y-%m-%d %H:%M GMT")
         des = calcEarthSunDist(d)
@@ -1628,9 +1678,9 @@ def GetIKcalibDict(metafile, stretch):
 
         #print(sunAngle, des, gain, Esun)
         rad_fact = 10000.0 / (calCoef * bw)
-        refl_fact = (10000.0 * des ** 2 * math.pi) / (calCoef * bw * Esun * math.cos(math.radians(sunAngle)))
+        refl_fact = (10000.0 * des ** 2 * math.pi) / (calCoef * bw * Esun * math.cos(math.radians(theta)))
 
-        logger.info("%i: calibration coef %f, Earth-Sun distance %f, Esun %f, sun angle %f, bandwidth %f, "
+        logger.debug("%i: calibration coef %f, Earth-Sun distance %f, Esun %f, sun angle %f, bandwidth %f, "
                     "reflectance factor %f radiance factor %f", band, calCoef, des, Esun, sunAngle, bw, refl_fact,
                     rad_fact)
 
@@ -1728,14 +1778,15 @@ def GetGEcalibDict(metafile, stretch):
 
     for band in metadict["gain"].keys():
         sunAngle = float(metadict["firstLineSunElevationAngle"])
+        theta = 90.0 - sunAngle
         datestr = metadict["originalFirstLineAcquisitionDateTime"] # 2009-11-01T01:49:33.685421Z
         des = calcEarthSunDist(datetime.strptime(datestr, "%Y-%m-%dT%H:%M:%S.%fZ"))
         gain = float(metadict["gain"][band])
         Esun = EsunDict[band - 1]
 
-        #print(sunAngle, des, gain, Esun)
-        rad_fact = gain
-        refl_fact = (gain * des ** 2 * math.pi) / (Esun * math.cos(math.radians(sunAngle)))
+        logger.debug("Band {}, Sun elev: {}, Earth-Sun distance: {}, Gain: {}, Esun: {}".format(band, theta, des, gain, Esun))
+        rad_fact = gain * 10 # multiply by 10 to convert from mW/cm2/um to W/m2/um
+        refl_fact = (gain * des ** 2 * math.pi) / (Esun * math.cos(math.radians(theta)))
 
         if stretch == "rd":
             calibDict[band] = (rad_fact, 0)
