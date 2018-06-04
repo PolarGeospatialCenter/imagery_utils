@@ -73,7 +73,7 @@ class TestNdviFunc(unittest.TestCase):
                 self.assertTrue(os.path.isfile(dstfp_xml))
                 ds = gdal.Open(dstfp)
                 dt = ds.GetRasterBand(1).DataType
-                self.assertEqual(dt, 3)
+                self.assertEqual(dt, 6)
                 ds = None
                 
     #@unittest.skip("skipping")
