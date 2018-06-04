@@ -95,6 +95,23 @@ def img_as_array(img_file, band=1):
     return new_arr
 
 
+def get_images(img_list, img_target):
+    """
+
+    :param img_list: <list> full image paths
+    :param img_target: <str> image to find from list
+    :return: <str> target image path
+    """
+    img_target_path = [i for i in img_list if img_target in i]
+
+    if not img_target_path:
+        raise Exception("No images found for target {0}".format(img_target))
+    elif len(img_target_path) > 1:
+        raise Exception("Multiple results found for target {0}; there should only be one".format(img_target))
+
+    return img_target_path[0]
+
+
 class TestNDVIDataValues(unittest.TestCase):
 
     def setUp(self):
@@ -107,20 +124,18 @@ class TestNDVIDataValues(unittest.TestCase):
 
         # if no images found, explain why
         if not self.new_imgs:
-            print("No images in self.new_imgs; run 'func_test_mosaic.py' to generate images")
+            raise Exception("No images in self.new_imgs; run 'func_test_mosaic.py' to generate images")
         if not self.old_imgs:
-            print("No images in self.old_imgs; create or populate 'output_static' directory with mosaics using "
-                  "previous version of the codebase")
+            raise Exception("No images in self.old_imgs; create or populate 'output_static' directory with mosaics "
+                            "using previous version of the codebase")
 
-        if not self.new_imgs or not self.old_imgs:
-            sys.exit(-1)
 
     # one
     def test_ndvi_equivalence(self):
         # select images
         target_image = 'WV02_20110901210434_103001000B41DC00_11SEP01210434-M1BS-052730735130_01_P007_u16rf3413_ndvi.tif'
-        new = [i for i in self.new_imgs if target_image in i][0]
-        old = [i for i in self.old_imgs if target_image in i][0]
+        new = get_images(self.new_imgs, target_image)
+        old = get_images(self.old_imgs, target_image)
 
         self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
 
@@ -128,8 +143,8 @@ class TestNDVIDataValues(unittest.TestCase):
     def test_ndvi_pansh_equivalence(self):
         # select images
         target_image = 'WV02_20110901210434_103001000B41DC00_11SEP01210434-M1BS-052730735130_01_P007_u16rf3413_pansh_ndvi.tif'
-        new = [i for i in self.new_imgs if target_image in i][0]
-        old = [i for i in self.old_imgs if target_image in i][0]
+        new = get_images(self.new_imgs, target_image)
+        old = get_images(self.old_imgs, target_image)
 
         self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
 
