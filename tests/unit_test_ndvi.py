@@ -124,7 +124,7 @@ class TestNDVIDataValues(unittest.TestCase):
 
         # if no images found, explain why
         if not self.new_imgs:
-            raise Exception("No images in self.new_imgs; run 'func_test_mosaic.py' to generate images")
+            raise Exception("No images in self.new_imgs; run 'func_test_ndvi.py' to generate images")
         if not self.old_imgs:
             raise Exception("No images in self.old_imgs; create or populate 'output_static' directory with mosaics "
                             "using previous version of the codebase")
