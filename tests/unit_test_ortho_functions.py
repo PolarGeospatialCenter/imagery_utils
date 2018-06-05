@@ -334,13 +334,10 @@ class TestOutputDataValues(unittest.TestCase):
 
         # if no images found, explain why
         if not self.new_imgs:
-            print("No images in self.new_imgs; run 'func_test_ortho.py' to generate images")
-        elif not self.old_imgs:
-            print("No images in self.old_imgs; create or populate 'output_static' directory with images using previous "
-                  "version of the codebase")
-
-        if not self.new_imgs or not self.old_imgs:
-            sys.exit(-1)
+            raise Exception("No images in self.new_imgs; run 'func_test_ortho.py' to generate images")
+        if not self.old_imgs:
+            raise Exception("No images in self.old_imgs; create or populate 'output_static' directory with mosaics "
+                            "using previous version of the codebase")
 
     # GE01
     def test_GE01_rf_image_equivalence(self):
