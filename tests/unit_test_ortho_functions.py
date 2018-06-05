@@ -1,5 +1,5 @@
-import unittest, os, sys, glob, shutil, argparse, logging
-import gdal, ogr, osr, gdalconst
+import unittest, os, sys, glob, argparse, logging
+import gdal, ogr
 import xml
 import numpy as np
 
