@@ -305,6 +305,22 @@ def img_as_array(img_file, band=1):
 
     return new_arr
 
+def get_images(img_list, img_target):
+    """
+
+    :param img_list: <list> full image paths
+    :param img_target: <str> image to find from list
+    :return: <str> target image path
+    """
+    img_target_path = [i for i in img_list if img_target in i]
+
+    if not img_target_path:
+        raise Exception("No images found for target {0}".format(img_target))
+    elif len(img_target_path) > 1:
+        raise Exception("Multiple results found for target {0}; there should only be one".format(img_target))
+
+    return img_target_path[0]
+# TODO: apply function to all tests below!
 
 class TestOutputDataValues(unittest.TestCase):
 
@@ -330,8 +346,8 @@ class TestOutputDataValues(unittest.TestCase):
     def test_GE01_rf_image_equivalence(self):
         # select images
         target_image = 'GE01_11OCT122053047-P1BS-10504100009FD100_u08rf3031.tif'
-        new = self.new_imgs[target_image in self.new_imgs]
-        old = self.old_imgs[target_image in self.old_imgs]
+        new = get_images(self.new_imgs, target_image)
+        old = get_images(self.old_imgs, target_image)
 
         self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
 
@@ -339,8 +355,8 @@ class TestOutputDataValues(unittest.TestCase):
     def test_IK01_rf_image_equivalence(self):
         # select images
         target_image = 'IK01_20050319201700_2005031920171340000011627450_po_333838_msi_0000000_u08rf3413.tif'
-        new = self.new_imgs[target_image in self.new_imgs]
-        old = self.old_imgs[target_image in self.old_imgs]
+        new = get_images(self.new_imgs, target_image)
+        old = get_images(self.old_imgs, target_image)
 
         self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
 
@@ -348,32 +364,32 @@ class TestOutputDataValues(unittest.TestCase):
     def test_QB02_ns_image_equivalence(self):
         # select images
         target_image = 'QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006_u08ns3413.tif'
-        new = self.new_imgs[target_image in self.new_imgs]
-        old = self.old_imgs[target_image in self.old_imgs]
+        new = get_images(self.new_imgs, target_image)
+        old = get_images(self.old_imgs, target_image)
 
         self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
 
     def test_QB02_rd_image_equivalence(self):
         # select images
         target_image = 'QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006_u16rd3413.tif'
-        new = self.new_imgs[target_image in self.new_imgs]
-        old = self.old_imgs[target_image in self.old_imgs]
+        new = get_images(self.new_imgs, target_image)
+        old = get_images(self.old_imgs, target_image)
 
         self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
 
     def test_QB02_rf_image_equivalence(self):
         # select images
         target_image = 'QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006_u08rf3413.tif'
-        new = self.new_imgs[target_image in self.new_imgs]
-        old = self.old_imgs[target_image in self.old_imgs]
+        new = get_images(self.new_imgs, target_image)
+        old = get_images(self.old_imgs, target_image)
 
         self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
 
     def test_QB02_mr_image_equivalence(self):
         # select images
         target_image = 'QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006_f32mr3413.img'
-        new = self.new_imgs[target_image in self.new_imgs]
-        old = self.old_imgs[target_image in self.old_imgs]
+        new = get_images(self.new_imgs, target_image)
+        old = get_images(self.old_imgs, target_image)
 
         self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
 
@@ -381,8 +397,8 @@ class TestOutputDataValues(unittest.TestCase):
     def test_WV01_rf_image_equivalence(self):
         # select images
         target_image = 'WV01_20120326222942_102001001B02FA00_12MAR26222942-P1BS-052596100010_03_P007_u08rf3413.tif'
-        new = self.new_imgs[target_image in self.new_imgs]
-        old = self.old_imgs[target_image in self.old_imgs]
+        new = get_images(self.new_imgs, target_image)
+        old = get_images(self.old_imgs, target_image)
 
         self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
 
@@ -391,8 +407,8 @@ class TestOutputDataValues(unittest.TestCase):
         # select images
         target_image = \
             'WV02_20100423190859_1030010005C7AF00_10APR23190859-M2AS_R1C1-052462689010_01_P001_u08rf26910.tif'
-        new = self.new_imgs[target_image in self.new_imgs]
-        old = self.old_imgs[target_image in self.old_imgs]
+        new = get_images(self.new_imgs, target_image)
+        old = get_images(self.old_imgs, target_image)
 
         self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
 
@@ -400,8 +416,8 @@ class TestOutputDataValues(unittest.TestCase):
     def test_WV03_rf_image_equivalence(self):
         # select images
         target_image = 'WV03_20140919212947_104001000227BF00_14SEP19212947-M1BS-500191821040_01_P002_u08rf3413.tif'
-        new = self.new_imgs[target_image in self.new_imgs]
-        old = self.old_imgs[target_image in self.old_imgs]
+        new = get_images(self.new_imgs, target_image)
+        old = get_images(self.old_imgs, target_image)
 
         self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
 
