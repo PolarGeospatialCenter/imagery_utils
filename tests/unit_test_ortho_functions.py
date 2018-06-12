@@ -320,7 +320,6 @@ def get_images(img_list, img_target):
         raise Exception("Multiple results found for target {0}; there should only be one".format(img_target))
 
     return img_target_path[0]
-# TODO: apply function to all tests below!
 
 class TestOutputDataValues(unittest.TestCase):
 
@@ -419,6 +418,91 @@ class TestOutputDataValues(unittest.TestCase):
         self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
 
 
+# TODO: test other functions (?)
+class TestOverlapCheck(unittest.TestCase):
+    def setUp(self):
+        self.srcdir = os.path.join(test_dir, 'output')
+        self.spatial_ref = utils.SpatialRef(3031)
+        self.dem = os.path.join(test_dir, 'dem', 'ramp_lowres.tif')
+        self.ortho_height = None
+        self.wd = None
+        self.skip_dem_overlap_check = True
+        self.resolution = None
+        self.rgb = False
+        self.bgrn = False
+        self.stretch = 'rf'
+
+    def test_overlap_check(self):
+        info = ortho_functions.ImageInfo()
+        info.srcfn = 'WV02_20131005052802_10300100278D8500_13OCT05052802-P1BS-500099283010_01_P004_u08rf3031.tif'
+        info.localsrc = os.path.join(self.srcdir, info.srcfn)
+        info, rc = ortho_functions.GetImageStats(self, info)
+
+        overlap = ortho_functions.overlap_check(info.geometry_wkt, self.spatial_ref, self.dem)
+        self.assertTrue(overlap)
+
+
+class TestCalcEarthSunDist(unittest.TestCase):
+    def setUp(self):
+        self.year = 2010
+        self.month = 10
+        self.day = 20
+        self.hour = 10
+        self.minute = 20
+        self.second = 10
+
+    def test_calc_esd(self):
+        esd = ortho_functions.calcEarthSunDist(self)
+        self.assertEqual(esd, 0.9957508611980816)
+
+
+class TestRPCHeight(unittest.TestCase):
+    def setUp(self):
+        self.srcdir = os.path.join(test_dir, 'ortho')
+
+    def test_rpc_height_wv01(self):
+        info = ortho_functions.ImageInfo()
+        info.localsrc = os.path.join(self.srcdir,
+                                     'WV01_20091004222215_1020010009B33500_09OCT04222215-P1BS-052532098020_01_P019.ntf')
+        h = ortho_functions.get_rpc_height(info)
+        self.assertEqual(h, 2568.0)
+
+    def test_rpc_height_wv02(self):
+        info = ortho_functions.ImageInfo()
+        info.localsrc = os.path.join(self.srcdir,
+                                     'WV02_20120719233558_103001001B998D00_12JUL19233558-M1BS-052754253040_01_P001.TIF')
+        h = ortho_functions.get_rpc_height(info)
+        self.assertEqual(h, 75.0)
+
+    def test_rpc_height_wv03(self):
+        info = ortho_functions.ImageInfo()
+        info.localsrc = os.path.join(self.srcdir,
+                                     'WV03_20140919212947_104001000227BF00_14SEP19212947-M1BS-500191821040_01_P002.NTF')
+        h = ortho_functions.get_rpc_height(info)
+        self.assertEqual(h, 149.0)
+
+    def test_rpc_height_ge01(self):
+        info = ortho_functions.ImageInfo()
+        info.localsrc = os.path.join(self.srcdir,
+                                     'GE01_20110307105821_1050410001518E00_11MAR07105821-P1BS-500657359080_01_P008.ntf')
+        h = ortho_functions.get_rpc_height(info)
+        self.assertEqual(h, 334.0)
+
+    def test_rpc_height_ik01(self):
+        info = ortho_functions.ImageInfo()
+        info.localsrc = os.path.join(self.srcdir,
+                                     'IK01_20050319201700_2005031920171340000011627450_po_333838_blu_0000000.ntf')
+        h = ortho_functions.get_rpc_height(info)
+        self.assertEqual(h, 520.0)
+
+    def test_rpc_height_qb02(self):
+        info = ortho_functions.ImageInfo()
+        info.localsrc = os.path.join(self.srcdir,
+                                     'QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.NTF')
+        h = ortho_functions.get_rpc_height(info)
+        self.assertEqual(h, 45.0)
+
+
 class ProcessArgs(object):
     def __init__(self,epsg,stretch):
         self.epsg = epsg
@@ -467,12 +551,15 @@ if __name__ == '__main__':
         parser.error("Test data folder does not exist: {}".format(test_dir))
         
     test_cases = [
-        TestReadMetadata,
-        TestWriteMetadata,
-        TestCollectFiles,
-        TestDEMOverlap,
-        TestTargetExtent,
-        TestOutputDataValues
+        #TestReadMetadata,
+        #TestWriteMetadata,
+        #TestCollectFiles,
+        #TestDEMOverlap,
+        #TestTargetExtent,
+        #TestOutputDataValues,
+        #TestRPCHeight,
+        #TestCalcEarthSunDist,
+        TestOverlapCheck
     ]
     
     suites = []
