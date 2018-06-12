@@ -1,12 +1,17 @@
-import unittest, os, sys, glob, argparse, logging
+import unittest
+import os
+import sys
+import glob
+import argparse
+import logging
 import gdal
 import numpy as np
+
+from lib import mosaic
 
 script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
 root_dir = os.path.dirname(script_dir)
 sys.path.append(root_dir)
-
-from lib import mosaic
 
 logger = logging.getLogger("logger")
 
@@ -124,12 +129,12 @@ class MosaicArgs(object):
 
 if __name__ == '__main__':
 
-    #### Set Up Arguments
+    # Set Up Arguments
     parser = argparse.ArgumentParser(description="Test imagery_utils pgc_pansharpen.py output")
 
     parser.add_argument('--testdata', help="test data directory (default is testdata folder within script directory)")
 
-    #### Parse Arguments
+    # Parse Arguments
     args = parser.parse_args()
     global test_dir
 
