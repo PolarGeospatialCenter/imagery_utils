@@ -3,3 +3,5 @@
 /tests/testdata
 *.pyc
 .idea/
+.coverage
+htmlcov/
