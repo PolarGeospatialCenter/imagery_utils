@@ -1,3 +1,5 @@
+## TODO: test individual functions!
+
 import unittest, os, sys, glob, shutil, argparse, logging, math
 import gdal, ogr, osr, gdalconst
 import numpy as np
@@ -612,6 +614,96 @@ class TestMosaicTilesShp(unittest.TestCase):
         self.assertEqual(new_lyr.GetFeature(0).ExportToJson(), old_lyr.GetFeature(0).ExportToJson()) # first feature's data + geom
 
 
+class TestMiscFunctions(unittest.TestCase):
+    def setUp(self):
+        self.srcdir = os.path.join(test_dir, 'metadata_files')
+        self.srcfn = 'QB02_20021009211710_101001000153C800_02OCT09211710-M2AS_R1C1-052075481010_01_P001.xml'
+        self.srcfile = os.path.join(self.srcdir, self.srcfn)
+        #print(self.srcfile)
+        self.dstdir_xml = os.path.join(test_dir, 'output')
+        self.dstfile_xml = os.path.join(self.dstdir_xml, self.srcfn)
+        self.dem = os.path.join(test_dir, 'dem', 'ramp_lowres.tif')
+
+        self.resolution = None
+        self.xres = 0.5
+        self.yres = 0.5
+        self.bands = 1
+        self.proj = 'PROJCS["WGS_1984_Stereographic_South_Pole",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433],AUTHORITY["EPSG","4326"]],PROJECTION["Polar_Stereographic"],PARAMETER["latitude_of_origin",-71],PARAMETER["central_meridian",0],PARAMETER["scale_factor",1],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]]]'
+        self.datatype = 3
+        self.use_exposure = True
+        self.tday = None
+        self.tyear = None
+        self.extent = [150000, -1400000, 420000, -1200000]
+        self.tilesize = [20000, 20000]
+        self.max_cc = 0.6
+        self.force_pan_to_multi = False
+        self.include_all_ms = False
+        self.median_remove = False
+        self.min_contribution_area = 20000000
+
+        self.imginfo_list = mosaic.ImageInfo(self.dem, 'IMAGE')
+
+        poly_wkt = 'POLYGON (( {} {}, {} {}, {} {}, {} {}, {} {} ))'.format(self.extent[0], self.extent[1],
+                                                                            self.extent[0], self.extent[3],
+                                                                            self.extent[2], self.extent[3],
+                                                                            self.extent[2], self.extent[1],
+                                                                            self.extent[0], self.extent[1])
+        self.extent_geom = ogr.CreateGeometryFromWkt(poly_wkt)
+
+    def test_get_exact_trimmed_geom(self):
+        xs_expected = [2502000.0, 2867000.0, 2867000.0, -2868000.0, -2868000.0, -2503000.0]
+        ys_expected = [2455500.0, 455500.0, -1544500.0, -1544500.0, 455500.0, 2455500.0]
+        geom, xs, ys = mosaic.GetExactTrimmedGeom(self.dem, step=400)
+        self.assertEqual(xs, xs_expected)
+        self.assertEqual(ys, ys_expected)
+
+    '''
+    NOTE: findVertices() is not used in the codebase, and will not be tested here
+    '''
+
+    def test_pl2xy(self):
+        # test using random, but plausible values
+        gtf = [0, 50, 10, 1000, 5, 50]
+        p_var = 10
+        l_var = 10
+        x, y = mosaic.pl2xy(gtf, None, p_var, l_var)
+        self.assertEqual(x, 500)
+        self.assertEqual(y, 1525.0)
+
+        # same test as above, but negative x coordinate (gtf[0])
+        gtf = [-50, 50, 10, 1000, 5, 50]
+        p_var = 10
+        l_var = 10
+        x, y = mosaic.pl2xy(gtf, None, p_var, l_var)
+        self.assertEqual(x, 450)
+        self.assertEqual(y, 1525.0)
+
+    def test_drange(self):
+        self.assertEqual(list(mosaic.drange(0, 5, 1)), [0, 1, 2, 3, 4])
+        self.assertEqual(list(mosaic.drange(5, 0, 1)), [])
+
+    def test_buffernum(self):
+        # note: buffernum() gives strange value if 'num' is negative (buffernum(-5, 3) returns '0-5')
+        self.assertEqual(mosaic.buffernum(10, 5), '00010')
+        self.assertEqual(mosaic.buffernum(5, 2), '05')
+
+    def test_copyall(self):
+        # make sure basic file copying works
+        if os.path.isfile(os.path.join(self.dstfile_xml)):
+            raise Exception("File {0} already exists in destination, test cannot be performed".format(self.dstfile_xml))
+        mosaic.copyall(self.srcfile, self.dstdir_xml)
+        self.assertTrue(os.path.isfile(self.srcfile))
+
+        # should return AttributeError
+        #self.assertRaises(mosaic.copyall(None, None))
+        with self.assertRaises(AttributeError) as cm:
+            mosaic.copyall(None, None)
+
+    def tearDown(self):
+        if os.path.isfile(self.dstfile_xml):
+            os.remove(self.dstfile_xml)
+
+
 class MosaicArgs(object):
     def __init__(self):
         self.resolution = None
@@ -652,7 +744,8 @@ if __name__ == '__main__':
         TestMosaicImageInfo,
         TestMosaicDataValues,
         TestMosaicCutlinesShp,
-        TestMosaicTilesShp
+        TestMosaicTilesShp,
+        TestMiscFunctions
     ]
     
     suites = []
