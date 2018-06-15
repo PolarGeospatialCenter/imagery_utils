@@ -1,5 +1,3 @@
-## TODO: test individual functions!
-
 import unittest, os, sys, glob, shutil, argparse, logging, math
 import gdal, ogr, osr, gdalconst
 import numpy as np
@@ -695,7 +693,6 @@ class TestMiscFunctions(unittest.TestCase):
         self.assertTrue(os.path.isfile(self.srcfile))
 
         # should return AttributeError
-        #self.assertRaises(mosaic.copyall(None, None))
         with self.assertRaises(AttributeError) as cm:
             mosaic.copyall(None, None)
 
