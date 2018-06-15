@@ -13,10 +13,23 @@ sys.path.append(root_dir)
 
 from lib import utils
 
+## TODO: test SpatialRef() class (?)
+
 
 class TestUtils(unittest.TestCase):
 
     def setUp(self):
+        self.output = os.path.join(test_dir, 'output')
+        if not os.path.isdir(self.output):
+            os.makedirs(self.output)
+
+        # test SpatialRef class
+        self.epsg_npole = 3413
+        self.epsg_spole = 3031
+        self.epsg_bad_1 = 'bad'
+        self.epsg_bad_2 = 1010
+
+        # test scenes to get sensor information
         self.basedir = os.path.join(test_dir, 'ortho')
         self.srcdir_ge = os.path.join(self.basedir, 'GE01_110108M0010160234A222000100252M_000500940.ntf')
         self.srcdir_ik = os.path.join(self.basedir,
@@ -25,6 +38,7 @@ class TestUtils(unittest.TestCase):
                                       'WV01_20120326222942_102001001B02FA00_12MAR26222942-P1BS-052596100010_03_P007.NTF'
                                       )
 
+        # find images from srcdir_ndvi, use self.imglist as verification list
         self.srcdir_ndvi = os.path.join(test_dir, 'ndvi', 'ortho')
         im_names = ['WV02_20110901210434_103001000B41DC00_11SEP01210434-M1BS-052730735130_01_P007_u16rf3413.tif',
                     'WV02_20110901210435_103001000B41DC00_11SEP01210435-M1BS-052730735130_01_P008_u16rf3413.tif',
@@ -32,17 +46,25 @@ class TestUtils(unittest.TestCase):
                     'WV02_20110901210501_103001000D52C800_11SEP01210501-M1BS-052560788010_01_P007_u16rf3413.tif',
                     'WV02_20110901210502_103001000D52C800_11SEP01210502-M1BS-052560788010_01_P008_u16rf3413.tif']
         self.imglist = [os.path.join(self.srcdir_ndvi, f) for f in im_names]
+        self.txtfile = os.path.join(self.output, 'img_list.txt')
+        with open(self.txtfile, 'w') as f:
+            f.write("\n".join(self.imglist))
 
+        # file to be excluded
         self.excllist = ['WV02_20110901210501_103001000D52C800_11SEP01210501-M1BS-052560788010_01_P007_u16rf3413.tif']
+        self.exclfile = os.path.join(self.output, 'excl_list.txt')
+        with open(self.exclfile, 'w') as f:
+            f.write("\n".join(self.excllist))
 
+        # create dir and empty files to be deleted
         self.dummydir = os.path.join(test_dir, 'dummy_dir')
-        # create dir
-        os.makedirs(self.dummydir)
+        if not os.path.isdir(self.dummydir):
+            os.makedirs(self.dummydir)
         self.dummyfns = [os.path.join(self.dummydir, 'stuff1.txt'), os.path.join(self.dummydir, 'stuff1.tif'),
                          os.path.join(self.dummydir, 'stuff1.xml')]
-        # create empty files
         [open(x, 'a').close() for x in self.dummyfns]
 
+        # well-known text, to be turned into geometries to test 180th parallel crossing
         self.poly_no180 = 'POLYGON (( {} {}, {} {}, {} {}, {} {}, {} {} ))'.format(-183.1, -75.2,
                                                                                    -183.1, -74,
                                                                                    -177.5, -74,
@@ -54,11 +76,28 @@ class TestUtils(unittest.TestCase):
                                                                                     179.5, -75.2,
                                                                                     -179.1, -75.2)
 
+    def test_spatial_ref(self):
+        sref_np = utils.SpatialRef(self.epsg_npole)
+        sref_sp = utils.SpatialRef(self.epsg_spole)
+        with self.assertRaises(RuntimeError) as cm:
+            utils.SpatialRef(self.epsg_bad_1)  # breaks for not being an integer
+        with self.assertRaises(RuntimeError) as cm:
+            utils.SpatialRef(self.epsg_bad_2)  # break for invalid EPSG code
+
+        self.assertTrue(isinstance(sref_np.srs, osgeo.osr.SpatialReference))
+        self.assertTrue(isinstance(sref_sp.srs, osgeo.osr.SpatialReference))
+
+        self.assertTrue(sref_np.proj4, '+proj=stere +lat_0=90 +lat_ts=70 +lon_0=-45 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs ')
+        self.assertTrue(sref_sp.proj4, '+proj=stere +lat_0=-90 +lat_ts=-71 +lon_0=0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs ')
+
+        self.assertTrue(sref_np.epsg, 3413)
+        self.assertTrue(sref_sp.epsg, 3031)
+
     def test_get_bit_depth(self):
         self.assertEqual(utils.get_bit_depth("Byte"), "u08")
         self.assertEqual(utils.get_bit_depth("UInt16"), "u16")
         self.assertEqual(utils.get_bit_depth("Float32"), "f32")
-        self.assertEqual(utils.get_bit_depth("Uint16"), None)  # logs error, returns None
+        self.assertEqual(utils.get_bit_depth("Uint16"), None)  # function logs error, and returns None
 
     def test_get_sensor(self):
         vendor, sat = utils.get_sensor(self.srcdir_ge)
@@ -74,14 +113,30 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(sat, 'wv01')
 
     def test_find_images(self):
+        # without text file
         image_list = utils.find_images(self.srcdir_ndvi, False, '.tif')
         # if windows, convert slashes so lists are comparable
         if platform.system() == "Windows":
             image_list = [il.replace("/", "\\") for il in image_list]
         self.assertEqual(sorted(image_list), sorted(self.imglist))
 
+        # with text file
+        image_list = utils.find_images(self.txtfile, True, '.tif')
+        # if windows, convert slashes so lists are comparable
+        if platform.system() == "Windows":
+            image_list = [il.replace("/", "\\") for il in image_list]
+        self.assertEqual(sorted(image_list), sorted(self.imglist))
+
     def test_find_images_with_exclude_list(self):
+        # without text files
         image_list = utils.find_images_with_exclude_list(self.srcdir_ndvi, False, '.tif', self.excllist)
+        # if windows, convert slashes so lists are comparable
+        if platform.system() == "Windows":
+            image_list = [il.replace("/", "\\") for il in image_list]
+        self.assertEqual(sorted(image_list), sorted([x for x in self.imglist if x != self.excllist[0]]))
+
+        # with text files
+        image_list = utils.find_images_with_exclude_list(self.txtfile, True, '.tif', self.exclfile)
         # if windows, convert slashes so lists are comparable
         if platform.system() == "Windows":
             image_list = [il.replace("/", "\\") for il in image_list]
@@ -105,9 +160,17 @@ class TestUtils(unittest.TestCase):
         self.assertTrue(isinstance(utils.getWrappedGeometry(ogr.CreateGeometryFromWkt(self.poly_yes180)),
                                    osgeo.ogr.Geometry))
 
+        '''
+        Cannot test for calc_y_intersection_with_180 ZeroDivisionError; code before it prevents this from happening
+        '''
+
     def tearDown(self):
         if os.path.isdir(self.dummydir):
             shutil.rmtree(self.dummydir)
+        if os.path.isfile(self.txtfile):
+            os.remove(self.txtfile)
+        if os.path.isfile(self.exclfile):
+            os.remove(self.exclfile)
 
 
 if __name__ == '__main__':
