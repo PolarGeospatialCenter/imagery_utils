@@ -418,7 +418,6 @@ class TestOutputDataValues(unittest.TestCase):
         self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
 
 
-# TODO: test other functions (?)
 class TestOverlapCheck(unittest.TestCase):
     def setUp(self):
         self.srcdir = os.path.join(test_dir, 'output')
