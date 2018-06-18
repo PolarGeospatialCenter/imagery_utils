@@ -399,6 +399,7 @@ class TestOverlapCheck(unittest.TestCase):
         self.srcdir = os.path.join(test_dir, 'output')
         self.spatial_ref = utils.SpatialRef(3031)
         self.dem = os.path.join(test_dir, 'dem', 'ramp_lowres.tif')
+        self.dem_none = None
         self.ortho_height = None
         self.wd = None
         self.skip_dem_overlap_check = True
@@ -415,6 +416,15 @@ class TestOverlapCheck(unittest.TestCase):
 
         overlap = ortho_functions.overlap_check(info.geometry_wkt, self.spatial_ref, self.dem)
         self.assertTrue(overlap)
+
+    def test_overlap_check_no_dem(self):
+        info = ortho_functions.ImageInfo()
+        info.srcfn = 'WV02_20131005052802_10300100278D8500_13OCT05052802-P1BS-500099283010_01_P004_u08rf3031.tif'
+        info.localsrc = os.path.join(self.srcdir, info.srcfn)
+        info, rc = ortho_functions.GetImageStats(self, info)
+
+        overlap = ortho_functions.overlap_check(info.geometry_wkt, self.spatial_ref, self.dem_none)
+        self.assertFalse(overlap)
 
 
 class TestCalcEarthSunDist(unittest.TestCase):
