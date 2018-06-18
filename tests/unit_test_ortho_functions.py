@@ -477,6 +477,14 @@ class TestRPCHeight(unittest.TestCase):
         h = ortho_functions.get_rpc_height(info)
         self.assertEqual(h, 45.0)
 
+    def test_rpc_height_None(self):
+        info = ortho_functions.ImageInfo()
+        info.localsrc = os.path.join(self.srcdir,
+                                     'QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.NTF')
+        info.localsrc = None
+        h = ortho_functions.get_rpc_height(info)
+        self.assertEqual(h, 0)
+
 
 class ProcessArgs(object):
     def __init__(self,epsg,stretch):
