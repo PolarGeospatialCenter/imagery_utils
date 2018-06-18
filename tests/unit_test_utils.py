@@ -13,8 +13,6 @@ sys.path.append(root_dir)
 
 from lib import utils
 
-## TODO: test SpatialRef() class (?)
-
 
 class TestUtils(unittest.TestCase):
 
