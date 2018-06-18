@@ -225,8 +225,7 @@ class TestWriteMetadata(unittest.TestCase):
     def tearDown(self):
         os.remove(self.mf)
         
-        
-                    
+
 class TestCollectFiles(unittest.TestCase):
     
     def test_gather_metadata_file(self):
