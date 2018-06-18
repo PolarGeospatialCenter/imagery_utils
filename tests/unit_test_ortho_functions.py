@@ -417,15 +417,6 @@ class TestOverlapCheck(unittest.TestCase):
         overlap = ortho_functions.overlap_check(info.geometry_wkt, self.spatial_ref, self.dem)
         self.assertTrue(overlap)
 
-    def test_overlap_check_no_dem(self):
-        info = ortho_functions.ImageInfo()
-        info.srcfn = 'WV02_20131005052802_10300100278D8500_13OCT05052802-P1BS-500099283010_01_P004_u08rf3031.tif'
-        info.localsrc = os.path.join(self.srcdir, info.srcfn)
-        info, rc = ortho_functions.GetImageStats(self, info)
-
-        overlap = ortho_functions.overlap_check(info.geometry_wkt, self.spatial_ref, self.dem_none)
-        self.assertFalse(overlap)
-
 
 class TestCalcEarthSunDist(unittest.TestCase):
     def setUp(self):
@@ -486,14 +477,6 @@ class TestRPCHeight(unittest.TestCase):
                                      'QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.NTF')
         h = ortho_functions.get_rpc_height(info)
         self.assertEqual(h, 45.0)
-
-    def test_rpc_height_None(self):
-        info = ortho_functions.ImageInfo()
-        info.localsrc = os.path.join(self.srcdir,
-                                     'QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.NTF')
-        info.localsrc = None
-        h = ortho_functions.get_rpc_height(info)
-        self.assertEqual(h, 0)
 
 
 class ProcessArgs(object):
