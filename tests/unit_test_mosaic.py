@@ -1,5 +1,5 @@
-import unittest, os, sys, glob, shutil, argparse, logging, math
-import gdal, ogr, osr, gdalconst
+import unittest, os, sys, glob, argparse, logging, math
+import gdal, ogr
 import numpy as np
 
 script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))

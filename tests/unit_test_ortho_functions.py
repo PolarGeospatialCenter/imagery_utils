@@ -1,4 +1,4 @@
-import unittest, os, sys, glob, argparse, logging
+import unittest, os, sys, glob, argparse
 import gdal, ogr
 import xml
 import numpy as np
