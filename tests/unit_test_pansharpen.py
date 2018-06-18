@@ -7,11 +7,11 @@ import logging
 import gdal
 import numpy as np
 
-from lib import mosaic
-
 script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
 root_dir = os.path.dirname(script_dir)
 sys.path.append(root_dir)
+
+from lib import mosaic
 
 logger = logging.getLogger("logger")
 
