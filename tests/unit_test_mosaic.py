@@ -338,13 +338,10 @@ class TestMosaicDataValues(unittest.TestCase):
 
         # if no images found, explain why
         if not self.new_imgs:
-            print("No images in self.new_imgs; run 'func_test_mosaic.py' to generate images")
+            raise Exception("No images in self.new_imgs; run 'func_test_mosaic.py' to generate images")
         if not self.old_imgs:
-            print("No images in self.old_imgs; create or populate 'output_static' directory with mosaics using "
-                  "previous version of the codebase")
-
-        if not self.new_imgs or not self.old_imgs:
-            sys.exit(-1)
+            raise Exception("No images in self.old_imgs; create or populate 'output_static' directory with mosaics "
+                            "using previous version of the codebase")
 
     # one
     def test_mosaic_one_equivalence(self):
@@ -397,14 +394,10 @@ class TestMosaicCutlinesShp(unittest.TestCase):
 
         # if no images found, explain why
         if not self.new_shps:
-            print("No cutline shapefiles in self.new_shps; run 'func_test_mosaic.py' to generate shapefiles")
+            raise Exception("No cutline shapefiles in self.new_shps; run 'func_test_mosaic.py' to generate shapefiles")
         if not self.old_shps:
-            print("No cutline shapefiles in self.old_shps; create or populate 'output_static' directory with "
+            raise Exception("No cutline shapefiles in self.old_shps; create or populate 'output_static' directory with "
                   "shapefiles using previous version of the codebase")
-
-        if not self.new_shps or not self.old_shps:
-            sys.exit(-1)
-
 
     def test_cutline_one_equivalence(self):
 
@@ -500,7 +493,6 @@ class TestMosaicCutlinesShp(unittest.TestCase):
 
 class TestMosaicTilesShp(unittest.TestCase):
 
-
     def setUp(self):
         shp_new = os.path.join(test_dir, 'output')
         shp_old = os.path.join(test_dir, 'output_static')
@@ -511,14 +503,10 @@ class TestMosaicTilesShp(unittest.TestCase):
 
         # if no images found, explain why
         if not self.new_shps:
-            print("No tiles shapefiles in self.new_shps; run 'func_test_mosaic.py' to generate shapefiles")
+            raise Exception("No tiles shapefiles in self.new_shps; run 'func_test_mosaic.py' to generate shapefiles")
         if not self.old_shps:
-            print("No tiles shapefiles in self.old_shps; create or populate 'output_static' directory with "
-                  "shapefiles using previous version of the codebase")
-
-        if not self.new_shps or not self.old_shps:
-            sys.exit(-1)
-
+            raise Exception("No tiles shapefiles in self.old_shps; create or populate 'output_static' directory with "
+                            "shapefiles using previous version of the codebase")
 
     def test_tile_one_equivalence(self):
 
