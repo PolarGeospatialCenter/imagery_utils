@@ -285,9 +285,9 @@ class TestTargetExtent(unittest.TestCase):
         fn = 'GE01_20110307105821_1050410001518E00_11MAR07105821-M1BS-500657359080_01_P008.ntf'
         target_extent_geom = ogr.CreateGeometryFromWkt(wkt)
         args = ProcessArgs(32629, 'rf')
-        info = ImageInfo(fn)
-        rc = ortho_functions.GetImageStats(args, info, target_extent_geom)
-        self.assertEqual(info.extent,
+        info_in = ImageInfo(fn)
+        info_out, rc = ortho_functions.GetImageStats(args, info_in, target_extent_geom)
+        self.assertEqual(info_out.extent,
                          '-te 805772.000000000000 2487233.000000000000 811661.000000000000 2505832.000000000000 ')
 
 
