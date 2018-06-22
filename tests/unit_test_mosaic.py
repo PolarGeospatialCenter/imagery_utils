@@ -1,5 +1,6 @@
-import unittest, os, sys, glob, shutil, argparse, logging, math
-import gdal, ogr, osr, gdalconst
+import unittest, os, sys, glob, argparse, logging, math
+import gdal, ogr
+import numpy as np
 
 script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
 root_dir = os.path.dirname(script_dir)
@@ -309,7 +310,385 @@ class TestMosaicImageInfo(unittest.TestCase):
         self.assertNotIn('WV02_20131123162834_10300100293C3400_13NOV23162834-P1BS-500408660030_01_P005_u08mr3413.tif',
                          filter_list)
 
- 
+
+def img_as_array(img_file, band=1):
+    """
+    Open image as numpy array using GDAL.
+
+    :param img_file: <str> path to image file
+    :param band: <int> band to be opened (default=1)
+    :return: <numpy.ndarray> image as 2d array
+    """
+    new_img = gdal.Open(img_file, gdal.GA_ReadOnly)
+    band = new_img.GetRasterBand(band)
+    new_arr = band.ReadAsArray()
+
+    return new_arr
+
+
+class TestMosaicDataValues(unittest.TestCase):
+
+    def setUp(self):
+        image_new = os.path.join(test_dir, 'output')
+        image_old = os.path.join(test_dir, 'output_static')
+
+        # find images
+        self.new_imgs = sorted(glob.glob(os.path.join(image_new, "*.tif")))
+        self.old_imgs = sorted(glob.glob(os.path.join(image_old, "*.tif")))
+
+        # if no images found, explain why
+        if not self.new_imgs:
+            raise Exception("No images in self.new_imgs; run 'func_test_mosaic.py' to generate images")
+        if not self.old_imgs:
+            raise Exception("No images in self.old_imgs; create or populate 'output_static' directory with mosaics "
+                            "using previous version of the codebase")
+
+    # one
+    def test_mosaic_one_equivalence(self):
+        # select images
+        target_image = 'testmosaic1_1_1.tif'
+        new = [i for i in self.new_imgs if target_image in i][0]
+        old = [i for i in self.old_imgs if target_image in i][0]
+
+        self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
+
+    # two
+    def test_mosaic_two_equivalence(self):
+        # select images
+        target_image = 'testmosaic2_1_1.tif'
+        new = [i for i in self.new_imgs if target_image in i][0]
+        old = [i for i in self.old_imgs if target_image in i][0]
+
+        self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
+
+    # three
+    def test_mosaic_three_equivalence(self):
+        # select images
+        target_image = 'testmosaic3_1_1.tif'
+        new = [i for i in self.new_imgs if target_image in i][0]
+        old = [i for i in self.old_imgs if target_image in i][0]
+
+        self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
+
+    # four
+    def test_mosaic_four_equivalence(self):
+        # select images
+        target_image = 'testmosaic4_1_1.tif'
+        new = [i for i in self.new_imgs if target_image in i][0]
+        old = [i for i in self.old_imgs if target_image in i][0]
+
+        self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
+
+
+# same function used to create 'cutlines' and 'components', hence only 'cutlines' being verified here
+class TestMosaicCutlinesShp(unittest.TestCase):
+
+
+    def setUp(self):
+        shp_new = os.path.join(test_dir, 'output')
+        shp_old = os.path.join(test_dir, 'output_static')
+
+        # find images
+        self.new_shps = sorted(glob.glob(os.path.join(shp_new, "*cutlines.shp")))
+        self.old_shps = sorted(glob.glob(os.path.join(shp_old, "*cutlines.shp")))
+
+        # if no images found, explain why
+        if not self.new_shps:
+            raise Exception("No cutline shapefiles in self.new_shps; run 'func_test_mosaic.py' to generate shapefiles")
+        if not self.old_shps:
+            raise Exception("No cutline shapefiles in self.old_shps; create or populate 'output_static' directory with "
+                  "shapefiles using previous version of the codebase")
+
+    def test_cutline_one_equivalence(self):
+
+        # select shapefiles
+        target_image = 'testmosaic1_cutlines.shp'
+        new = [i for i in self.new_shps if target_image in i][0]
+        old = [i for i in self.old_shps if target_image in i][0]
+
+        # get layers
+        new_shp = ogr.Open(new)
+        new_lyr = new_shp.GetLayer()
+
+        old_shp = ogr.Open(old)
+        old_lyr = old_shp.GetLayer()
+
+        # run tests
+        self.assertEqual(new_lyr.GetExtent(), old_lyr.GetExtent())  # layer extent tuples
+        self.assertEqual(new_lyr.GetSpatialRef().ExportToWkt(), old_lyr.GetSpatialRef().ExportToWkt())  # spatial ref
+        self.assertEqual(new_lyr.GetGeomType(), old_lyr.GetGeomType())  # geom type
+        self.assertEqual(new_lyr.GetLayerDefn().GetGeomFieldCount(), old_lyr.GetLayerDefn().GetGeomFieldCount())  # field ct
+        self.assertEqual(new_lyr.GetFeatureCount(), old_lyr.GetFeatureCount())  # feature ct
+        self.assertEqual(new_lyr.GetFeature(0).ExportToJson(), old_lyr.GetFeature(0).ExportToJson()) # first feature's data + geom
+
+
+    def test_cutline_two_equivalence(self):
+
+        # select shapefiles
+        target_image = 'testmosaic2_cutlines.shp'
+        new = [i for i in self.new_shps if target_image in i][0]
+        old = [i for i in self.old_shps if target_image in i][0]
+
+        # get layers
+        new_shp = ogr.Open(new)
+        new_lyr = new_shp.GetLayer()
+
+        old_shp = ogr.Open(old)
+        old_lyr = old_shp.GetLayer()
+
+        # run tests
+        self.assertEqual(new_lyr.GetExtent(), old_lyr.GetExtent())  # layer extent tuples
+        self.assertEqual(new_lyr.GetSpatialRef().ExportToWkt(), old_lyr.GetSpatialRef().ExportToWkt())  # spatial ref
+        self.assertEqual(new_lyr.GetGeomType(), old_lyr.GetGeomType())  # geom type
+        self.assertEqual(new_lyr.GetLayerDefn().GetGeomFieldCount(), old_lyr.GetLayerDefn().GetGeomFieldCount())  # field ct
+        self.assertEqual(new_lyr.GetFeatureCount(), old_lyr.GetFeatureCount())  # feature ct
+        self.assertEqual(new_lyr.GetFeature(0).ExportToJson(), old_lyr.GetFeature(0).ExportToJson()) # first feature's data + geom
+
+
+    def test_cutline_three_equivalence(self):
+
+        # select shapefiles
+        target_image = 'testmosaic3_cutlines.shp'
+        new = [i for i in self.new_shps if target_image in i][0]
+        old = [i for i in self.old_shps if target_image in i][0]
+
+        # get layers
+        new_shp = ogr.Open(new)
+        new_lyr = new_shp.GetLayer()
+
+        old_shp = ogr.Open(old)
+        old_lyr = old_shp.GetLayer()
+
+        # run tests
+        self.assertEqual(new_lyr.GetExtent(), old_lyr.GetExtent())  # layer extent tuples
+        self.assertEqual(new_lyr.GetSpatialRef().ExportToWkt(), old_lyr.GetSpatialRef().ExportToWkt())  # spatial ref
+        self.assertEqual(new_lyr.GetGeomType(), old_lyr.GetGeomType())  # geom type
+        self.assertEqual(new_lyr.GetLayerDefn().GetGeomFieldCount(), old_lyr.GetLayerDefn().GetGeomFieldCount())  # field ct
+        self.assertEqual(new_lyr.GetFeatureCount(), old_lyr.GetFeatureCount())  # feature ct
+        self.assertEqual(new_lyr.GetFeature(0).ExportToJson(), old_lyr.GetFeature(0).ExportToJson()) # first feature's data + geom
+
+
+    def test_cutline_four_equivalence(self):
+
+        # select shapefiles
+        target_image = 'testmosaic4_cutlines.shp'
+        new = [i for i in self.new_shps if target_image in i][0]
+        old = [i for i in self.old_shps if target_image in i][0]
+
+        # get layers
+        new_shp = ogr.Open(new)
+        new_lyr = new_shp.GetLayer()
+
+        old_shp = ogr.Open(old)
+        old_lyr = old_shp.GetLayer()
+
+        # run tests
+        self.assertEqual(new_lyr.GetExtent(), old_lyr.GetExtent())  # layer extent tuples
+        self.assertEqual(new_lyr.GetSpatialRef().ExportToWkt(), old_lyr.GetSpatialRef().ExportToWkt())  # spatial ref
+        self.assertEqual(new_lyr.GetGeomType(), old_lyr.GetGeomType())  # geom type
+        self.assertEqual(new_lyr.GetLayerDefn().GetGeomFieldCount(), old_lyr.GetLayerDefn().GetGeomFieldCount())  # field ct
+        self.assertEqual(new_lyr.GetFeatureCount(), old_lyr.GetFeatureCount())  # feature ct
+        self.assertEqual(new_lyr.GetFeature(0).ExportToJson(), old_lyr.GetFeature(0).ExportToJson()) # first feature's data + geom
+
+
+class TestMosaicTilesShp(unittest.TestCase):
+
+    def setUp(self):
+        shp_new = os.path.join(test_dir, 'output')
+        shp_old = os.path.join(test_dir, 'output_static')
+
+        # find images
+        self.new_shps = sorted(glob.glob(os.path.join(shp_new, "*tiles.shp")))
+        self.old_shps = sorted(glob.glob(os.path.join(shp_old, "*tiles.shp")))
+
+        # if no images found, explain why
+        if not self.new_shps:
+            raise Exception("No tiles shapefiles in self.new_shps; run 'func_test_mosaic.py' to generate shapefiles")
+        if not self.old_shps:
+            raise Exception("No tiles shapefiles in self.old_shps; create or populate 'output_static' directory with "
+                            "shapefiles using previous version of the codebase")
+
+    def test_tile_one_equivalence(self):
+
+        # select shapefiles
+        target_image = 'testmosaic1_tiles.shp'
+        new = [i for i in self.new_shps if target_image in i][0]
+        old = [i for i in self.old_shps if target_image in i][0]
+
+        # get layers
+        new_shp = ogr.Open(new)
+        new_lyr = new_shp.GetLayer()
+
+        old_shp = ogr.Open(old)
+        old_lyr = old_shp.GetLayer()
+
+        # run tests
+        self.assertEqual(new_lyr.GetExtent(), old_lyr.GetExtent())  # layer extent tuples
+        self.assertEqual(new_lyr.GetSpatialRef().ExportToWkt(), old_lyr.GetSpatialRef().ExportToWkt())  # spatial ref
+        self.assertEqual(new_lyr.GetGeomType(), old_lyr.GetGeomType())  # geom type
+        self.assertEqual(new_lyr.GetLayerDefn().GetGeomFieldCount(), old_lyr.GetLayerDefn().GetGeomFieldCount())  # field ct
+        self.assertEqual(new_lyr.GetFeatureCount(), old_lyr.GetFeatureCount())  # feature ct
+        self.assertEqual(new_lyr.GetFeature(0).ExportToJson(), old_lyr.GetFeature(0).ExportToJson()) # first feature's data + geom
+
+
+    def test_tile_two_equivalence(self):
+
+        # select shapefiles
+        target_image = 'testmosaic2_tiles.shp'
+        new = [i for i in self.new_shps if target_image in i][0]
+        old = [i for i in self.old_shps if target_image in i][0]
+
+        # get layers
+        new_shp = ogr.Open(new)
+        new_lyr = new_shp.GetLayer()
+
+        old_shp = ogr.Open(old)
+        old_lyr = old_shp.GetLayer()
+
+        # run tests
+        self.assertEqual(new_lyr.GetExtent(), old_lyr.GetExtent())  # layer extent tuples
+        self.assertEqual(new_lyr.GetSpatialRef().ExportToWkt(), old_lyr.GetSpatialRef().ExportToWkt())  # spatial ref
+        self.assertEqual(new_lyr.GetGeomType(), old_lyr.GetGeomType())  # geom type
+        self.assertEqual(new_lyr.GetLayerDefn().GetGeomFieldCount(), old_lyr.GetLayerDefn().GetGeomFieldCount())  # field ct
+        self.assertEqual(new_lyr.GetFeatureCount(), old_lyr.GetFeatureCount())  # feature ct
+        self.assertEqual(new_lyr.GetFeature(0).ExportToJson(), old_lyr.GetFeature(0).ExportToJson()) # first feature's data + geom
+
+
+    def test_tile_three_equivalence(self):
+
+        # select shapefiles
+        target_image = 'testmosaic3_tiles.shp'
+        new = [i for i in self.new_shps if target_image in i][0]
+        old = [i for i in self.old_shps if target_image in i][0]
+
+        # get layers
+        new_shp = ogr.Open(new)
+        new_lyr = new_shp.GetLayer()
+
+        old_shp = ogr.Open(old)
+        old_lyr = old_shp.GetLayer()
+
+        # run tests
+        self.assertEqual(new_lyr.GetExtent(), old_lyr.GetExtent())  # layer extent tuples
+        self.assertEqual(new_lyr.GetSpatialRef().ExportToWkt(), old_lyr.GetSpatialRef().ExportToWkt())  # spatial ref
+        self.assertEqual(new_lyr.GetGeomType(), old_lyr.GetGeomType())  # geom type
+        self.assertEqual(new_lyr.GetLayerDefn().GetGeomFieldCount(), old_lyr.GetLayerDefn().GetGeomFieldCount())  # field ct
+        self.assertEqual(new_lyr.GetFeatureCount(), old_lyr.GetFeatureCount())  # feature ct
+        self.assertEqual(new_lyr.GetFeature(0).ExportToJson(), old_lyr.GetFeature(0).ExportToJson()) # first feature's data + geom
+
+
+    def test_tile_four_equivalence(self):
+
+        # select shapefiles
+        target_image = 'testmosaic4_tiles.shp'
+        new = [i for i in self.new_shps if target_image in i][0]
+        old = [i for i in self.old_shps if target_image in i][0]
+
+        # get layers
+        new_shp = ogr.Open(new)
+        new_lyr = new_shp.GetLayer()
+
+        old_shp = ogr.Open(old)
+        old_lyr = old_shp.GetLayer()
+
+        # run tests
+        self.assertEqual(new_lyr.GetExtent(), old_lyr.GetExtent())  # layer extent tuples
+        self.assertEqual(new_lyr.GetSpatialRef().ExportToWkt(), old_lyr.GetSpatialRef().ExportToWkt())  # spatial ref
+        self.assertEqual(new_lyr.GetGeomType(), old_lyr.GetGeomType())  # geom type
+        self.assertEqual(new_lyr.GetLayerDefn().GetGeomFieldCount(), old_lyr.GetLayerDefn().GetGeomFieldCount())  # field ct
+        self.assertEqual(new_lyr.GetFeatureCount(), old_lyr.GetFeatureCount())  # feature ct
+        self.assertEqual(new_lyr.GetFeature(0).ExportToJson(), old_lyr.GetFeature(0).ExportToJson()) # first feature's data + geom
+
+
+class TestMiscFunctions(unittest.TestCase):
+    def setUp(self):
+        self.srcdir = os.path.join(test_dir, 'metadata_files')
+        self.srcfn = 'QB02_20021009211710_101001000153C800_02OCT09211710-M2AS_R1C1-052075481010_01_P001.xml'
+        self.srcfile = os.path.join(self.srcdir, self.srcfn)
+        #print(self.srcfile)
+        self.dstdir_xml = os.path.join(test_dir, 'output')
+        self.dstfile_xml = os.path.join(self.dstdir_xml, self.srcfn)
+        self.dem = os.path.join(test_dir, 'dem', 'ramp_lowres.tif')
+
+        self.resolution = None
+        self.xres = 0.5
+        self.yres = 0.5
+        self.bands = 1
+        self.proj = 'PROJCS["WGS_1984_Stereographic_South_Pole",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433],AUTHORITY["EPSG","4326"]],PROJECTION["Polar_Stereographic"],PARAMETER["latitude_of_origin",-71],PARAMETER["central_meridian",0],PARAMETER["scale_factor",1],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]]]'
+        self.datatype = 3
+        self.use_exposure = True
+        self.tday = None
+        self.tyear = None
+        self.extent = [150000, -1400000, 420000, -1200000]
+        self.tilesize = [20000, 20000]
+        self.max_cc = 0.6
+        self.force_pan_to_multi = False
+        self.include_all_ms = False
+        self.median_remove = False
+        self.min_contribution_area = 20000000
+
+        self.imginfo_list = mosaic.ImageInfo(self.dem, 'IMAGE')
+
+        poly_wkt = 'POLYGON (( {} {}, {} {}, {} {}, {} {}, {} {} ))'.format(self.extent[0], self.extent[1],
+                                                                            self.extent[0], self.extent[3],
+                                                                            self.extent[2], self.extent[3],
+                                                                            self.extent[2], self.extent[1],
+                                                                            self.extent[0], self.extent[1])
+        self.extent_geom = ogr.CreateGeometryFromWkt(poly_wkt)
+
+    def test_get_exact_trimmed_geom(self):
+        xs_expected = [2502000.0, 2867000.0, 2867000.0, -2868000.0, -2868000.0, -2503000.0]
+        ys_expected = [2455500.0, 455500.0, -1544500.0, -1544500.0, 455500.0, 2455500.0]
+        geom, xs, ys = mosaic.GetExactTrimmedGeom(self.dem, step=400)
+        self.assertEqual(xs, xs_expected)
+        self.assertEqual(ys, ys_expected)
+
+    '''
+    NOTE: findVertices() is not used in the codebase, and will not be tested here
+    '''
+
+    def test_pl2xy(self):
+        # test using random, but plausible values
+        gtf = [0, 50, 10, 1000, 5, 50]
+        p_var = 10
+        l_var = 10
+        x, y = mosaic.pl2xy(gtf, None, p_var, l_var)
+        self.assertEqual(x, 500)
+        self.assertEqual(y, 1525.0)
+
+        # same test as above, but negative x coordinate (gtf[0])
+        gtf = [-50, 50, 10, 1000, 5, 50]
+        p_var = 10
+        l_var = 10
+        x, y = mosaic.pl2xy(gtf, None, p_var, l_var)
+        self.assertEqual(x, 450)
+        self.assertEqual(y, 1525.0)
+
+    def test_drange(self):
+        self.assertEqual(list(mosaic.drange(0, 5, 1)), [0, 1, 2, 3, 4])
+        self.assertEqual(list(mosaic.drange(5, 0, 1)), [])
+
+    def test_buffernum(self):
+        # note: buffernum() gives strange value if 'num' is negative (buffernum(-5, 3) returns '0-5')
+        self.assertEqual(mosaic.buffernum(10, 5), '00010')
+        self.assertEqual(mosaic.buffernum(5, 2), '05')
+
+    def test_copyall(self):
+        # make sure basic file copying works
+        if os.path.isfile(os.path.join(self.dstfile_xml)):
+            raise Exception("File {0} already exists in destination, test cannot be performed".format(self.dstfile_xml))
+        mosaic.copyall(self.srcfile, self.dstdir_xml)
+        self.assertTrue(os.path.isfile(self.srcfile))
+
+        # should return AttributeError
+        with self.assertRaises(AttributeError) as cm:
+            mosaic.copyall(None, None)
+
+    def tearDown(self):
+        if os.path.isfile(self.dstfile_xml):
+            os.remove(self.dstfile_xml)
+
+
 class MosaicArgs(object):
     def __init__(self):
         self.resolution = None
@@ -347,7 +726,11 @@ if __name__ == '__main__':
         parser.error("Test data folder does not exist: {}".format(test_dir))
         
     test_cases = [
-        TestMosaicImageInfo
+        TestMosaicImageInfo,
+        TestMosaicDataValues,
+        TestMosaicCutlinesShp,
+        TestMosaicTilesShp,
+        TestMiscFunctions
     ]
     
     suites = []

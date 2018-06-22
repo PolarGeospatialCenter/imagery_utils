@@ -1,4 +1,4 @@
-import os, string, sys, shutil, math, glob, re, tarfile, logging, platform, argparse, subprocess
+import os, sys, shutil, math, glob, re, tarfile, logging, platform, argparse, subprocess
 from datetime import datetime, timedelta
 
 from xml.dom import minidom
