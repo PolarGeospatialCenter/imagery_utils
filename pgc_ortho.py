@@ -1,13 +1,15 @@
 import os, sys, logging, argparse
+from datetime import datetime
 from lib import ortho_functions, utils, taskhandler
 
 #### Create Loggers
 logger = logging.getLogger("logger")
 logger.setLevel(logging.DEBUG)
 
+ARGDEF_SCRATCH = os.path.join(os.path.expanduser('~'), 'scratch', 'task_bundles')
+
 
 def main():
-
     #### Set Up Arguments
     parent_parser, pos_arg_keys = ortho_functions.buildParentArgumentParser()
     parser = argparse.ArgumentParser(
@@ -19,6 +21,10 @@ def main():
                         help="submit tasks to PBS")
     parser.add_argument("--slurm", action='store_true', default=False,
                         help="submit tasks to SLURM")
+    parser.add_argument("--tasks-per-job", type=int,
+                        help="Number of tasks to bundle into a single job. (requires --pbs or --slurm option)")
+    parser.add_argument('--scratch', default=ARGDEF_SCRATCH,
+                        help="Scratch space to build task bundle text files. (default={})".format(ARGDEF_SCRATCH))
     parser.add_argument("--parallel-processes", type=int, default=1,
                         help="number of parallel processes to spawn (default 1)")
     parser.add_argument("--qsubscript",
@@ -34,6 +40,7 @@ def main():
     scriptpath = os.path.abspath(sys.argv[0])
     src = os.path.abspath(args.src)
     dstdir = os.path.abspath(args.dst)
+    scratch = os.path.abspath(args.scratch)
 
     #### Validate Required Arguments
     if os.path.isdir(src):
@@ -67,6 +74,12 @@ def main():
         parser.error("Options --pbs and --slurm are mutually exclusive")
     if (args.pbs or args.slurm) and args.parallel_processes > 1:
         parser.error("HPC Options (--pbs or --slurm) and --parallel-processes > 1 are mutually exclusive")
+    if args.tasks_per_job:
+        if not (args.pbs or args.slurm):
+            parser.error("--jobs-per-task option requires the (--pbs or --slurm) option")
+        if not os.path.isdir(args.scratch):
+            print("Creating --scratch directory: {}".format(args.scratch))
+            os.makedirs(args.scratch)
 
     #### Verify EPSG
     try:
@@ -91,7 +104,7 @@ def main():
     logger.addHandler(lso)
 
     #### Get args ready to pass to task handler
-    arg_keys_to_remove = ('l', 'qsubscript', 'dryrun', 'pbs', 'slurm', 'parallel_processes')
+    arg_keys_to_remove = ('l', 'qsubscript', 'dryrun', 'pbs', 'slurm', 'parallel_processes', 'tasks_per_job')
     arg_str_base = taskhandler.convert_optional_args_to_string(args, pos_arg_keys, arg_keys_to_remove)
 
     ## Identify source images
@@ -118,10 +131,10 @@ def main():
 
     image_list = list(set(image_list2))
     logger.info('Number of src images: %i', len(image_list))
-    
+
     ## Build task queue
     i = 0
-    task_queue = []
+    images_to_process = []
     for srcfp in image_list:
         srcdir, srcfn = os.path.split(srcfp)
         dstfp = os.path.join(dstdir, "{}_{}{}{}{}".format(
@@ -131,22 +144,78 @@ def main():
             spatial_ref.epsg,
             ortho_functions.formats[args.format]
         ))
-        
+
         done = os.path.isfile(dstfp)
         if done is False:
             i += 1
+            images_to_process.append(srcfp)
+
+    logger.info('Number of incomplete tasks: %i', i)
+
+    if len(images_to_process) == 0:
+        logger.info("No images found to process")
+        sys.exit(0)
+
+    tm = datetime.now()
+    job_count = 0
+    image_count = 0
+    scenes_in_job_count = 0
+    task_queue = []
+
+    for srcfp in images_to_process:
+        image_count += 1
+        srcdir, srcfn = os.path.split(srcfp)
+        dstfp = os.path.join(dstdir, "{}_{}{}{}{}".format(
+            os.path.splitext(srcfn)[0],
+            utils.get_bit_depth(args.outtype),
+            args.stretch,
+            spatial_ref.epsg,
+            ortho_functions.formats[args.format]
+        ))
+
+        if args.tasks_per_job:
+            # bundle tasks into text files in the dst dir and pass the text file in as src
+            scenes_in_job_count += 1
+            src_txt = os.path.join(scratch, 'Or_src_{}_{}.txt'.format(tm.strftime("%Y%m%d%H%M%S"), job_count + 1))
+
+            if scenes_in_job_count == 1:
+                # remove text file if dst already exists
+                try:
+                    os.remove(src_txt)
+                except OSError:
+                    pass
+
+            if scenes_in_job_count <= args.tasks_per_job:
+                # add to txt file
+                fh = open(src_txt, 'a')
+                fh.write("{}\n".format(srcfp))
+                fh.close()
+
+            if scenes_in_job_count == args.tasks_per_job or image_count == len(images_to_process):
+                scenes_in_job_count = 0
+                job_count += 1
+                task = taskhandler.Task(
+                    srcfn,
+                    'Or{:04g}'.format(job_count),
+                    'python',
+                    '{} {} {} {}'.format(scriptpath, arg_str_base, src_txt, dstdir),
+                    ortho_functions.process_image,
+                    [srcfp, dstfp, args]
+                )
+                task_queue.append(task)
+
+        else:
+            job_count += 1
             task = taskhandler.Task(
                 srcfn,
-                'Or{:04g}'.format(i),
+                'Or{:04g}'.format(job_count),
                 'python',
                 '{} {} {} {}'.format(scriptpath, arg_str_base, srcfp, dstdir),
                 ortho_functions.process_image,
                 [srcfp, dstfp, args]
             )
             task_queue.append(task)
-    
-    logger.info('Number of incomplete tasks: %i', i)
-    
+
     ## Run tasks
     if len(task_queue) > 0:
         logger.info("Submitting Tasks")
@@ -159,7 +228,7 @@ def main():
             else:
                 if not args.dryrun:
                     task_handler.run_tasks(task_queue)
-                
+
         elif args.slurm:
             try:
                 task_handler = taskhandler.SLURMTaskHandler(qsubpath)
@@ -168,7 +237,7 @@ def main():
             else:
                 if not args.dryrun:
                     task_handler.run_tasks(task_queue)
-            
+
         elif args.parallel_processes > 1:
             try:
                 task_handler = taskhandler.ParallelTaskHandler(args.parallel_processes)
@@ -178,14 +247,14 @@ def main():
                 logger.info("Number of child processes to spawn: %i", task_handler.num_processes)
                 if not args.dryrun:
                     task_handler.run_tasks(task_queue)
-    
+
         else:
-            
+
             results = {}
             for task in task_queue:
-                           
+
                 src, dstfp, task_arg_obj = task.method_arg_list
-                
+
                 #### Set up processing log handler
                 logfile = os.path.splitext(dstfp)[0] + ".log"
                 lfh = logging.FileHandler(logfile)
@@ -193,23 +262,23 @@ def main():
                 formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s', '%m-%d-%Y %H:%M:%S')
                 lfh.setFormatter(formatter)
                 logger.addHandler(lfh)
-                
+
                 if not args.dryrun:
                     results[task.name] = task.method(src, dstfp, task_arg_obj)
-                    
+
                 #### remove existing file handler
                 logger.removeHandler(lfh)
-            
-            #### Print Images with Errors    
+
+            #### Print Images with Errors
             for k, v in results.items():
                 if v != 0:
                     logger.warning("Failed Image: %s", k)
-        
+
         logger.info("Done")
-        
+
     else:
         logger.info("No images found to process")
-        
+
 
 if __name__ == "__main__":
     main()
