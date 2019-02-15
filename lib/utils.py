@@ -104,7 +104,7 @@ def get_sensor(srcfn):
             vendor = "GeoEye"
             sat = "IK01"
 
-    return vendor, sat
+    return vendor, sat.upper()
 
 
 def find_images(inpath, is_textfile, target_exts):
