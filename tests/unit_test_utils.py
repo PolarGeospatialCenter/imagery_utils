@@ -108,7 +108,7 @@ class TestUtils(unittest.TestCase):
 
         vendor, sat = utils.get_sensor(self.srcdir_dg)
         self.assertEqual(vendor, 'DigitalGlobe')
-        self.assertEqual(sat, 'wv01')
+        self.assertEqual(sat, 'WV01')
 
     def test_find_images(self):
         # without text file
