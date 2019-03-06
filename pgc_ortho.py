@@ -22,7 +22,8 @@ def main():
     parser.add_argument("--slurm", action='store_true', default=False,
                         help="submit tasks to SLURM")
     parser.add_argument("--tasks-per-job", type=int,
-                        help="Number of tasks to bundle into a single job. (requires --pbs or --slurm option)")
+                        help="Number of tasks to bundle into a single job. (requires --pbs or --slurm option) (Warning:"
+                             " a higher number of tasks per job may require modification of default wallclock limit.)")
     parser.add_argument('--scratch', default=ARGDEF_SCRATCH,
                         help="Scratch space to build task bundle text files. (default={})".format(ARGDEF_SCRATCH))
     parser.add_argument("--parallel-processes", type=int, default=1,
