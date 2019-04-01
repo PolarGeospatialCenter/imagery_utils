@@ -58,6 +58,9 @@ def main():
     parser.add_argument("--median-remove", action="store_true", default=False,
                         help="subtract the median from each input image before forming the mosaic in order to correct "
                              "for contrast")
+    parser.add_argument("--allow-invalid-geom", action="store_true", default=False,
+                        help="normally, if 1 or more images has a invalid geometry, a tile will not be created. this "
+                             "option will attempt to create a mosaic with the remaining valid geometries, if any.")
     parser.add_argument("--mode", choices=mosaic.MODES, default="ALL",
                         help=" mode: ALL- all steps (default), SHP- create shapefiles, MOSAIC- create tiled tifs, "
                              "TEST- create log only")
@@ -373,8 +376,12 @@ def run_mosaic(tile_builder_script, inpath, mosaicname, mosaic_dir, args, pos_ar
             logger.debug("Image has an invalid score: %s --> %i", iinfo.srcfp, iinfo.score)
 
     if not all_valid:
-        raise RuntimeError("Some source images do not have valid geometries.  Cannot proceeed")
- 
+        if not args.allow_invalid_geom:
+            raise RuntimeError("Some source images do not have valid geometries.  Cannot proceeed")
+        else:
+            logger.info("--allow-invalid-geom used; mosaic will be created using %i valid images (%i invalid \
+                        images not used.)".format(len(imginfo_list4), len(imginfo_list3)-len(imginfo_list4)))
+
     # Get stats if needed
     logger.info("Getting image metadata")
     for iinfo in imginfo_list4:
