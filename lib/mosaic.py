@@ -744,8 +744,8 @@ class DemInfo:
         status2 = [val is None for val in required_attribs2]
 
         if sum(status1) != 0 and sum(status2) != 0:
-            logger.error("Cannot determine score for image %s:\n  Sun elev\t%f\n  Cloudcover\t%f\n  Sensor\t%s\n  "
-                         "Density\t%f", self.pairname, self.sunel, self.cloudcover, self.sensor, self.density)
+            logger.error("Cannot determine score for image {}:\n  Sun elev\t{}\n  Cloudcover\t{}\n  Sensor\t{}\n  "
+                         "Density\t{}", self.pairname, self.sunel, self.cloudcover, self.sensor, self.density)
             score = -1
             
         elif self.sensor == 'QB02':
