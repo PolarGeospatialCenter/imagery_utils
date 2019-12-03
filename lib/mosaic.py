@@ -669,6 +669,12 @@ class DemInfo:
         i = feat.GetFieldIndex("AVSUNELEV")
         if i != -1:
             self.sunel = feat.GetFieldAsDouble(i)
+        if i == -1 or feat.GetFieldAsString(i) == '':
+            i = feat.GetFieldIndex("SUNEL1")
+            j = feat.GetFieldIndex("SUNEL2")
+            if i != -1 and j != -1:
+                self.sunel = min(feat.GetFieldAsDouble(i), feat.GetFieldAsDouble(j))
+
         i = feat.GetFieldIndex("CLOUDCOVER")
         if i != -1:
             self.cloudcover = feat.GetFieldAsDouble(i)/100.0
@@ -678,12 +684,23 @@ class DemInfo:
         i = feat.GetFieldIndex("PAIRNAME")
         if i != -1:
             self.pairname = feat.GetFieldAsString(i)
+
         i = feat.GetFieldIndex("CATALOGID")
         if i != -1:
             self.catid = feat.GetFieldAsString(i)
+        if i == -1 or feat.GetFieldAsString(i) == '':
+            i = feat.GetFieldIndex("CATALOGID1")
+            if i != -1:
+                self.catid = feat.GetFieldAsString(i)
+
         i = feat.GetFieldIndex("STEREOPAIR")
         if i != -1:
             self.catid2 = feat.GetFieldAsString(i)
+        if i == -1 or feat.GetFieldAsString(i) == '':
+            i = feat.GetFieldIndex("CATALOGID2")
+            if i != -1:
+                self.catid2 = feat.GetFieldAsString(i)
+
         i = feat.GetFieldIndex("SENSOR")
         if i != -1:
             self.sensor = feat.GetFieldAsString(i)
@@ -691,7 +708,8 @@ class DemInfo:
         i = feat.GetFieldIndex("ACQDATE")
         if i != -1:
             date_str = feat.GetFieldAsString(i)
-            self.acqdate = datetime.strptime(date_str[:19], "%Y-%m-%d")
+            if date_str != '':
+                self.acqdate = datetime.strptime(date_str[:19], "%Y-%m-%d")
 
         # Fields from SETSM indices
         i = feat.GetFieldIndex("DENSITY")
@@ -726,8 +744,8 @@ class DemInfo:
         status2 = [val is None for val in required_attribs2]
 
         if sum(status1) != 0 and sum(status2) != 0:
-            logger.error("Cannot determine score for image %s:\n  Sun elev\t%f\n  Cloudcover\t%f\n  Sensor\t%s\n  "
-                         "Density\t%f", self.pairname, self.sunel, self.cloudcover, self.sensor, self.density)
+            logger.error("Cannot determine score for image {}:\n  Sun elev\t{}\n  Cloudcover\t{}\n  Sensor\t{}\n  "
+                         "Density\t{}", self.pairname, self.sunel, self.cloudcover, self.sensor, self.density)
             score = -1
             
         elif self.sensor == 'QB02':
