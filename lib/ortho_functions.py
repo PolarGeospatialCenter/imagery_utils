@@ -66,57 +66,8 @@ PGC_IK_FILE = re.compile(r"""
                          """, re.I | re.X)
 
 
-# EsunDict = {  # Spectral Irradiance in W/m2/um (from WRC)
-#     'QB02_BAND_P': 1381.79,
-#     'QB02_BAND_B': 1924.59,
-#     'QB02_BAND_G': 1843.08,
-#     'QB02_BAND_R': 1574.77,
-#     'QB02_BAND_N': 1113.71,
-# 
-#     'WV01_BAND_P': 1487.54715,
-# 
-#     'WV02_BAND_P': 1580.8140,
-#     'WV02_BAND_C': 1758.2229,
-#     'WV02_BAND_B': 1974.2416,
-#     'WV02_BAND_G': 1856.4104,
-#     'WV02_BAND_Y': 1738.4791,
-#     'WV02_BAND_R': 1559.4555,
-#     'WV02_BAND_RE': 1342.0695,
-#     'WV02_BAND_N': 1069.7302,
-#     'WV02_BAND_N2': 861.2866,
-# 
-#     'WV03_BAND_P': 1588.54256,
-#     'WV03_BAND_C': 1803.910899,
-#     'WV03_BAND_B': 1982.448496,
-#     'WV03_BAND_G': 1857.123219,
-#     'WV03_BAND_Y': 1746.59472,
-#     'WV03_BAND_R': 1556.972971,
-#     'WV03_BAND_RE': 1340.682185,
-#     'WV03_BAND_N': 1072.526674,
-#     'WV03_BAND_N2': 871.105797,
-#     'WV03_BAND_S1': 494.4049774,
-#     'WV03_BAND_S2': 261.6434525,
-#     'WV03_BAND_S3': 230.4614177,
-#     'WV03_BAND_S4': 196.7908515,
-#     'WV03_BAND_S5': 80.35901853,
-#     'WV03_BAND_S6': 74.81263622,
-#     'WV03_BAND_S7': 69.01250464,
-#     'WV03_BAND_S8': 59.79459729,
-# 
-#     'GE01_BAND_P': 1617,
-#     'GE01_BAND_B': 1960,
-#     'GE01_BAND_G': 1853,
-#     'GE01_BAND_R': 1505,
-#     'GE01_BAND_N': 1039,
-# 
-#     'IK01_BAND_P': 1375.8,
-#     'IK01_BAND_B': 1930.9,
-#     'IK01_BAND_G': 1854.8,
-#     'IK01_BAND_R': 1556.5,
-#     'IK01_BAND_N': 1156.9
-# }
 
-EsunDict = {  # Spectral Irradiance in W/m2/um (from Thuillier 2003 - used by DG calibration team as of 2016)
+EsunDict = {  # Spectral Irradiance in W/m2/um (from Thuillier 2003 - used by DG calibration team as of 2016v2)
     'QB02_BAND_P': 1370.92,
     'QB02_BAND_B': 1949.59,
     'QB02_BAND_G': 1823.64,
@@ -326,7 +277,7 @@ def buildParentArgumentParser():
 
 
 def process_image(srcfp, dstfp, args, target_extent_geom=None):
-    
+
     err = 0
 
     #### Instantiate ImageInfo object
@@ -457,7 +408,7 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
             overlap = overlap_check(info.geometry_wkt, args.spatial_ref, args.dem)
             if overlap is False:
                 err = 1
-    
+
     if not os.path.isfile(info.dstfp):
         #### Warp Image
         if not err == 1 and not os.path.isfile(info.warpfile):
@@ -465,7 +416,7 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
             if rc == 1:
                 err = 1
                 logger.error("Error in image warping")
-    
+
         #### Calculate Output File
         if not err == 1 and os.path.isfile(info.warpfile):
             rc = calcStats(args, info)
@@ -643,7 +594,7 @@ def calcStats(args, info):
     prj = p.ExportToWkt()
 
     imax = 2047.0
-    
+
     if info.stretch == 'ns':
         if args.outtype == "Byte":
             omax = 255.0
@@ -705,7 +656,7 @@ def calcStats(args, info):
                         ), range(len(iLUT)))
                         LUT = ",".join(lLUT)
                     #logger.debug(LUT)
-                        
+
                 if info.stretch != "ns":
                     logger.debug("Band Calibration Factors: %i %f %f", band, CFlist[band - 1][0], CFlist[band - 1][1])
                 logger.debug("Band stretch parameters: %i %s", band, LUT)
@@ -806,7 +757,7 @@ def GetImageStats(args, info, target_extent_geom=None):
     info.sat = sat
     info.vendor = vendor
 
-    if info.vendor == 'GeoEye' and info.sat == 'IK01' and "_msi_" in info.srcfn:
+    if info.vendor == 'GeoEye' and info.sat == 'IK01' and "_msi_" in info.srcfn and not os.path.isfile(info.localsrc):
         src_image_name = info.srcfn.replace("_msi_", "_blu_")
         src_image = os.path.join(info.srcdir, src_image_name)
         info.bands = 4
@@ -914,7 +865,7 @@ def GetImageStats(args, info, target_extent_geom=None):
             lr_geom.Transform(gt_ct)
             extent_geom.Transform(gt_ct)
         logger.info("Projected extent: %s", str(extent_geom))
-        
+
         ## test user provided extent and ues if appropriate
         if target_extent_geom:
             if not extent_geom.Intersects(target_extent_geom):
@@ -922,45 +873,45 @@ def GetImageStats(args, info, target_extent_geom=None):
             else:
                 logger.info("Using user-provided extent: %s", str(target_extent_geom))
                 extent_geom = target_extent_geom
-        
+
         if rc != 1:
             info.extent_geom = extent_geom
             info.geometry_wkt = extent_geom.ExportToWkt()
             #### Get centroid and back project to geographic coords (this is neccesary for images that cross 180)
             centroid = extent_geom.Centroid()
             centroid.Transform(tg_ct)
-    
+
             #### Get projected Envelope
             minx, maxx, miny, maxy = extent_geom.GetEnvelope()
-    
+
             #print(lons)
             logger.info("Centroid: %s", str(centroid))
-    
+
             if maxlon - minlon > 180:
-    
+
                 if centroid.GetX() < 0:
                     info.centerlong = '--config CENTER_LONG -180 '
                 else:
                     info.centerlong = '--config CENTER_LONG 180 '
-    
+
             info.extent = "-te {0:.12f} {1:.12f} {2:.12f} {3:.12f} ".format(minx, miny, maxx, maxy)
-    
+
             rasterxsize_m = abs(math.sqrt((ul_geom.GetX() - ur_geom.GetX())**2 + (ul_geom.GetY() - ur_geom.GetY())**2))
             rasterysize_m = abs(math.sqrt((ul_geom.GetX() - ll_geom.GetX())**2 + (ul_geom.GetY() - ll_geom.GetY())**2))
-    
+
             resx = abs(math.sqrt((ul_geom.GetX() - ur_geom.GetX())**2 + (ul_geom.GetY() - ur_geom.GetY())**2) / xsize)
             resy = abs(math.sqrt((ul_geom.GetX() - ll_geom.GetX())**2 + (ul_geom.GetY() - ll_geom.GetY())**2) / ysize)
-    
+
             ####  Make a string for Pixel Size Specification
             if args.resolution is not None:
                 info.res = "-tr {} {} ".format(args.resolution, args.resolution)
             else:
                 info.res = "-tr {0:.12f} {1:.12f} ".format(resx, resy)
             logger.info("Original image size: %f x %f, res: %.12f x %.12f", rasterxsize_m, rasterysize_m, resx, resy)
-    
+
             #### Set RGB bands
             info.rgb_bands = ""
-    
+
             if args.rgb is True:
                 if info.bands == 1:
                     pass
@@ -973,7 +924,7 @@ def GetImageStats(args, info, target_extent_geom=None):
                 else:
                     logger.error("Cannot get rgb bands from a %i band image", info.bands)
                     rc = 1
-    
+
             if args.bgrn is True:
                 if info.bands == 1:
                     pass
@@ -984,7 +935,7 @@ def GetImageStats(args, info, target_extent_geom=None):
                 else:
                     logger.error("Cannot get bgrn bands from a %i band image", info.bands)
                     rc = 1
-              
+
             info.stretch = args.stretch
             if args.stretch == 'au':
                 if (maxlat + minlat / 2) <= -60:
@@ -1088,6 +1039,9 @@ def GetIKMetadataPath(srcfp):
     metapath = os.path.splitext(srcfp)[0] + '.txt'
 
     if not os.path.isfile(metapath):
+        metapath = os.path.splitext(srcfp)[0] + '_metadata.txt'
+
+    if not os.path.isfile(metapath):
         for b in ikMsiBands:
             mp = metapath.replace(b, 'rgb')
             if os.path.isfile(mp):
@@ -1175,10 +1129,10 @@ def WriteOutputMetadata(args, info):
         match = PGC_IK_FILE.search(info.srcfn)
         if match:
             component = match.group('cmp')
-            
+
             metad = utils.getIKMetadataAsXml(info.metapath)
             imd = ET.Element("IMD")
-            
+
             elem = metad.find('Source_Image_Metadata')
             elem.remove(elem.find('Number_of_Source_Images'))
             for child in elem.findall("Source_Image_ID"):
@@ -1186,7 +1140,7 @@ def WriteOutputMetadata(args, info):
                 if not prod_id_elem.text == component[:3]:
                     elem.remove(child)
             imd.append(elem)
-     
+
             elem = metad.find('Product_Component_Metadata')
             elem.remove(elem.find('Number_of_Components'))
             for child in elem.findall("Component_ID"):
@@ -1559,7 +1513,7 @@ def getDGXmlData(xmlpath, stretch):
         if len(xmldoc.getElementsByTagName('IMD')) >= 1:
 
             nodeIMD = xmldoc.getElementsByTagName('IMD')[0]
-            
+
             # get acquisition IMAGE tags
             nodeIMAGE = nodeIMD.getElementsByTagName('IMAGE')
 
@@ -1637,7 +1591,7 @@ def getDGXmlData(xmlpath, stretch):
                             "\n\tRadiance correction %f\n\tRadiance offset %f", satband, abscal, effbandw,
                             des, Esun, sunAngle, sunEl, gain, bias, units_factor, refl_fact, refl_offset,
                             rad_fact, bias)
-                
+
                 if stretch == "rd":
                     calibDict[band] = (rad_fact, bias)
                 else:
@@ -1704,7 +1658,7 @@ def getIKMetadata(fp_mode, metafile):
         ("Country_Code", "COUNTRY"),
         ("Percent_Component_Cloud_Cover", "CLOUDCOVER"),
         ("Sensor_Name", "SENSOR"),
-        ("Sun_Angle_Elevation", "SUN_ELEV"),        
+        ("Sun_Angle_Elevation", "SUN_ELEV"),
     ]
 
     metad = utils.getIKMetadataAsXml(metafile)
