@@ -1,4 +1,4 @@
-import os, string, sys, shutil, math, glob, re, tarfile, logging, platform, argparse, subprocess
+import os, sys, shutil, math, glob, re, tarfile, logging, platform, argparse, subprocess
 from datetime import datetime, timedelta
 
 from xml.dom import minidom
@@ -104,7 +104,7 @@ def get_sensor(srcfn):
             vendor = "GeoEye"
             sat = "IK01"
 
-    return vendor, sat
+    return vendor, sat.upper()
 
 
 def find_images(inpath, is_textfile, target_exts):

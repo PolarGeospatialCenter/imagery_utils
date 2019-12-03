@@ -1,6 +1,7 @@
-import unittest, os, sys, glob, shutil, argparse, logging
-import gdal, ogr, osr, gdalconst
+import unittest, os, sys, glob, argparse
+import gdal, ogr
 import xml
+import numpy as np
 
 script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
 root_dir = os.path.dirname(script_dir)
@@ -217,14 +218,14 @@ class TestWriteMetadata(unittest.TestCase):
         ## read meta and check content
         f = open(self.mf)
         contents = f.read()
+        f.close()
         for test_line in self.test_lines:
             self.assertTrue(test_line in contents)
     
     def tearDown(self):
         os.remove(self.mf)
         
-        
-                    
+
 class TestCollectFiles(unittest.TestCase):
     
     def test_gather_metadata_file(self):
@@ -283,12 +284,200 @@ class TestTargetExtent(unittest.TestCase):
         fn = 'GE01_20110307105821_1050410001518E00_11MAR07105821-M1BS-500657359080_01_P008.ntf'
         target_extent_geom = ogr.CreateGeometryFromWkt(wkt)
         args = ProcessArgs(32629, 'rf')
-        info = ImageInfo(fn)
-        rc = ortho_functions.GetImageStats(args, info, target_extent_geom)
-        self.assertEqual(info.extent,
+        info_in = ImageInfo(fn)
+        info_out, rc = ortho_functions.GetImageStats(args, info_in, target_extent_geom)
+        self.assertEqual(info_out.extent,
                          '-te 805772.000000000000 2487233.000000000000 811661.000000000000 2505832.000000000000 ')
-   
-        
+
+
+def img_as_array(img_file, band=1):
+    """
+    Open image as numpy array using GDAL.
+
+    :param img_file: <str> path to image file
+    :param band: <int> band to be opened (default=1)
+    :return: <numpy.ndarray> image as 2d array
+    """
+    new_img = gdal.Open(img_file, gdal.GA_ReadOnly)
+    band = new_img.GetRasterBand(band)
+    new_arr = band.ReadAsArray()
+
+    return new_arr
+
+def get_images(img_list, img_target):
+    """
+
+    :param img_list: <list> full image paths
+    :param img_target: <str> image to find from list
+    :return: <str> target image path
+    """
+    img_target_path = [i for i in img_list if img_target in i]
+
+    if not img_target_path:
+        raise Exception("No images found for target {0}".format(img_target))
+    elif len(img_target_path) > 1:
+        raise Exception("Multiple results found for target {0}; there should only be one".format(img_target))
+
+    return img_target_path[0]
+
+class TestOutputDataValues(unittest.TestCase):
+
+    def setUp(self):
+        image_new = os.path.join(test_dir, 'output')
+        image_old = os.path.join(test_dir, 'output_static')
+
+        # find images
+        self.new_imgs = sorted(glob.glob(os.path.join(image_new, "*.tif")))
+        self.old_imgs = sorted(glob.glob(os.path.join(image_old, "*.tif")))
+
+        # if no images found, explain why
+        if not self.new_imgs:
+            raise Exception("No images in self.new_imgs; run 'func_test_ortho.py' to generate images")
+        if not self.old_imgs:
+            raise Exception("No images in self.old_imgs; create or populate 'output_static' directory with mosaics "
+                            "using previous version of the codebase")
+
+    # GE01
+    def test_GE01_rf_image_equivalence(self):
+        # select images
+        target_image = 'GE01_11OCT122053047-P1BS-10504100009FD100_u08rf3031.tif'
+        new = get_images(self.new_imgs, target_image)
+        old = get_images(self.old_imgs, target_image)
+
+        self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
+
+    # IK01
+    def test_IK01_rf_image_equivalence(self):
+        # select images
+        target_image = 'IK01_20050319201700_2005031920171340000011627450_po_333838_msi_0000000_u08rf3413.tif'
+        new = get_images(self.new_imgs, target_image)
+        old = get_images(self.old_imgs, target_image)
+
+        self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
+
+    # QB02
+    def test_QB02_rf_image_equivalence(self):
+        # select images
+        target_image = 'QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006_u08rf3413.tif'
+        new = get_images(self.new_imgs, target_image)
+        old = get_images(self.old_imgs, target_image)
+
+        self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
+
+    # WV01
+    def test_WV01_rf_image_equivalence(self):
+        # select images
+        target_image = 'WV01_20120326222942_102001001B02FA00_12MAR26222942-P1BS-052596100010_03_P007_u08rf3413.tif'
+        new = get_images(self.new_imgs, target_image)
+        old = get_images(self.old_imgs, target_image)
+
+        self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
+
+    # WV02
+    def test_WV02_rf_image_equivalence(self):
+        # select images
+        target_image = \
+            'WV02_20100423190859_1030010005C7AF00_10APR23190859-M2AS_R1C1-052462689010_01_P001_u08rf26910.tif'
+        new = get_images(self.new_imgs, target_image)
+        old = get_images(self.old_imgs, target_image)
+
+        self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
+
+    # WV03
+    def test_WV03_rf_image_equivalence(self):
+        # select images
+        target_image = 'WV03_20140919212947_104001000227BF00_14SEP19212947-M1BS-500191821040_01_P002_u08rf3413.tif'
+        new = get_images(self.new_imgs, target_image)
+        old = get_images(self.old_imgs, target_image)
+
+        self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
+
+
+class TestOverlapCheck(unittest.TestCase):
+    def setUp(self):
+        self.srcdir = os.path.join(test_dir, 'output')
+        self.spatial_ref = utils.SpatialRef(3031)
+        self.dem = os.path.join(test_dir, 'dem', 'ramp_lowres.tif')
+        self.dem_none = None
+        self.ortho_height = None
+        self.wd = None
+        self.skip_dem_overlap_check = True
+        self.resolution = None
+        self.rgb = False
+        self.bgrn = False
+        self.stretch = 'rf'
+
+    def test_overlap_check(self):
+        info = ortho_functions.ImageInfo()
+        info.srcfn = 'WV02_20131005052802_10300100278D8500_13OCT05052802-P1BS-500099283010_01_P004_u08rf3031.tif'
+        info.localsrc = os.path.join(self.srcdir, info.srcfn)
+        info, rc = ortho_functions.GetImageStats(self, info)
+
+        overlap = ortho_functions.overlap_check(info.geometry_wkt, self.spatial_ref, self.dem)
+        self.assertTrue(overlap)
+
+
+class TestCalcEarthSunDist(unittest.TestCase):
+    def setUp(self):
+        self.year = 2010
+        self.month = 10
+        self.day = 20
+        self.hour = 10
+        self.minute = 20
+        self.second = 10
+
+    def test_calc_esd(self):
+        esd = ortho_functions.calcEarthSunDist(self)
+        self.assertEqual(esd, 0.9957508611980816)
+
+
+class TestRPCHeight(unittest.TestCase):
+    def setUp(self):
+        self.srcdir = os.path.join(test_dir, 'ortho')
+
+    def test_rpc_height_wv01(self):
+        info = ortho_functions.ImageInfo()
+        info.localsrc = os.path.join(self.srcdir,
+                                     'WV01_20091004222215_1020010009B33500_09OCT04222215-P1BS-052532098020_01_P019.ntf')
+        h = ortho_functions.get_rpc_height(info)
+        self.assertEqual(h, 2568.0)
+
+    def test_rpc_height_wv02(self):
+        info = ortho_functions.ImageInfo()
+        info.localsrc = os.path.join(self.srcdir,
+                                     'WV02_20120719233558_103001001B998D00_12JUL19233558-M1BS-052754253040_01_P001.TIF')
+        h = ortho_functions.get_rpc_height(info)
+        self.assertEqual(h, 75.0)
+
+    def test_rpc_height_wv03(self):
+        info = ortho_functions.ImageInfo()
+        info.localsrc = os.path.join(self.srcdir,
+                                     'WV03_20140919212947_104001000227BF00_14SEP19212947-M1BS-500191821040_01_P002.NTF')
+        h = ortho_functions.get_rpc_height(info)
+        self.assertEqual(h, 149.0)
+
+    def test_rpc_height_ge01(self):
+        info = ortho_functions.ImageInfo()
+        info.localsrc = os.path.join(self.srcdir,
+                                     'GE01_20110307105821_1050410001518E00_11MAR07105821-P1BS-500657359080_01_P008.ntf')
+        h = ortho_functions.get_rpc_height(info)
+        self.assertEqual(h, 334.0)
+
+    def test_rpc_height_ik01(self):
+        info = ortho_functions.ImageInfo()
+        info.localsrc = os.path.join(self.srcdir,
+                                     'IK01_20050319201700_2005031920171340000011627450_po_333838_blu_0000000.ntf')
+        h = ortho_functions.get_rpc_height(info)
+        self.assertEqual(h, 520.0)
+
+    def test_rpc_height_qb02(self):
+        info = ortho_functions.ImageInfo()
+        info.localsrc = os.path.join(self.srcdir,
+                                     'QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.NTF')
+        h = ortho_functions.get_rpc_height(info)
+        self.assertEqual(h, 45.0)
+
+
 class ProcessArgs(object):
     def __init__(self,epsg,stretch):
         self.epsg = epsg
@@ -341,7 +530,11 @@ if __name__ == '__main__':
         TestWriteMetadata,
         TestCollectFiles,
         TestDEMOverlap,
-        TestTargetExtent
+        TestTargetExtent,
+        TestOutputDataValues,
+        TestRPCHeight,
+        TestCalcEarthSunDist,
+        TestOverlapCheck
     ]
     
     suites = []

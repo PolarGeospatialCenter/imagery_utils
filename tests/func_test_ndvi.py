@@ -1,11 +1,9 @@
-import unittest, os, sys, glob, shutil, argparse, logging, subprocess
-import gdal, ogr, osr, gdalconst
+import unittest, os, sys, argparse, logging, subprocess
+import gdal
 
 script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
 root_dir = os.path.dirname(script_dir)
 sys.path.append(root_dir)
-
-from lib import mosaic
 
 logger = logging.getLogger("logger")
 # lso = logging.StreamHandler()
@@ -75,7 +73,7 @@ class TestNdviFunc(unittest.TestCase):
                 self.assertTrue(os.path.isfile(dstfp_xml))
                 ds = gdal.Open(dstfp)
                 dt = ds.GetRasterBand(1).DataType
-                self.assertEqual(dt, 3)
+                self.assertEqual(dt, 6)
                 ds = None
                 
     #@unittest.skip("skipping")
@@ -100,16 +98,14 @@ class TestNdviFunc(unittest.TestCase):
                 self.assertTrue(os.path.isfile(dstfp))
                 self.assertTrue(os.path.isfile(dstfp_xml))
     
-    def tearDown(self):
-        shutil.rmtree(self.dstdir)
+    #def tearDown(self):
+    #    shutil.rmtree(self.dstdir)
 
 
 if __name__ == '__main__':
     
     #### Set Up Arguments
-    parser = argparse.ArgumentParser(
-        description="Test imagery_utils mosaic package"
-        )
+    parser = argparse.ArgumentParser(description="Test imagery_utils NDVI package")
 
     parser.add_argument('--testdata', help="test data directory (default is testdata folder within script directory)")
 
