@@ -270,9 +270,10 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
                             if iinfo.scene_id in exclude_list:
                                 logger.debug("Scene in exclude list, excluding: %s", iinfo.srcfp)
                                 
-                            elif not os.path.isfile(iinfo.srcfp):
-                                logger.warning("Scene path is invalid, excluding %s (path = %s)", iinfo.scene_id,
-                                               iinfo.srcfp)
+                            elif not os.path.isfile(iinfo.srcfp) and iinfo.status != "tape":
+                                #logger.info("iinfo.status != tape: {0}".format(iinfo.status != "tape"))
+                                logger.warning("Scene path is invalid, excluding %s (path = %s) (status = %s)",
+                                               iinfo.scene_id, iinfo.srcfp, iinfo.status)
                             elif args.require_pan:
                                 srcfp = iinfo.srcfp
                                 srcdir, mul_name = os.path.split(srcfp)
@@ -413,16 +414,38 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
                         os.makedirs(dstdir)
                     
                     otxtpath = os.path.join(dstdir, "{}_{}_orig.txt".format(args.mosaic, t.name))
+                    otxtpath_ontape = os.path.join(dstdir, "{}_{}_orig_ontape.csv".format(args.mosaic, t.name))
                     mtxtpath = os.path.join(dstdir, "{}_{}_ortho.txt".format(args.mosaic, t.name))
+
+                    raw_fromtape_path = os.path.join(dstdir, "raw_fromtape")
+                    if not os.path.isdir(raw_fromtape_path):
+                        os.mkdir(raw_fromtape_path)
+
                     otxt = open(otxtpath, 'w')
+                    ttxt = open(otxtpath_ontape, 'w')
                     mtxt = open(mtxtpath, 'w')
+
+                    # write header
+                    ttxt.write("{0},{1},{2}\n".format("SCENE_ID", "S_FILEPATH", "STATUS"))
+
+                    tape_ct = 0
                     
                     for iinfo, geom in contribs:
                         
-                        if not os.path.isfile(iinfo.srcfp):
+                        if not os.path.isfile(iinfo.srcfp) and iinfo.status != "tape":
                             logger.warning("Image does not exist: %s", iinfo.srcfp)
                             
-                        otxt.write("{}\n".format(iinfo.srcfp))
+                        if iinfo.status == "tape":
+                            tape_ct += 1
+                            ttxt.write("{0},{1},{2}\n".format(iinfo.scene_id, iinfo.srcfp, iinfo.status))
+                            # get srcfp with file extension
+                            srcfp_file = os.path.basename(iinfo.srcfp)
+                            otxt.write("{}\n".format(os.path.join(raw_fromtape_path, srcfp_file)))
+
+                        else:
+                            otxt.write("{}\n".format(iinfo.srcfp))
+
+
                         m_fn = "{0}_u08{1}{2}.tif".format(
                             os.path.splitext(iinfo.srcfn)[0],
                             args.stretch,
@@ -432,6 +455,34 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
                         mtxt.write(os.path.join(dstdir, 'ortho', t.name, m_fn) + "\n")
  
                     otxt.close()
+
+                    if tape_ct == 0:
+                        logger.debug("No files need to be pulled from tape.")
+                        os.remove(otxtpath_ontape)
+                        os.rmdir(raw_fromtape_path)  # os.rmdir() only removes empty directories
+                    else:
+                        tape_tmp = os.path.join(dstdir, "{0}_{1}_tmp".format(args.mosaic, t.name))
+                        if not os.path.isdir(tape_tmp):
+                            os.mkdir(tape_tmp)
+                        logger.warning("{0} scenes are not accessible, as they are on tape. Please use ir.py to pull "
+                                       "scenes using file '{1}'. They must be put in directory '{2}', as file '{3}' "
+                                       "contains hard-coded paths to said files (necessary to perform "
+                                       "orthorectification). Please set a --tmp path (use '{4}').\n"
+                                       "Note that if some (or all) scenes have already been pulled from tape, ir.py "
+                                       "will not pull them again.\n".
+                                       format(tape_ct, otxtpath_ontape, raw_fromtape_path, otxtpath, tape_tmp))
+
+                        tape_log = "{0}_{1}_ir_log_{2}.log".format(args.mosaic, t.name,
+                                                                   datetime.today().strftime("%Y%m%d%H%M%S"))
+                        root_pgclib_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                                        "pgclib", "")
+                        logger.info("Suggested ir.py command:\n\n"
+                                    ""
+                                    "python {}ir.py -i {} -o {} --tmp {} -tm link 2>&1 | tee {}"
+                        .format(root_pgclib_path, otxtpath_ontape, raw_fromtape_path, tape_tmp,
+                                os.path.join(dstdir, tape_log)))
+
+                        ## TODO: test ir.py, and then make sure the mosaics can still be built!
 
 
 if __name__ == '__main__':

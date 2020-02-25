@@ -106,9 +106,14 @@ class ImageInfo:
         self.yres = None
         self.datatype = None
 
+        self.status = None
         self.sataz = None
         self.satel = None
         self.sunaz = None
+
+        i = feat.GetFieldIndex("STATUS")
+        if i != -1:
+            self.status = feat.GetFieldAsString(i)
         
         i = feat.GetFieldIndex("SUN_ELEV")
         if i != -1:
