@@ -482,8 +482,6 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
                         .format(root_pgclib_path, otxtpath_ontape, raw_fromtape_path, tape_tmp,
                                 os.path.join(dstdir, tape_log)))
 
-                        ## TODO: test ir.py, and then make sure the mosaics can still be built!
-
 
 if __name__ == '__main__':
     main()
