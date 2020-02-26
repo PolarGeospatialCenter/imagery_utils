@@ -417,9 +417,8 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
                     otxtpath_ontape = os.path.join(dstdir, "{}_{}_orig_ontape.csv".format(args.mosaic, t.name))
                     mtxtpath = os.path.join(dstdir, "{}_{}_ortho.txt".format(args.mosaic, t.name))
 
-                    raw_fromtape_path = os.path.join(dstdir, "raw_fromtape")
-                    if not os.path.isdir(raw_fromtape_path):
-                        os.mkdir(raw_fromtape_path)
+                    rn_fromtape_basedir = os.path.join(dstdir, "renamed_fromtape")
+                    rn_fromtape_path = os.path.join(rn_fromtape_basedir, t.name)
 
                     otxt = open(otxtpath, 'w')
                     ttxt = open(otxtpath_ontape, 'w')
@@ -440,11 +439,10 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
                             ttxt.write("{0},{1},{2}\n".format(iinfo.scene_id, iinfo.srcfp, iinfo.status))
                             # get srcfp with file extension
                             srcfp_file = os.path.basename(iinfo.srcfp)
-                            otxt.write("{}\n".format(os.path.join(raw_fromtape_path, srcfp_file)))
+                            otxt.write("{}\n".format(os.path.join(rn_fromtape_path, srcfp_file)))
 
                         else:
                             otxt.write("{}\n".format(iinfo.srcfp))
-
 
                         m_fn = "{0}_u08{1}{2}.tif".format(
                             os.path.splitext(iinfo.srcfn)[0],
@@ -459,8 +457,14 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
                     if tape_ct == 0:
                         logger.debug("No files need to be pulled from tape.")
                         os.remove(otxtpath_ontape)
-                        os.rmdir(raw_fromtape_path)  # os.rmdir() only removes empty directories
+
                     else:
+                        # make output dirs from tape
+                        if not os.path.isdir(rn_fromtape_basedir):
+                            os.mkdir(rn_fromtape_basedir)
+                        if not os.path.isdir(rn_fromtape_path):
+                            os.mkdir(rn_fromtape_path)
+
                         tape_tmp = os.path.join(dstdir, "{0}_{1}_tmp".format(args.mosaic, t.name))
                         if not os.path.isdir(tape_tmp):
                             os.mkdir(tape_tmp)
@@ -470,7 +474,7 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
                                        "orthorectification). Please set a --tmp path (use '{4}').\n"
                                        "Note that if some (or all) scenes have already been pulled from tape, ir.py "
                                        "will not pull them again.\n".
-                                       format(tape_ct, otxtpath_ontape, raw_fromtape_path, otxtpath, tape_tmp))
+                                       format(tape_ct, otxtpath_ontape, rn_fromtape_path, otxtpath, tape_tmp))
 
                         tape_log = "{0}_{1}_ir_log_{2}.log".format(args.mosaic, t.name,
                                                                    datetime.today().strftime("%Y%m%d%H%M%S"))
@@ -479,7 +483,7 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
                         logger.info("Suggested ir.py command:\n\n"
                                     ""
                                     "python {}ir.py -i {} -o {} --tmp {} -tm link 2>&1 | tee {}"
-                        .format(root_pgclib_path, otxtpath_ontape, raw_fromtape_path, tape_tmp,
+                        .format(root_pgclib_path, otxtpath_ontape, rn_fromtape_path, tape_tmp,
                                 os.path.join(dstdir, tape_log)))
 
 
