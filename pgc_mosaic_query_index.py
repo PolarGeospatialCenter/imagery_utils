@@ -215,7 +215,7 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
     else:
         logger.info("Tile %s", t.name)
     
-        t_srs = osr.SpatialReference()
+        t_srs = utils.osr_srs_preserve_axis_order(osr.SpatialReference())
         t_srs.ImportFromEPSG(t.epsg)
         
         #### Open mfp

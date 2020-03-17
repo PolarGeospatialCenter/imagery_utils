@@ -1002,9 +1002,9 @@ def filterMatchingImages(imginfo_list, params):
     for iinfo in imginfo_list:
         #print(iinfo.srcfp, iinfo.proj)
         isSame = True
-        p = osr.SpatialReference()
+        p = utils.osr_srs_preserve_axis_order(osr.SpatialReference())
         p.ImportFromWkt(iinfo.proj)
-        rp = osr.SpatialReference()
+        rp = utils.osr_srs_preserve_axis_order(osr.SpatialReference())
         rp.ImportFromWkt(params.proj)
         if p.IsSame(rp) is False:
             isSame = False
