@@ -82,8 +82,8 @@ class TestUtils(unittest.TestCase):
         with self.assertRaises(RuntimeError) as cm:
             utils.SpatialRef(self.epsg_bad_2)  # break for invalid EPSG code
 
-        self.assertTrue(isinstance(sref_np.srs, utils.osr_srs_preserve_axis_order(osgeo.osr.SpatialReference)))
-        self.assertTrue(isinstance(sref_sp.srs, utils.osr_srs_preserve_axis_order(osgeo.osr.SpatialReference)))
+        self.assertTrue(isinstance(sref_np.srs, osgeo.osr.SpatialReference))
+        self.assertTrue(isinstance(sref_sp.srs, osgeo.osr.SpatialReference))
 
         self.assertTrue(sref_np.proj4, '+proj=stere +lat_0=90 +lat_ts=70 +lon_0=-45 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs ')
         self.assertTrue(sref_sp.proj4, '+proj=stere +lat_0=-90 +lat_ts=-71 +lon_0=0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs ')
