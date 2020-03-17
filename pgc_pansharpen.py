@@ -170,7 +170,7 @@ class ImagePair(object):
             extent_geom.AddGeometry(ring)
     
             #### Create srs objects
-            s_srs = osr.SpatialReference(proj)
+            s_srs = utils.osr_srs_preserve_axis_order(osr.SpatialReference(proj))
             t_srs = spatial_ref.srs
             st_ct = osr.CoordinateTransformation(s_srs, t_srs)
     
