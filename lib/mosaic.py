@@ -659,6 +659,7 @@ class DemInfo:
         self.cloudcover = None
         self.density = None
         self.dem_id = None
+        self.region_id = None
         
         if frmt == 'IMAGE':
             self.get_attributes_from_file(src)
@@ -725,6 +726,9 @@ class DemInfo:
         i = feat.GetFieldIndex("DEM_ID")
         if i != -1:
             self.dem_id = feat.GetFieldAsString(i)
+        i = feat.GetFieldIndex("REGION_ID")
+        if i != -1:
+            self.region_id = feat.GetFieldAsString(i)
         
         geom = feat.GetGeometryRef()
         self.geom = geom.Clone()
