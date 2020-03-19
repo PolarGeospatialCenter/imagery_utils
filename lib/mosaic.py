@@ -650,6 +650,8 @@ class DemInfo:
         
         self.frmt = frmt  #image format (IMAGE,RECORD)
         self.pairname = None
+        self.catid = None
+        self.catid2 = None
         self.geom = None
         self.sensor = None
         self.acqdate = None
