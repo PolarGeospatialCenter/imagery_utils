@@ -102,7 +102,7 @@ class ImagePair(object):
     def _get_image_info(self, src_image, spatial_ref):
 
         if self.sensor == 'IK01' and "_msi_" in src_image:
-            src_image_name = src_image("_msi_", "_blu_")
+            src_image_name = src_image.replace("_msi_", "_blu_")
             src_image = os.path.join(self.srcdir, src_image_name)
     
         ds = gdal.Open(src_image, gdalconst.GA_ReadOnly)
