@@ -1355,8 +1355,12 @@ def GetCalibrationFactors(info):
     if info.vendor == "DigitalGlobe":
 
         xmlpath = info.metapath
-        calibDict = getDGXmlData(xmlpath, info.stretch)
-        bandList = DGbandList
+        try:
+            calibDict = getDGXmlData(xmlpath, info.stretch)
+        except RuntimeError as e:
+            logger.error(e)
+        else:
+            bandList = DGbandList
 
     elif info.vendor == "GeoEye" and info.sat == "GE01":
 
@@ -1387,7 +1391,7 @@ def GetCalibrationFactors(info):
             if band in calibDict:
                 CFlist.append(calibDict[band])
 
-    logger.debug("Calibration factor list: %s", CFlist)
+        logger.debug("Calibration factor list: %s", CFlist)
     return CFlist
 
 
@@ -1506,8 +1510,7 @@ def getDGXmlData(xmlpath, stretch):
     try:
         xmldoc = minidom.parse(xmlpath)
     except Exception:
-        logger.error("Cannot parse metadata file: %s", xmlpath)
-        return None
+        raise RuntimeError("Cannot parse metadata file: {}".format(xmlpath))
     else:
 
         if len(xmldoc.getElementsByTagName('IMD')) >= 1:
@@ -1525,7 +1528,7 @@ def getDGXmlData(xmlpath, stretch):
             elif len(nodeIMAGE[0].getElementsByTagName('SUNEL')) >= 1:
                 sunEl = float(nodeIMAGE[0].getElementsByTagName('SUNEL')[0].firstChild.data)
             else:
-                return None
+                raise RuntimeError("Cannot get sun elevation value from {}".format(xmlpath))
 
             sunAngle = 90.0 - sunEl
             des = calcEarthSunDist(datetime.strptime(t, "%Y-%m-%dT%H:%M:%S.%fZ"))
@@ -1541,13 +1544,13 @@ def getDGXmlData(xmlpath, stretch):
                         abscal = float(temp[0].firstChild.data)
 
                     else:
-                        return None
+                        raise RuntimeError("Cannot get ABSCALFACTOR value from {}".format(xmlpath))
 
                     temp = nodeBAND[0].getElementsByTagName('EFFECTIVEBANDWIDTH')
                     if not len(temp) == 0:
                         effbandw = float(temp[0].firstChild.data)
                     else:
-                        return None
+                        raise RuntimeError("Cannot get ABSCALFACTOR value from {}".format(xmlpath))
 
                     abscalfact_dict[band] = (abscal, effbandw)
 
@@ -1570,9 +1573,7 @@ def getDGXmlData(xmlpath, stretch):
             for band in abscalfact_dict:
                 satband = sat + '_' + band
                 if satband not in EsunDict:
-                    logger.warning("Cannot find sensor and band in Esun lookup table: %s.  Try using --stretch "
-                                   "ns.", satband)
-                    return None
+                    raise RuntimeError("Cannot find sensor and band in Esun lookup table: %s", satband)
                 else:
                     Esun = EsunDict[satband]
                     gain = GainDict[satband]
