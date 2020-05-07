@@ -622,7 +622,7 @@ def build_shp(contribs, shp, args, params):
     shpd, shpn = os.path.split(shp)
     shpbn, shpe = os.path.splitext(shpn)
     
-    rp = osr.SpatialReference()
+    rp = utils.osr_srs_preserve_axis_order(osr.SpatialReference())
     rp.ImportFromWkt(params.proj)
     
     lyr = vds.CreateLayer(shpbn, rp, ogr.wkbPolygon)
@@ -731,7 +731,7 @@ def build_tiles_shp(mosaicname, tiles, params):
         shpd, shpn = os.path.split(tiles_shp)
         shpbn, shpe = os.path.splitext(shpn)
         
-        rp = osr.SpatialReference()
+        rp = utils.osr_srs_preserve_axis_order(osr.SpatialReference())
         rp.ImportFromWkt(params.proj)
         
         lyr = vds.CreateLayer(shpbn, rp, ogr.wkbPolygon)

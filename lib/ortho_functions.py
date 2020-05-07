@@ -497,7 +497,7 @@ def stackIkBands(dstfp, members):
             proj = src_ds.GetGCPProjection()
         else:
             proj = src_ds.GetProjectionRef()
-        s_srs = osr.SpatialReference(proj)
+        s_srs = utils.osr_srs_preserve_axis_order(osr.SpatialReference(proj))
         s_srs_proj4 = s_srs.ExportToProj4()
 
         #### Remove keys we want to leave or set ourselves
@@ -837,9 +837,9 @@ def GetImageStats(args, info, target_extent_geom=None):
         extent_geom = ogr.CreateGeometryFromWkt(poly_wkt)
 
         #### Create srs objects
-        s_srs = osr.SpatialReference(proj)
+        s_srs = utils.osr_srs_preserve_axis_order(osr.SpatialReference(proj))
         t_srs = args.spatial_ref.srs
-        g_srs = osr.SpatialReference()
+        g_srs = utils.osr_srs_preserve_axis_order(osr.SpatialReference())
         g_srs.ImportFromEPSG(WGS84)
         sg_ct = osr.CoordinateTransformation(s_srs, g_srs)
         gt_ct = osr.CoordinateTransformation(g_srs, t_srs)
@@ -1419,7 +1419,8 @@ def overlap_check(geometry_wkt, spatial_ref, demPath):
                                                                                         maxy, maxx, miny, minx, miny)
             demGeometry = ogr.CreateGeometryFromWkt(dem_geometry_wkt)
             logger.info("DEM extent: %s", str(demGeometry))
-            demSpatialReference = osr.SpatialReference(demProjection)
+            demSpatialReference = utils.osr_srs_preserve_axis_order(utils.osr_srs_preserve_axis_order(
+                osr.SpatialReference(demProjection)))
 
             coordinateTransformer = osr.CoordinateTransformation(imageSpatialReference, demSpatialReference)
             if not imageSpatialReference.IsSame(demSpatialReference):

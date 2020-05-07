@@ -11,13 +11,14 @@ gdal.SetConfigOption('GDAL_PAM_ENABLED', 'NO')
 logger = logging.getLogger("logger")
 logger.setLevel(logging.DEBUG)
 
-package_version = '1.5.4'
+package_version = '1.5.5'
 
 
 class SpatialRef(object):
 
     def __init__(self, epsg):
-        srs = osr.SpatialReference()
+        srs = osr_srs_preserve_axis_order(osr.SpatialReference())
+
         try:
             epsgcode = int(epsg)
         except ValueError:
@@ -41,6 +42,15 @@ class SpatialRef(object):
         self.srs = srs
         self.proj4 = proj4_string
         self.epsg = epsgcode
+
+
+def osr_srs_preserve_axis_order(osr_srs):
+    try:
+        # revert to GDAL 2.x axis conventions to maintain consistent results if GDAL 3+ used
+        osr_srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+    except AttributeError:
+        pass
+    return osr_srs
 
 
 def get_bit_depth(outtype):
