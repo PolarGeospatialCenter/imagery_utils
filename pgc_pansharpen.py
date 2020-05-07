@@ -101,8 +101,8 @@ class ImagePair(object):
     
     def _get_image_info(self, src_image, spatial_ref):
 
-        if self.sensor == 'IK01' and "_msi_" in src_image:
-            src_image_name = src_image.replace("_msi_", "_blu_")
+        if self.sensor == 'IK01' and "_msi_" in src_image and not os.path.isfile(src_image):
+            src_image_name = os.path.basename(src_image).replace("_msi_", "_blu_")
             src_image = os.path.join(self.srcdir, src_image_name)
     
         ds = gdal.Open(src_image, gdalconst.GA_ReadOnly)
@@ -145,7 +145,6 @@ class ImagePair(object):
                 ysize = ds.RasterYSize
                 proj = ds.GetProjectionRef()
                 gtf = ds.GetGeoTransform()
-                print(gtf)
     
                 ulx = gtf[0] + 0 * gtf[1] + 0 * gtf[2]
                 uly = gtf[3] + 0 * gtf[4] + 0 * gtf[5]
