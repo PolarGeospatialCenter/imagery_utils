@@ -486,7 +486,8 @@ def run_mosaic(tile_builder_script, inpath, mosaicname, mosaic_dir, args, pos_ar
         'pbs',
         'slurm',
         'tday',
-        'tyear'
+        'tyear',
+        'allow_invalid_geom'
     )
     tile_arg_str = taskhandler.convert_optional_args_to_string(args, pos_arg_keys, arg_keys_to_remove)
     
