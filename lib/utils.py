@@ -535,3 +535,30 @@ def getWrappedGeometry(src_geom):
             del ring
 
     return mp_geometry
+
+
+def write_task_bundles(task_list, tasks_per_bundle, dstdir, bundle_prefix, task_delim=','):
+
+    jobnum_total = int(math.ceil(len(task_list) / float(tasks_per_bundle)))
+    jobnum_fmt = '{:0>'+str(len(str(jobnum_total)))+'}'
+    join_task_items = type(task_list[0]) in (tuple, list)
+
+    bundle_prefix = os.path.join(
+        dstdir,
+        '{}_{}_{}'.format(
+            bundle_prefix, datetime.now().strftime("%Y%m%d%H%M%S"), os.getpid()
+        )
+    )
+    bundle_file_list = []
+
+    print("Writing task bundle text files in directory: {}".format(dstdir))
+    for jobnum, tasknum in enumerate(range(0, len(task_list), tasks_per_bundle)):
+        bundle_file = '{}_{}.txt'.format(bundle_prefix, jobnum_fmt.format(jobnum+1))
+        task_bundle = task_list[tasknum:tasknum+tasks_per_bundle]
+        with open(bundle_file, 'w') as bundle_file_fp:
+            for task in task_bundle:
+                task_line = str(task) if not join_task_items else task_delim.join([str(arg) for arg in task])
+                bundle_file_fp.write(task_line+'\n')
+        bundle_file_list.append(bundle_file)
+
+    return bundle_file_list

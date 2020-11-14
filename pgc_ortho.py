@@ -77,7 +77,7 @@ def main():
         parser.error("HPC Options (--pbs or --slurm) and --parallel-processes > 1 are mutually exclusive")
     if args.tasks_per_job:
         if not (args.pbs or args.slurm):
-            parser.error("--jobs-per-task option requires the (--pbs or --slurm) option")
+            parser.error("--tasks-per-job option requires the (--pbs or --slurm) option")
         if not os.path.isdir(args.scratch):
             print("Creating --scratch directory: {}".format(args.scratch))
             os.makedirs(args.scratch)
@@ -157,65 +157,37 @@ def main():
         logger.info("No images found to process")
         sys.exit(0)
 
-    tm = datetime.now()
-    job_count = 0
-    image_count = 0
-    scenes_in_job_count = 0
     task_queue = []
 
-    for srcfp in images_to_process:
-        image_count += 1
+    if args.tasks_per_job and args.tasks_per_job > 1:
+        task_srcfp_list = utils.write_task_bundles(images_to_process, args.tasks_per_job, scratch, 'Or_src')
+    else:
+        task_srcfp_list = images_to_process
+
+    for job_count, srcfp in enumerate(task_srcfp_list, 1):
+
         srcdir, srcfn = os.path.split(srcfp)
-        dstfp = os.path.join(dstdir, "{}_{}{}{}{}".format(
-            os.path.splitext(srcfn)[0],
-            utils.get_bit_depth(args.outtype),
-            args.stretch,
-            spatial_ref.epsg,
-            ortho_functions.formats[args.format]
-        ))
 
-        if args.tasks_per_job:
-            # bundle tasks into text files in the dst dir and pass the text file in as src
-            scenes_in_job_count += 1
-            src_txt = os.path.join(scratch, 'Or_src_{}_{}.txt'.format(tm.strftime("%Y%m%d%H%M%S"), job_count + 1))
-
-            if scenes_in_job_count == 1:
-                # remove text file if dst already exists
-                try:
-                    os.remove(src_txt)
-                except OSError:
-                    pass
-
-            if scenes_in_job_count <= args.tasks_per_job:
-                # add to txt file
-                fh = open(src_txt, 'a')
-                fh.write("{}\n".format(srcfp))
-                fh.close()
-
-            if scenes_in_job_count == args.tasks_per_job or image_count == len(images_to_process):
-                scenes_in_job_count = 0
-                job_count += 1
-                task = taskhandler.Task(
-                    srcfn,
-                    'Or{:04g}'.format(job_count),
-                    'python',
-                    '{} {} {} {}'.format(scriptpath, arg_str_base, src_txt, dstdir),
-                    ortho_functions.process_image,
-                    [srcfp, dstfp, args]
-                )
-                task_queue.append(task)
-
+        if task_srcfp_list is images_to_process:
+            dstfp = os.path.join(dstdir, "{}_{}{}{}{}".format(
+                os.path.splitext(srcfn)[0],
+                utils.get_bit_depth(args.outtype),
+                args.stretch,
+                spatial_ref.epsg,
+                ortho_functions.formats[args.format]
+            ))
         else:
-            job_count += 1
-            task = taskhandler.Task(
-                srcfn,
-                'Or{:04g}'.format(job_count),
-                'python',
-                '{} {} {} {}'.format(scriptpath, arg_str_base, srcfp, dstdir),
-                ortho_functions.process_image,
-                [srcfp, dstfp, args]
-            )
-            task_queue.append(task)
+            dstfp = None
+
+        task = taskhandler.Task(
+            srcfn,
+            'Or{:04g}'.format(job_count),
+            'python',
+            '{} {} {} {}'.format(scriptpath, arg_str_base, srcfp, dstdir),
+            ortho_functions.process_image,
+            [srcfp, dstfp, args]
+        )
+        task_queue.append(task)
 
     ## Run tasks
     if len(task_queue) > 0:
