@@ -75,6 +75,17 @@ def main():
         parser.error("Options --pbs and --slurm are mutually exclusive")
     if (args.pbs or args.slurm) and args.parallel_processes > 1:
         parser.error("HPC Options (--pbs or --slurm) and --parallel-processes > 1 are mutually exclusive")
+    if (args.pbs or args.slurm) and args.threads > 1:
+        parser.error("HPC Options (--pbs or --slurm) and --threads > 1 are mutually exclusive")
+    if args.threads < 1:
+        parser.error("--thread count must be positive, nonzero integer")
+    if args.parallel_processes > 1:
+        total_proc_count = args.threads * args.parallel_processes
+        if total_proc_count > ortho_functions.ARGDEF_CPUS_AVAIL:
+            parser.error("the (threads * number of processes requested) ({0}) exceeds number of available threads "
+                         "({1}); reduce --threads and/or --parallel-processes count"
+                         .format(total_proc_count, ortho_functions.ARGDEF_CPUS_AVAIL))
+
     if args.tasks_per_job:
         if not (args.pbs or args.slurm):
             parser.error("--tasks-per-job option requires the (--pbs or --slurm) option")
@@ -103,6 +114,12 @@ def main():
     formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s', '%m-%d-%Y %H:%M:%S')
     lso.setFormatter(formatter)
     logger.addHandler(lso)
+
+    #### Handle thread count that exceeds system limits
+    if args.threads > ortho_functions.ARGDEF_CPUS_AVAIL:
+        logger.info("threads requested ({0}) exceeds number available on system ({1}), setting thread count to "
+                    "'ALL_CPUS'".format(args.threads, ortho_functions.ARGDEF_CPUS_AVAIL))
+        args.threads = 'ALL_CPUS'
 
     #### Get args ready to pass to task handler
     arg_keys_to_remove = ('l', 'qsubscript', 'dryrun', 'pbs', 'slurm', 'parallel_processes', 'tasks_per_job')
