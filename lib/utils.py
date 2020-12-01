@@ -11,7 +11,7 @@ gdal.SetConfigOption('GDAL_PAM_ENABLED', 'NO')
 logger = logging.getLogger("logger")
 logger.setLevel(logging.DEBUG)
 
-package_version = '1.5.6'
+package_version = '1.5.7'
 
 
 class SpatialRef(object):
