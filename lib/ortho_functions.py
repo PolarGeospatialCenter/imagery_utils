@@ -233,16 +233,19 @@ class ImageInfo:
 
 
 def thread_type():
-    def posintorall(input_value):
-        if type(input_value) == int:
+    def posintorall(arg_input):
+        try:
+            input_value = int(arg_input)
+        except ValueError:
+            if arg_input == "ALL_CPUS":
+                return arg_input
+            else:
+                raise argparse.ArgumentTypeError("Must be a positive integer or ALL_CPUS")
+        else:
             if input_value < 1:
                 raise argparse.ArgumentTypeError("Must be a positive integer or ALL_CPUS")
             else:
                 return input_value
-        elif input_value == "ALL_CPUS":
-            return input_value
-        else:
-            raise argparse.ArgumentTypeError("Must be a positive integer or ALL_CPUS")
     return posintorall
 
 
