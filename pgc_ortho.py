@@ -78,7 +78,7 @@ def main():
     if (args.pbs or args.slurm) and args.threads > 1:
         parser.error("HPC Options (--pbs or --slurm) and --threads > 1 are mutually exclusive")
     if args.threads < 1:
-        parser.error("--thread count must be positive, nonzero integer")
+        parser.error("--threads count must be positive, nonzero integer")
     if args.parallel_processes > 1:
         total_proc_count = args.threads * args.parallel_processes
         if total_proc_count > ortho_functions.ARGDEF_CPUS_AVAIL:

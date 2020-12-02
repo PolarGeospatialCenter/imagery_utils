@@ -40,7 +40,7 @@ This example will evaluate all the 1-band images in input_dir and sort them acco
 
 PANSHARPEN
 
-The pansharpening utility applies the orthorectification process to both the pan and multi image in a pair and then pansharpens them using the GDAL tool gdal_pansharpen.  GDAL 2.1 is required for this tool to function.  The --thread flag will apply threading to both gdalwarp and gdal_pansharpen operations.
+The pansharpening utility applies the orthorectification process to both the pan and multi image in a pair and then pansharpens them using the GDAL tool gdal_pansharpen.  GDAL 2.1 is required for this tool to function.  The --threads flag will apply threading to both gdalwarp and gdal_pansharpen operations.
 
 NDVI
 
