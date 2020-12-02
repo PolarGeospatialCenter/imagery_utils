@@ -241,16 +241,17 @@ def main():
             parser.error("qsub script path is not valid: {}".format(qsubpath))
 
     ### Verify processing options do not conflict
+    requested_threads = ortho_functions.ARGDEF_CPUS_AVAIL if args.threads == "ALL_CPUS" else args.threads
     if args.pbs and args.slurm:
         parser.error("Options --pbs and --slurm are mutually exclusive")
     if (args.pbs or args.slurm) and args.parallel_processes > 1:
         parser.error("HPC Options (--pbs or --slurm) and --parallel-processes > 1 are mutually exclusive")
-    if (args.pbs or args.slurm) and args.threads > 1:
+    if (args.pbs or args.slurm) and requested_threads > 1:
         parser.error("HPC Options (--pbs or --slurm) and --threads > 1 are mutually exclusive")
-    if args.threads < 1:
-        parser.error("--threads count must be positive, nonzero integer")
+    if requested_threads < 1:
+        parser.error("--threads count must be positive, nonzero integer or ALL_CPUS")
     if args.parallel_processes > 1:
-        total_proc_count = args.threads * args.parallel_processes
+        total_proc_count = requested_threads * args.parallel_processes
         if total_proc_count > ortho_functions.ARGDEF_CPUS_AVAIL:
             parser.error("the (threads * number of processes requested) ({0}) exceeds number of available threads "
                          "({1}); reduce --threads and/or --parallel-processes count"
@@ -278,9 +279,9 @@ def main():
     logger.addHandler(lso)
 
     #### Handle thread count that exceeds system limits
-    if args.threads > ortho_functions.ARGDEF_CPUS_AVAIL:
+    if requested_threads > ortho_functions.ARGDEF_CPUS_AVAIL:
         logger.info("threads requested ({0}) exceeds number available on system ({1}), setting thread count to "
-                    "'ALL_CPUS'".format(args.threads, ortho_functions.ARGDEF_CPUS_AVAIL))
+                    "'ALL_CPUS'".format(requested_threads, ortho_functions.ARGDEF_CPUS_AVAIL))
         args.threads = 'ALL_CPUS'
     
     #### Get args ready to pass to task handler
