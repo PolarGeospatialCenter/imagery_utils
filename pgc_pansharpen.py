@@ -477,7 +477,7 @@ def exec_pansharpen(image_pair, pansh_dstfp, args):
                 format(py_ext, pan_threading, pan_local_dstfp, mul_local_dstfp, pansh_local_dstfp)
             taskhandler.exec_cmd(cmd)
     else:
-        print("Pan or Multi warped image does not exist\n\t{}\n\t{}").format(pan_local_dstfp, mul_local_dstfp)
+        logger.warning("Pan or Multi warped image does not exist\n\t{}\n\t{}".format(pan_local_dstfp, mul_local_dstfp))
 
     #### Make pyramids
     if os.path.isfile(pansh_local_dstfp):
