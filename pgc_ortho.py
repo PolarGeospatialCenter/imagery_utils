@@ -1,5 +1,6 @@
-import os, sys, logging, argparse
+import os, sys, logging, argparse, math
 from datetime import datetime
+import xml.etree.ElementTree as ET
 from lib import ortho_functions, utils, taskhandler
 
 #### Create Loggers
@@ -96,6 +97,23 @@ def main():
     if args.dem:
         if not os.path.isfile(args.dem):
             parser.error("DEM does not exist: {}".format(args.dem))
+        if args.l is None:
+            if args.dem.endswith('.vrt'):
+                total_dem_filesz_gb = 0.0
+                tree = ET.parse(args.dem)
+                root = tree.getroot()
+                for sourceFilename in root.iter('SourceFilename'):
+                    dem_filename = sourceFilename.text
+                    if not os.path.isfile(dem_filename):
+                        parser.error("VRT DEM component raster does not exist: {}".format(dem_filename))
+                    dem_filesz_gb = os.path.getsize(dem_filename) / 1024 / 1024 / 1024.0
+                    total_dem_filesz_gb += dem_filesz_gb
+                dem_filesz_gb = total_dem_filesz_gb
+            else:
+                dem_filesz_gb = os.path.getsize(args.dem) / 1024 / 1024 / 1024.0
+
+            pbs_req_mem_gb = max(int(math.ceil(dem_filesz_gb)) + 2, 8)
+            args.l = 'mem={}gb'.format(pbs_req_mem_gb)
 
     #### Set up console logging handler
     lso = logging.StreamHandler()
@@ -200,7 +218,7 @@ def main():
                 logger.error(e)
             else:
                 if not args.dryrun:
-                    task_handler.run_tasks(task_queue)
+                    task_handler.run_tasks(task_queue, dryrun=args.dryrun)
 
         elif args.slurm:
             try:

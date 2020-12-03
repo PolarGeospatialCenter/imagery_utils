@@ -43,7 +43,7 @@ class PBSTaskHandler(object):
 
         self.qsub_args = qsub_args
 
-    def run_tasks(self, tasks):
+    def run_tasks(self, tasks, dryrun=False):
 
         for task in tasks:
             cmd = r'qsub {} -N {} -v p1="{}" "{}"'.format(
@@ -52,7 +52,10 @@ class PBSTaskHandler(object):
                 task.cmd,
                 self.qsubscript
             )
-            subprocess.call(cmd, shell=True)
+            if dryrun:
+                print(cmd)
+            else:
+                subprocess.call(cmd, shell=True)
 
 
 class SLURMTaskHandler(object):
