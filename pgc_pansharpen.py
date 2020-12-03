@@ -241,10 +241,21 @@ def main():
             parser.error("qsub script path is not valid: {}".format(qsubpath))
 
     ### Verify processing options do not conflict
+    requested_threads = ortho_functions.ARGDEF_CPUS_AVAIL if args.threads == "ALL_CPUS" else args.threads
     if args.pbs and args.slurm:
         parser.error("Options --pbs and --slurm are mutually exclusive")
     if (args.pbs or args.slurm) and args.parallel_processes > 1:
         parser.error("HPC Options (--pbs or --slurm) and --parallel-processes > 1 are mutually exclusive")
+    if (args.pbs or args.slurm) and requested_threads > 1:
+        parser.error("HPC Options (--pbs or --slurm) and --threads > 1 are mutually exclusive")
+    if requested_threads < 1:
+        parser.error("--threads count must be positive, nonzero integer or ALL_CPUS")
+    if args.parallel_processes > 1:
+        total_proc_count = requested_threads * args.parallel_processes
+        if total_proc_count > ortho_functions.ARGDEF_CPUS_AVAIL:
+            parser.error("the (threads * number of processes requested) ({0}) exceeds number of available threads "
+                         "({1}); reduce --threads and/or --parallel-processes count"
+                         .format(total_proc_count, ortho_functions.ARGDEF_CPUS_AVAIL))
 
     #### Verify EPSG
     try:
@@ -266,6 +277,12 @@ def main():
     formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s', '%m-%d-%Y %H:%M:%S')
     lso.setFormatter(formatter)
     logger.addHandler(lso)
+
+    #### Handle thread count that exceeds system limits
+    if requested_threads > ortho_functions.ARGDEF_CPUS_AVAIL:
+        logger.info("threads requested ({0}) exceeds number available on system ({1}), setting thread count to "
+                    "'ALL_CPUS'".format(requested_threads, ortho_functions.ARGDEF_CPUS_AVAIL))
+        args.threads = 'ALL_CPUS'
     
     #### Get args ready to pass to task handler
     arg_keys_to_remove = ('l', 'qsubscript', 'dryrun', 'pbs', 'slurm', 'parallel_processes')
@@ -448,15 +465,20 @@ def exec_pansharpen(image_pair, pansh_dstfp, args):
         py_ext = ''
     else:
         py_ext = '.py'
+
+    pan_threading = ''
+    if hasattr(args, 'threads'):
+        if args.threads != 1:
+            pan_threading = '-threads {}'.format(args.threads)
     
     logger.info("Pansharpening multispectral image")
     if os.path.isfile(pan_local_dstfp) and os.path.isfile(mul_local_dstfp):
         if not os.path.isfile(pansh_local_dstfp):
-            cmd = 'gdal_pansharpen{} -co BIGTIFF=IF_SAFER -co COMPRESS=LZW -co TILED=YES "{}" "{}" "{}"'.\
-                format(py_ext, pan_local_dstfp, mul_local_dstfp, pansh_local_dstfp)
+            cmd = 'gdal_pansharpen{} -co BIGTIFF=IF_SAFER -co COMPRESS=LZW -co TILED=YES {} "{}" "{}" "{}"'.\
+                format(py_ext, pan_threading, pan_local_dstfp, mul_local_dstfp, pansh_local_dstfp)
             taskhandler.exec_cmd(cmd)
     else:
-        print("Pan or Multi warped image does not exist\n\t{}\n\t{}").format(pan_local_dstfp, mul_local_dstfp)
+        logger.warning("Pan or Multi warped image does not exist\n\t{}\n\t{}".format(pan_local_dstfp, mul_local_dstfp))
 
     #### Make pyramids
     if os.path.isfile(pansh_local_dstfp):

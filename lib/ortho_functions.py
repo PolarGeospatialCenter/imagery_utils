@@ -19,6 +19,15 @@ stretches = ["ns", "rf", "mr", "rd"]
 resamples = ["near", "bilinear", "cubic", "cubicspline", "lanczos"]
 gtiff_compressions = ["jpeg95", "lzw"]
 exts = ['.ntf', '.tif']
+ARGDEF_THREADS = 1
+try:
+    # Python 3.x only
+    ARGDEF_CPUS_AVAIL = os.cpu_count()
+except AttributeError:
+    # Python 2.x only
+    import multiprocessing
+    ARGDEF_CPUS_AVAIL = multiprocessing.cpu_count()
+
 
 WGS84 = 4326
 
@@ -223,6 +232,23 @@ class ImageInfo:
     pass
 
 
+def thread_type():
+    def posintorall(arg_input):
+        try:
+            input_value = int(arg_input)
+        except ValueError:
+            if arg_input == "ALL_CPUS":
+                return arg_input
+            else:
+                raise argparse.ArgumentTypeError("Must be a positive integer or ALL_CPUS")
+        else:
+            if input_value < 1:
+                raise argparse.ArgumentTypeError("Must be a positive integer or ALL_CPUS")
+            else:
+                return input_value
+    return posintorall
+
+
 def buildParentArgumentParser():
 
     #### Set Up Arguments
@@ -271,6 +297,14 @@ def buildParentArgumentParser():
     parser.add_argument("--ortho-height", type=int,
                         help='constant elevation to use for orthorectification (value should be in meters above '
                         'the wgs84 ellipoid)')
+    parser.add_argument("--threads", type=thread_type(),
+                        help='Number of threads to use for gdalwarp and gdal_pansharpen processes, if applicable '
+                             '(default={0}, number on system={1}). Can use any positive integer, or ALL_CPUS. '
+                             'Any value above system count will default to ALL_CPUS. If used with '
+                             '--parallel-processes, the (threads * number of processes) must be <= system count. '
+                             '--pbs/--slurm will only accept 1 thread.'
+                        .format(ARGDEF_THREADS, ARGDEF_CPUS_AVAIL),
+                        default=ARGDEF_THREADS)
     parser.add_argument("--version", action='version', version="imagery_utils v{}".format(utils.package_version))
 
     return parser, pos_arg_keys
@@ -279,6 +313,9 @@ def buildParentArgumentParser():
 def process_image(srcfp, dstfp, args, target_extent_geom=None):
 
     err = 0
+
+    #### Handle threads (default to 1 if arg not supplied)
+    gdal_thread_count = 1 if not hasattr(args, 'threads') else args.threads
 
     #### Instantiate ImageInfo object
     info = ImageInfo()
@@ -412,7 +449,7 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
     if not os.path.isfile(info.dstfp):
         #### Warp Image
         if not err == 1 and not os.path.isfile(info.warpfile):
-            rc = WarpImage(args, info)
+            rc = WarpImage(args, info, gdal_thread_count=gdal_thread_count)
             if rc == 1:
                 err = 1
                 logger.error("Error in image warping")
@@ -1207,15 +1244,22 @@ def prettify(elem):
     return reparsed.toprettyxml(indent="  ")
 
 
-def WarpImage(args, info):
+def WarpImage(args, info, gdal_thread_count=1):
 
     rc = 0
 
     pf = platform.platform()
     if pf.startswith("Linux"):
-        config_options = '-wm 2000 --config GDAL_CACHEMAX 2048 --config GDAL_NUM_THREADS 1'
+        config_options = '-wm 2000 --config GDAL_CACHEMAX 2048 --config GDAL_NUM_THREADS {0} -wo NUM_THREADS={0}'.\
+            format(gdal_thread_count)
     else:
-        config_options = '--config GDAL_NUM_THREADS 1'
+        config_options = '--config GDAL_NUM_THREADS {0} -wo NUM_THREADS={0}'.format(gdal_thread_count)
+    if type(gdal_thread_count) == str:
+        if gdal_thread_count == "ALL_CPUS":
+            config_options += ' -multi'
+    elif type(gdal_thread_count) == int:
+        if gdal_thread_count > 1:
+            config_options += ' -multi'
 
     if not os.path.isfile(info.warpfile):
 
