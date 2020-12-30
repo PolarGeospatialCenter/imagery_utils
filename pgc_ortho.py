@@ -244,8 +244,8 @@ def main():
             except RuntimeError as e:
                 logger.error(e)
             else:
-                # if not args.dryrun:
-                task_handler.run_tasks(task_queue, dryrun=args.dryrun)
+                if not args.dryrun:
+                    task_handler.run_tasks(task_queue, dryrun=args.dryrun)
 
         elif args.slurm:
             try:
