@@ -38,4 +38,4 @@ cd $PBS_O_WORKDIR
 module load gdal/2.1.1
 
 echo $p1
-python $p1
+time eval $p1

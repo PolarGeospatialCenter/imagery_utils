@@ -6,6 +6,7 @@ import xml.etree.ElementTree as ET
 import gdal, ogr, osr, gdalconst
 
 from lib import ortho_functions, utils, taskhandler
+from lib.taskhandler import argval2str
 
 #### Create Loggers
 logger = logging.getLogger("logger")
@@ -409,7 +410,12 @@ def main():
             task_item_srcfn,
             'Psh{:04g}'.format(i),
             'python',
-            '{} {} {} {}'.format(scriptpath, arg_str_base, task_item_srcfp, dstdir),
+            '{} {} {} {}'.format(
+                argval2str(scriptpath),
+                arg_str_base,
+                argval2str(task_item_srcfp),
+                argval2str(dstdir)
+            ),
             exec_pansharpen,
             [image_pair, pansh_dstfp, args]
         )

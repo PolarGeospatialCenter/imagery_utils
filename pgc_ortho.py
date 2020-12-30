@@ -4,6 +4,7 @@ import os, sys, logging, argparse, math
 from datetime import datetime
 import xml.etree.ElementTree as ET
 from lib import ortho_functions, utils, taskhandler
+from lib.taskhandler import argval2str
 
 #### Create Loggers
 logger = logging.getLogger("logger")
@@ -222,7 +223,12 @@ def main():
             srcfn,
             'Or{:04g}'.format(job_count),
             'python',
-            '{} {} {} {}'.format(scriptpath, arg_str_base, srcfp, dstdir),
+            '{} {} {} {}'.format(
+                argval2str(scriptpath),
+                arg_str_base,
+                argval2str(srcfp),
+                argval2str(dstdir)
+            ),
             ortho_functions.process_image,
             [srcfp, dstfp, args]
         )
@@ -238,8 +244,8 @@ def main():
             except RuntimeError as e:
                 logger.error(e)
             else:
-                if not args.dryrun:
-                    task_handler.run_tasks(task_queue, dryrun=args.dryrun)
+                # if not args.dryrun:
+                task_handler.run_tasks(task_queue, dryrun=args.dryrun)
 
         elif args.slurm:
             try:

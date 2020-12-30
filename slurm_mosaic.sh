@@ -43,4 +43,4 @@ echo
 source /opt/PGSC-2.1.0/init-gdal.sh
 
 echo $p1
-python $p1
+time eval $p1

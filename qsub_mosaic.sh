@@ -36,4 +36,5 @@ echo
 
 module load gdal/2.1.1
 
-python $p1
+echo $p1
+time eval $p1
