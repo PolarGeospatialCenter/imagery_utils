@@ -104,7 +104,7 @@ MOSAIC SCORING ALGORITHM
 ------------------------
 Image Score
 
-The mosaic tools scoring algorithm uses image metadata information sot score each images based on its suitability.  Each variable is normalized to a value between 0 and 1 and multiplied by a weighting factor relative to itï¿½s importance.  Images with cloud cover > 50% are automatically excluded.
+The mosaic tools scoring algorithm uses image metadata information sot score each images based on its suitability.  Each variable is normalized to a value between 0 and 1 and multiplied by a weighting factor relative to it’s importance.  Images with cloud cover > 50% are automatically excluded.
 
 Variables used are:
 1. Cloud cover - lower is preferred
