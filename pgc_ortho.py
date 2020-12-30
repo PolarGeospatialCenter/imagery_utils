@@ -126,7 +126,7 @@ def main():
             else:
                 dem_filesz_gb = os.path.getsize(args.dem) / 1024.0 / 1024 / 1024
 
-            pbs_req_mem_gb = max(int(math.ceil(dem_filesz_gb)) + 2, 8)
+            pbs_req_mem_gb = int(max(math.ceil(dem_filesz_gb) + 2, 4))
             args.l = 'mem={}gb'.format(pbs_req_mem_gb)
 
     #### Set up console logging handler
