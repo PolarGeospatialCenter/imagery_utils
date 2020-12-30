@@ -4,7 +4,7 @@
 task handler classes and methods
 """
 
-import os, sys, shutil, glob, re, logging, subprocess, platform
+import os, sys, shutil, signal, glob, re, logging, subprocess, platform
 import multiprocessing as mp
 
 #### Create Logger
@@ -43,16 +43,20 @@ class PBSTaskHandler(object):
 
         self.qsub_args = qsub_args
 
-    def run_tasks(self, tasks):
+    def run_tasks(self, tasks, dryrun=False):
 
         for task in tasks:
-            cmd = r'qsub {} -N {} -v p1="{}" "{}"'.format(
+            cmd = r'qsub {} -N {} -v p1="{} {}" "{}"'.format(
                 self.qsub_args,
                 task.abrv,
+                task.exe,
                 task.cmd,
                 self.qsubscript
             )
-            subprocess.call(cmd, shell=True)
+            if dryrun:
+                print(cmd)
+            else:
+                subprocess.call(cmd, shell=True)
 
 
 class SLURMTaskHandler(object):
@@ -78,8 +82,9 @@ class SLURMTaskHandler(object):
     def run_tasks(self, tasks):
 
         for task in tasks:
-            cmd = r'sbatch -J {} --export=p1="{}" "{}"'.format(
+            cmd = r'sbatch -J {} --export=p1="{} {}" "{}"'.format(
                 task.abrv,
+                task.exe,
                 task.cmd,
                 self.qsubscript
             )
@@ -155,6 +160,19 @@ def exec_cmd(cmd):
     return err, so, se
 
 
+def argval2str(item):
+    if type(item) is str:
+        if item.startswith("'") and item.endswith("'"):
+            item_str = r"\'{}\'".format(item[1:-1])
+        elif item.startswith('"') and item.endswith('"'):
+            item_str = r'\"{}\"'.format(item[1:-1])
+        else:
+            item_str = r'\"{}\"'.format(item)
+    else:
+        item_str = '{}'.format(item)
+    return item_str
+
+
 def convert_optional_args_to_string(args, positional_arg_keys, arg_keys_to_remove):
 
     args_dict = vars(args)
@@ -165,12 +183,12 @@ def convert_optional_args_to_string(args, positional_arg_keys, arg_keys_to_remov
         if k not in positional_arg_keys and k not in arg_keys_to_remove and v is not None:
             k = k.replace('_', '-')
             if isinstance(v, (list, tuple)):
-                arg_list.append("--{} {}".format(k, ' '.join([str(item) for item in v])))
+                arg_list.append("--{} {}".format(k, ' '.join([argval2str(item) for item in v])))
             elif isinstance(v, bool):
                 if v is True:
                     arg_list.append("--{}".format(k))
             else:
-                arg_list.append("--{} {}".format(k, str(v)))
+                arg_list.append("--{} {}".format(k, argval2str(v)))
 
     arg_str_base = " ".join(arg_list)
     return arg_str_base
