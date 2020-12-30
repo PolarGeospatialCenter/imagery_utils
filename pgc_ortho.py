@@ -45,6 +45,7 @@ def main():
     src = os.path.abspath(args.src)
     dstdir = os.path.abspath(args.dst)
     scratch = os.path.abspath(args.scratch)
+    bittype = utils.get_bit_depth(args.outtype)
 
     #### Validate Required Arguments
     if os.path.isdir(src):
@@ -178,7 +179,7 @@ def main():
         srcdir, srcfn = os.path.split(srcfp)
         dstfp = os.path.join(dstdir, "{}_{}{}{}{}".format(
             os.path.splitext(srcfn)[0],
-            utils.get_bit_depth(args.outtype),
+            bittype,
             args.stretch,
             spatial_ref.epsg,
             ortho_functions.formats[args.format]
@@ -209,7 +210,7 @@ def main():
         if task_srcfp_list is images_to_process:
             dstfp = os.path.join(dstdir, "{}_{}{}{}{}".format(
                 os.path.splitext(srcfn)[0],
-                utils.get_bit_depth(args.outtype),
+                bittype,
                 args.stretch,
                 spatial_ref.epsg,
                 ortho_functions.formats[args.format]

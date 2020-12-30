@@ -11,6 +11,8 @@ from lib import ortho_functions, utils, taskhandler
 logger = logging.getLogger("logger")
 logger.setLevel(logging.DEBUG)
 
+ARGDEF_SCRATCH = os.path.join(os.path.expanduser('~'), 'scratch', 'task_bundles')
+
 #TODO: build image pair class
 # compare mul and pan extent to find smaller extent and pass in to ortho_functions.process() as a parameter
 
@@ -200,6 +202,11 @@ def main():
                         help="submit tasks to PBS")
     parser.add_argument("--slurm", action='store_true', default=False,
                         help="submit tasks to SLURM")
+    parser.add_argument("--tasks-per-job", type=int,
+                        help="Number of tasks to bundle into a single job. (requires --pbs or --slurm option) (Warning:"
+                             " a higher number of tasks per job may require modification of default wallclock limit.)")
+    parser.add_argument('--scratch', default=ARGDEF_SCRATCH,
+                        help="Scratch space to build task bundle text files. (default={})".format(ARGDEF_SCRATCH))
     parser.add_argument("--parallel-processes", type=int, default=1,
                         help="number of parallel processes to spawn (default 1)")
     parser.add_argument("--qsubscript",
@@ -215,6 +222,8 @@ def main():
     scriptpath = os.path.abspath(sys.argv[0])
     src = os.path.abspath(args.src)
     dstdir = os.path.abspath(args.dst)
+    scratch = os.path.abspath(args.scratch)
+    bittype = utils.get_bit_depth(args.outtype)
 
     #### Validate Required Arguments
     if os.path.isdir(src):
@@ -243,7 +252,7 @@ def main():
         if not os.path.isfile(qsubpath):
             parser.error("qsub script path is not valid: {}".format(qsubpath))
 
-    ### Verify processing options do not conflict
+    ## Verify processing options do not conflict
     requested_threads = ortho_functions.ARGDEF_CPUS_AVAIL if args.threads == "ALL_CPUS" else args.threads
     if args.pbs and args.slurm:
         parser.error("Options --pbs and --slurm are mutually exclusive")
@@ -259,6 +268,13 @@ def main():
             parser.error("the (threads * number of processes requested) ({0}) exceeds number of available threads "
                          "({1}); reduce --threads and/or --parallel-processes count"
                          .format(total_proc_count, ortho_functions.ARGDEF_CPUS_AVAIL))
+
+    if args.tasks_per_job:
+        if not (args.pbs or args.slurm):
+            parser.error("--tasks-per-job option requires the (--pbs or --slurm) option")
+        if not os.path.isdir(args.scratch):
+            print("Creating --scratch directory: {}".format(args.scratch))
+            os.makedirs(args.scratch)
 
     #### Verify EPSG
     try:
@@ -314,7 +330,7 @@ def main():
         args.threads = 'ALL_CPUS'
     
     #### Get args ready to pass to task handler
-    arg_keys_to_remove = ('l', 'qsubscript', 'dryrun', 'pbs', 'slurm', 'parallel_processes')
+    arg_keys_to_remove = ('l', 'qsubscript', 'dryrun', 'pbs', 'slurm', 'parallel_processes', 'tasks_per_job')
     arg_str_base = taskhandler.convert_optional_args_to_string(args, pos_arg_keys, arg_keys_to_remove)
     
     ## Identify source images
@@ -340,26 +356,64 @@ def main():
     
     ## Build task queue
     i = 0
-    task_queue = []
+    pairs_to_process = []
     for image_pair in pair_list:
         
-        bittype = utils.get_bit_depth(args.outtype)
-        pansh_dstfp = os.path.join(dstdir, "{}_{}{}{}_pansh.tif".format(os.path.splitext(image_pair.mul_srcfn)[0],
-                                                                        bittype, args.stretch, args.epsg))
-        
-        if not os.path.isfile(pansh_dstfp):
+        pansh_dstfp = os.path.join(dstdir, "{}_{}{}{}_pansh.tif".format(
+            os.path.splitext(image_pair.mul_srcfn)[0],
+            bittype,
+            args.stretch,
+            args.epsg
+        ))
+
+        done = os.path.isfile(pansh_dstfp)
+        if done is False:
             i += 1
-            task = taskhandler.Task(
-                image_pair.mul_srcfn,
-                'Psh{:04g}'.format(i),
-                'python',
-                '{} {} {} {}'.format(scriptpath, arg_str_base, image_pair.mul_srcfp, dstdir),
-                exec_pansharpen,
-                [image_pair, pansh_dstfp, args]
-            )
-            task_queue.append(task)
+            pairs_to_process.append(image_pair)
             
     logger.info('Number of incomplete tasks: %i', i)
+
+    if len(pairs_to_process) == 0:
+        logger.info("No images pairs found to process")
+        sys.exit(0)
+
+    task_queue = []
+
+    if args.tasks_per_job and args.tasks_per_job > 1:
+        images_to_process = [image_pair.mul_srcfp for image_pair in pairs_to_process]
+        task_srcfp_list = utils.write_task_bundles(images_to_process, args.tasks_per_job, scratch, 'Psh_src')
+        tasklist_is_text_bundles = True
+    else:
+        task_srcfp_list = pairs_to_process
+        tasklist_is_text_bundles = False
+
+    for job_count, task_item in enumerate(task_srcfp_list, 1):
+
+        if not tasklist_is_text_bundles:
+            image_pair = task_item
+            pansh_dstfp = os.path.join(dstdir, "{}_{}{}{}_pansh.tif".format(
+                os.path.splitext(image_pair.mul_srcfn)[0],
+                bittype,
+                args.stretch,
+                args.epsg
+            ))
+            task_item_srcfp = image_pair.mul_srcfp
+            task_item_srcfn = image_pair.mul_srcfn
+        else:
+            image_pair = None
+            pansh_dstfp = None
+            task_item_srcfp = task_item
+            task_item_srcdir, task_item_srcfn = os.path.split(task_item_srcfp)
+
+        task = taskhandler.Task(
+            task_item_srcfn,
+            'Psh{:04g}'.format(i),
+            'python',
+            '{} {} {} {}'.format(scriptpath, arg_str_base, task_item_srcfp, dstdir),
+            exec_pansharpen,
+            [image_pair, pansh_dstfp, args]
+        )
+        task_queue.append(task)
 
     ## Run tasks
     if len(task_queue) > 0:
@@ -372,7 +426,7 @@ def main():
                 logger.error(e)
             else:
                 if not args.dryrun:
-                    task_handler.run_tasks(task_queue)
+                    task_handler.run_tasks(task_queue, dryrun=args.dryrun)
                 
         elif args.slurm:
             try:
