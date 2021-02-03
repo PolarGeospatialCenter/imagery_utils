@@ -1,6 +1,6 @@
 import os, sys, logging, argparse, numpy, glob
 from datetime import datetime, date
-import gdal, ogr, osr, gdalconst
+from osgeo import gdal, ogr, osr, gdalconst
 
 from lib import ortho_functions, mosaic, utils, taskhandler
 

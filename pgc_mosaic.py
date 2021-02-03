@@ -1,7 +1,7 @@
 import os, sys, shutil, glob, re, tarfile, logging, argparse, subprocess, math
 from datetime import datetime, date, timedelta
 from xml.etree import cElementTree as ET
-import gdal, ogr, osr, gdalconst
+from osgeo import gdal, ogr, osr, gdalconst
 import numpy
 
 from lib import mosaic, utils, taskhandler

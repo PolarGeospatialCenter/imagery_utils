@@ -1,5 +1,5 @@
 import unittest, os, sys, argparse, logging, subprocess
-import gdal
+from osgeo import gdal
 
 script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
 root_dir = os.path.dirname(script_dir)

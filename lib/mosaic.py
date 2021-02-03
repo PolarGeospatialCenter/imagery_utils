@@ -1,7 +1,7 @@
 import os, sys, shutil, math, glob, re, tarfile, logging, platform, argparse, subprocess
 from datetime import datetime, timedelta
 from xml.etree import cElementTree as ET
-import gdal, ogr, osr, gdalconst
+from osgeo import gdal, ogr, osr, gdalconst
 import numpy
 from numpy import flatnonzero
 

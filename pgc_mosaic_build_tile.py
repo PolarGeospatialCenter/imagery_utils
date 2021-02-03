@@ -2,7 +2,7 @@ import os, sys, shutil, glob, re, tarfile, logging, argparse
 
 from lib import mosaic, utils, taskhandler
 import numpy
-import gdal, ogr, osr, gdalconst
+from osgeo import gdal, ogr, osr, gdalconst
     
 logger = logging.getLogger("logger")
 logger.setLevel(logging.DEBUG)
