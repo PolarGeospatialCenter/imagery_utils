@@ -1,6 +1,6 @@
 import os, sys, shutil, math, glob, re, tarfile, argparse, subprocess, logging
 from datetime import datetime, timedelta
-import gdal, ogr, osr, gdalconst, numpy
+from osgeo import gdal, ogr, osr, gdalconst, numpy
 
 from lib import ortho_functions, utils, taskhandler
 

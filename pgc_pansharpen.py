@@ -3,7 +3,7 @@ from __future__ import division
 import os, sys, shutil, math, glob, re, tarfile, argparse, subprocess, logging, platform
 from datetime import datetime, timedelta
 import xml.etree.ElementTree as ET
-import gdal, ogr, osr, gdalconst
+from osgeo import gdal, ogr, osr, gdalconst
 
 from lib import ortho_functions, utils, taskhandler
 from lib.taskhandler import argval2str

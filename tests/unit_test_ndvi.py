@@ -1,5 +1,5 @@
 import unittest, os, sys, glob, argparse, logging
-import gdal
+from osgeo import gdal
 import numpy as np
 
 script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))

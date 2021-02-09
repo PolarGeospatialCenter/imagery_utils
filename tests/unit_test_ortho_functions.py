@@ -1,5 +1,5 @@
 import unittest, os, sys, glob, argparse
-import gdal, ogr
+from osgeo import gdal, ogr
 import xml
 import numpy as np
 
