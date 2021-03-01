@@ -6,6 +6,7 @@ task handler classes and methods
 
 import os, sys, shutil, signal, glob, re, logging, subprocess, platform
 import multiprocessing as mp
+import codecs
 
 #### Create Logger
 logger = logging.getLogger("logger")
@@ -122,6 +123,7 @@ class ParallelTaskHandler(object):
 
 def exec_cmd_mp(job):
     job_name, cmd = job
+    cmd = codecs.decode(cmd, 'unicode-escape')
     logger.info('Running job: %s', job_name)
     logger.debug('Cmd: %s', cmd)
     if platform.system() == "Windows":
