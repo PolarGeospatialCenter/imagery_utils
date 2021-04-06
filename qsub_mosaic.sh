@@ -34,7 +34,7 @@ echo Working directory: $PBS_O_WORKDIR
 echo ________________________________________________________
 echo
 
-module load gdal/2.1.1
+module load gdal/2.1.3
 
 echo $p1
 time eval $p1
