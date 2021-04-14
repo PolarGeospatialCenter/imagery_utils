@@ -408,7 +408,7 @@ def main():
 
         task = taskhandler.Task(
             task_item_srcfn,
-            'Psh{:04g}'.format(i),
+            'Psh{:04g}'.format(job_count),
             'python',
             '{} {} {} {}'.format(
                 argval2str(scriptpath),
