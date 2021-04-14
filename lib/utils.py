@@ -441,6 +441,10 @@ def doesCross180(geom):
     :param geom: <osgeo.ogr.Geometry>
     :return: <bool>
     """
+    if geom.GetGeometryName() == "MULTIPOLYGON":
+        err = "Function does not support testing MULTIPOLYGON geometry"
+        raise RuntimeError(err)
+
     result = False
     _mat = re.findall(r"-?\d+\.\d+", geom.ExportToWkt())
     if _mat:
