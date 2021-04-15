@@ -1,8 +1,15 @@
-import os, sys, logging, argparse, numpy, glob
-from datetime import datetime, date
-from osgeo import gdal, ogr, osr, gdalconst
+#!/usr/bin/env python
 
-from lib import ortho_functions, mosaic, utils, taskhandler
+import argparse
+import glob
+import logging
+import os
+import sys
+from datetime import date, datetime
+
+from osgeo import ogr, osr
+
+from lib import mosaic, ortho_functions, utils
 
 ### Create Logger
 logger = logging.getLogger("logger")

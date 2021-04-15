@@ -1,11 +1,21 @@
+#!/usr/bin/env python
+
 from __future__ import division
 
-import os, sys, shutil, math, glob, re, tarfile, argparse, subprocess, logging, platform
-from datetime import datetime, timedelta
+import argparse
+import glob
+import logging
+import math
+import os
+import platform
+import re
+import shutil
+import sys
 import xml.etree.ElementTree as ET
-from osgeo import gdal, ogr, osr, gdalconst
 
-from lib import ortho_functions, utils, taskhandler
+from osgeo import gdal, gdalconst, ogr, osr
+
+from lib import ortho_functions, taskhandler, utils
 from lib.taskhandler import argval2str
 
 #### Create Loggers

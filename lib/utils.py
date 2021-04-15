@@ -1,9 +1,13 @@
-import os, sys, shutil, math, glob, re, tarfile, logging, platform, argparse, subprocess
-from datetime import datetime, timedelta
-
-from xml.dom import minidom
+import glob
+import logging
+import math
+import os
+import re
+import sys
+from datetime import datetime
 from xml.etree import cElementTree as ET
-from osgeo import gdal, ogr, osr, gdalconst
+
+from osgeo import gdal, ogr, osr
 
 gdal.SetConfigOption('GDAL_PAM_ENABLED', 'NO')
 

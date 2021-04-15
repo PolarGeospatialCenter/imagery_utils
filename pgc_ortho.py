@@ -1,9 +1,15 @@
+#!/usr/bin/env python
+
 from __future__ import division
 
-import os, sys, logging, argparse, math
-from datetime import datetime
+import argparse
+import logging
+import math
+import os
+import sys
 import xml.etree.ElementTree as ET
-from lib import ortho_functions, utils, taskhandler
+
+from lib import ortho_functions, taskhandler, utils
 from lib.taskhandler import argval2str
 
 #### Create Loggers

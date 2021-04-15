@@ -1,8 +1,16 @@
-import os, sys, shutil, math, glob, re, tarfile, argparse, subprocess, logging
-from datetime import datetime, timedelta
-from osgeo import gdal, ogr, osr, gdalconst, numpy
+#!/usr/bin/env python
 
-from lib import ortho_functions, utils, taskhandler
+import argparse
+import logging
+import math
+import os
+import shutil
+import sys
+
+import numpy
+from osgeo import gdal
+
+from lib import ortho_functions, taskhandler, utils
 
 #### Create Loggers
 logger = logging.getLogger("logger")

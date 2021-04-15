@@ -1,9 +1,15 @@
-import os, sys, shutil, math, glob, re, tarfile, logging, platform, argparse, subprocess
-from datetime import datetime, timedelta
+
+import glob
+import logging
+import math
+import os
+import shutil
+from datetime import datetime
 from xml.etree import cElementTree as ET
-from osgeo import gdal, ogr, osr, gdalconst
+
 import numpy
 from numpy import flatnonzero
+from osgeo import gdal, ogr, osr
 
 from lib import utils
 

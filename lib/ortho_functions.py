@@ -1,11 +1,20 @@
-import os, sys, shutil, math, glob, re, tarfile, logging, platform, argparse
-from datetime import datetime, timedelta
 
-from lib import utils, taskhandler
+import argparse
+import glob
+import logging
+import math
+import os
+import platform
+import re
+import shutil
+import tarfile
+from datetime import datetime
 from xml.dom import minidom
 from xml.etree import cElementTree as ET
 
-from osgeo import gdal, ogr, osr, gdalconst
+from osgeo import gdal, gdalconst, ogr, osr
+
+from lib import taskhandler, utils
 
 #### Create Loggers
 logger = logging.getLogger("logger")
