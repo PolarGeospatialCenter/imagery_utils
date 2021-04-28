@@ -213,6 +213,7 @@ def main():
             try:
                 task_handler = taskhandler.PBSTaskHandler(qsubpath, l)
             except RuntimeError as e:
+                logger.error(utils.capture_error_trace())
                 logger.error(e)
             else:
                 task_handler.run_tasks(task_queue)
@@ -221,6 +222,7 @@ def main():
             try:
                 task_handler = taskhandler.SLURMTaskHandler(qsubpath)
             except RuntimeError as e:
+                logger.error(utils.capture_error_trace())
                 logger.error(e)
             else:
                 task_handler.run_tasks(task_queue)
@@ -229,6 +231,7 @@ def main():
             try:
                 run_mosaic(tile_builder_script, inpath, mosaicname, mosaic_dir, args, pos_arg_keys)
             except RuntimeError as e:
+                logger.error(utils.capture_error_trace())
                 logger.error(e)
 
     else:
@@ -565,6 +568,7 @@ def run_mosaic(tile_builder_script, inpath, mosaicname, mosaic_dir, args, pos_ar
             try:
                 task_handler = taskhandler.ParallelTaskHandler(args.parallel_processes)
             except RuntimeError as e:
+                logger.error(utils.capture_error_trace())
                 logger.error(e)
             else:
                 if task_handler.num_processes > 1:

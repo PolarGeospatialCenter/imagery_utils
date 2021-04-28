@@ -339,6 +339,7 @@ class ImageInfo:
                 try:
                     metad = utils.getGEMetadataAsXml(metapath)
                 except Exception as err:
+                    logger.error(utils.capture_error_trace())
                     logger.debug("ERROR parsing metadata: %s, %s", err, metapath)
                 #### Write IK01 code 
         
@@ -379,6 +380,7 @@ class ImageInfo:
                                 vallist.append(val)
                                 
                             except Exception as e:
+                                logger.error(utils.capture_error_trace())
                                 logger.debug("Error reading metadata values: %s, %s", metapath, e)
                                 
                     if dTags[tag] == 'tdi' and len(taglist) > 1:    

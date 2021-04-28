@@ -1,10 +1,14 @@
+
+import contextlib
 import glob
 import logging
 import math
 import os
 import re
 import sys
+import traceback
 from datetime import datetime
+from io import StringIO
 from xml.etree import cElementTree as ET
 
 from osgeo import gdal, ogr, osr
@@ -16,6 +20,26 @@ logger = logging.getLogger("logger")
 logger.setLevel(logging.DEBUG)
 
 package_version = '1.5.7'
+
+
+@contextlib.contextmanager
+def capture_stdout_stderr():
+    oldout, olderr = sys.stdout, sys.stderr
+    out = [StringIO(), StringIO()]
+    try:
+        sys.stdout, sys.stderr = out
+        yield out
+    finally:
+        sys.stdout, sys.stderr = oldout, olderr
+        out[0] = out[0].getvalue()
+        out[1] = out[1].getvalue()
+
+
+def capture_error_trace():
+    with capture_stdout_stderr() as out:
+        traceback.print_exc()
+    caught_out, caught_err = out
+    return caught_err
 
 
 class SpatialRef(object):
@@ -193,6 +217,7 @@ def delete_temp_files(names):
                 try:
                     os.remove(f)
                 except Exception as e:
+                    logger.error(capture_error_trace())
                     logger.warning('Could not remove %s: %s', os.path.basename(f), e)
 
 

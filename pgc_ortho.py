@@ -248,6 +248,7 @@ def main():
             try:
                 task_handler = taskhandler.PBSTaskHandler(qsubpath, l)
             except RuntimeError as e:
+                logger.error(utils.capture_error_trace())
                 logger.error(e)
             else:
                 if not args.dryrun:
@@ -257,6 +258,7 @@ def main():
             try:
                 task_handler = taskhandler.SLURMTaskHandler(qsubpath)
             except RuntimeError as e:
+                logger.error(utils.capture_error_trace())
                 logger.error(e)
             else:
                 if not args.dryrun:
@@ -266,6 +268,7 @@ def main():
             try:
                 task_handler = taskhandler.ParallelTaskHandler(args.parallel_processes)
             except RuntimeError as e:
+                logger.error(utils.capture_error_trace())
                 logger.error(e)
             else:
                 logger.info("Number of child processes to spawn: %i", task_handler.num_processes)
@@ -289,6 +292,8 @@ def main():
 
                 if not args.dryrun:
                     results[task.name] = task.method(src, dstfp, task_arg_obj)
+                else:
+                    print(src)
 
                 #### remove existing file handler
                 logger.removeHandler(lfh)

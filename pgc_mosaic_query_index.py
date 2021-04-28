@@ -82,6 +82,7 @@ def main():
     try:
         dsp, lyrn = utils.get_source_names(src)
     except RuntimeError as e:
+        logger.error(utils.capture_error_trace())
         parser.error(e)
     if not os.path.isfile(csvpath):
         parser.error("Arg2 is not a valid file path: %s" %csvpath)
@@ -197,6 +198,7 @@ def main():
                     try:
                         HandleTile(t, src, dstdir, csvpath, args, exclude_list)
                     except RuntimeError as e:
+                        logger.error(utils.capture_error_trace())
                         logger.error(e)
     
     else:
@@ -208,6 +210,7 @@ def main():
                 try:
                     HandleTile(t, src, dstdir, csvpath, args, exclude_list)
                 except RuntimeError as e:
+                    logger.error(utils.capture_error_trace())
                     logger.error(e)
         
         
