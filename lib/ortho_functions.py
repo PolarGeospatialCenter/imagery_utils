@@ -1,11 +1,20 @@
-import os, sys, shutil, math, glob, re, tarfile, logging, platform, argparse
-from datetime import datetime, timedelta
 
-from lib import utils, taskhandler
+import argparse
+import glob
+import logging
+import math
+import os
+import platform
+import re
+import shutil
+import tarfile
+from datetime import datetime
 from xml.dom import minidom
 from xml.etree import cElementTree as ET
 
-from osgeo import gdal, ogr, osr, gdalconst
+from osgeo import gdal, gdalconst, ogr, osr
+
+from lib import taskhandler, utils
 
 #### Create Loggers
 logger = logging.getLogger("logger")
@@ -352,7 +361,8 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
     #### Verify EPSG
     try:
         spatial_ref = utils.SpatialRef(args.epsg)
-    except RuntimeError:
+    except RuntimeError as e:
+        logger.error(utils.capture_error_trace())
         logger.error("Invalid EPSG code: %i", args.epsg)
         err = 1
     else:
@@ -617,6 +627,7 @@ def stackIkBands(dstfp, members):
     try:
         os.remove(vrt)
     except Exception as e:
+        logger.error(utils.capture_error_trace())
         logger.warning("Cannot remove file: %s, %s", vrt, e)
     return rc
 
@@ -1056,6 +1067,7 @@ def ExtractDGMetadataFile(srcfp, wd):
                         fpfh.close()
                         tf.close()
             except Exception:
+                logger.error(utils.capture_error_trace())
                 logger.error("Cannot open Tar file: %s", tarpath)
 
     if metapath and os.path.isfile(metapath):
@@ -1507,6 +1519,7 @@ def ExtractRPB(item, rpb_p):
                     tf.close()
                     # status = 0
         except Exception:
+            logger.error(utils.capture_error_trace())
             logger.error("Cannot open Tar file: %s", tar_p)
             rc = 1
     else:
@@ -1550,6 +1563,7 @@ def getDGXmlData(xmlpath, stretch):
     try:
         xmldoc = minidom.parse(xmlpath)
     except Exception:
+        logger.error(utils.capture_error_trace())
         logger.error("Cannot parse metadata file: %s", xmlpath)
         return None
     else:
@@ -1815,6 +1829,7 @@ def getGEMetadata(fp_mode, metafile):
                 try:
                     band = int(node.attrib["bandNumber"])
                 except Exception:
+                    logger.error(utils.capture_error_trace())
                     logger.error("Unable to retrieve band number in GE metadata")
                 else:
                     node = node.find(".//{}".format(key))

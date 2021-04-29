@@ -1,11 +1,21 @@
+#!/usr/bin/env python
+
 from __future__ import division
 
-import os, sys, shutil, math, glob, re, tarfile, argparse, subprocess, logging, platform
-from datetime import datetime, timedelta
+import argparse
+import glob
+import logging
+import math
+import os
+import platform
+import re
+import shutil
+import sys
 import xml.etree.ElementTree as ET
-from osgeo import gdal, ogr, osr, gdalconst
 
-from lib import ortho_functions, utils, taskhandler
+from osgeo import gdal, gdalconst, ogr, osr
+
+from lib import ortho_functions, taskhandler, utils
 from lib.taskhandler import argval2str
 
 #### Create Loggers
@@ -281,6 +291,7 @@ def main():
     try:
         spatial_ref = utils.SpatialRef(args.epsg)
     except RuntimeError as e:
+        logger.error(utils.capture_error_trace())
         parser.error(e)
 
     #### Verify that dem and ortho_height are not both specified
@@ -348,6 +359,7 @@ def main():
         try:
             image_pair = ImagePair(srcfp, spatial_ref)
         except RuntimeError as e:
+            logger.error(utils.capture_error_trace())
             logger.error(e)
         else:
             logger.info("Image: %s, Sensor: %s", image_pair.mul_srcfn, image_pair.sensor)
@@ -408,7 +420,7 @@ def main():
 
         task = taskhandler.Task(
             task_item_srcfn,
-            'Psh{:04g}'.format(i),
+            'Psh{:04g}'.format(job_count),
             'python',
             '{} {} {} {}'.format(
                 argval2str(scriptpath),
@@ -429,6 +441,7 @@ def main():
             try:
                 task_handler = taskhandler.PBSTaskHandler(qsubpath, l)
             except RuntimeError as e:
+                logger.error(utils.capture_error_trace())
                 logger.error(e)
             else:
                 if not args.dryrun:
@@ -438,6 +451,7 @@ def main():
             try:
                 task_handler = taskhandler.SLURMTaskHandler(qsubpath)
             except RuntimeError as e:
+                logger.error(utils.capture_error_trace())
                 logger.error(e)
             else:
                 if not args.dryrun:
@@ -447,6 +461,7 @@ def main():
             try:
                 task_handler = taskhandler.ParallelTaskHandler(args.parallel_processes)
             except RuntimeError as e:
+                logger.error(utils.capture_error_trace())
                 logger.error(e)
             else:
                 logger.info("Number of child processes to spawn: %i", task_handler.num_processes)
@@ -597,6 +612,7 @@ def exec_pansharpen(image_pair, pansh_dstfp, args):
                 try:
                     os.remove(f)
                 except Exception as e:
+                    logger.error(utils.capture_error_trace())
                     logger.warning('Could not remove %s: %s', os.path.basename(f), e)
     
     if os.path.isfile(pansh_dstfp):

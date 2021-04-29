@@ -1,9 +1,16 @@
-import os, sys, shutil, glob, re, tarfile, logging, argparse
+#!/usr/bin/env python
 
-from lib import mosaic, utils, taskhandler
+import argparse
+import logging
+import os
+import shutil
+import sys
+
 import numpy
-from osgeo import gdal, ogr, osr, gdalconst
-    
+from osgeo import gdal
+
+from lib import mosaic, taskhandler, utils
+
 logger = logging.getLogger("logger")
 logger.setLevel(logging.DEBUG)
 

@@ -4,9 +4,13 @@
 task handler classes and methods
 """
 
-import os, sys, shutil, signal, glob, re, logging, subprocess, platform
-import multiprocessing as mp
 import codecs
+import logging
+import multiprocessing as mp
+import os
+import platform
+import signal
+import subprocess
 
 #### Create Logger
 logger = logging.getLogger("logger")

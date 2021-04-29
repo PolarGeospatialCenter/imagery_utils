@@ -1,10 +1,15 @@
-import os, sys, shutil, glob, re, tarfile, logging, argparse, subprocess, math
-from datetime import datetime, date, timedelta
-from xml.etree import cElementTree as ET
-from osgeo import gdal, ogr, osr, gdalconst
-import numpy
+#!/usr/bin/env python
 
-from lib import mosaic, utils, taskhandler
+import argparse
+import logging
+import math
+import os
+import sys
+from datetime import date, datetime
+
+from osgeo import ogr, osr
+
+from lib import mosaic, taskhandler, utils
 
 ### Create Logger
 logger = logging.getLogger("logger")
@@ -208,6 +213,7 @@ def main():
             try:
                 task_handler = taskhandler.PBSTaskHandler(qsubpath, l)
             except RuntimeError as e:
+                logger.error(utils.capture_error_trace())
                 logger.error(e)
             else:
                 task_handler.run_tasks(task_queue)
@@ -216,6 +222,7 @@ def main():
             try:
                 task_handler = taskhandler.SLURMTaskHandler(qsubpath)
             except RuntimeError as e:
+                logger.error(utils.capture_error_trace())
                 logger.error(e)
             else:
                 task_handler.run_tasks(task_queue)
@@ -224,6 +231,7 @@ def main():
             try:
                 run_mosaic(tile_builder_script, inpath, mosaicname, mosaic_dir, args, pos_arg_keys)
             except RuntimeError as e:
+                logger.error(utils.capture_error_trace())
                 logger.error(e)
 
     else:
@@ -560,6 +568,7 @@ def run_mosaic(tile_builder_script, inpath, mosaicname, mosaic_dir, args, pos_ar
             try:
                 task_handler = taskhandler.ParallelTaskHandler(args.parallel_processes)
             except RuntimeError as e:
+                logger.error(utils.capture_error_trace())
                 logger.error(e)
             else:
                 if task_handler.num_processes > 1:

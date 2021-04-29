@@ -1,9 +1,15 @@
-import os, sys, shutil, math, glob, re, tarfile, logging, platform, argparse, subprocess
-from datetime import datetime, timedelta
+
+import glob
+import logging
+import math
+import os
+import shutil
+from datetime import datetime
 from xml.etree import cElementTree as ET
-from osgeo import gdal, ogr, osr, gdalconst
+
 import numpy
 from numpy import flatnonzero
+from osgeo import gdal, ogr, osr
 
 from lib import utils
 
@@ -333,6 +339,7 @@ class ImageInfo:
                 try:
                     metad = utils.getGEMetadataAsXml(metapath)
                 except Exception as err:
+                    logger.error(utils.capture_error_trace())
                     logger.debug("ERROR parsing metadata: %s, %s", err, metapath)
                 #### Write IK01 code 
         
@@ -373,6 +380,7 @@ class ImageInfo:
                                 vallist.append(val)
                                 
                             except Exception as e:
+                                logger.error(utils.capture_error_trace())
                                 logger.debug("Error reading metadata values: %s, %s", metapath, e)
                                 
                     if dTags[tag] == 'tdi' and len(taglist) > 1:    

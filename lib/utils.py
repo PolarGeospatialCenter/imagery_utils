@@ -1,9 +1,17 @@
-import os, sys, shutil, math, glob, re, tarfile, logging, platform, argparse, subprocess
-from datetime import datetime, timedelta
 
-from xml.dom import minidom
+import contextlib
+import glob
+import logging
+import math
+import os
+import re
+import sys
+import traceback
+from datetime import datetime
+from io import StringIO
 from xml.etree import cElementTree as ET
-from osgeo import gdal, ogr, osr, gdalconst
+
+from osgeo import gdal, ogr, osr
 
 gdal.SetConfigOption('GDAL_PAM_ENABLED', 'NO')
 
@@ -12,6 +20,26 @@ logger = logging.getLogger("logger")
 logger.setLevel(logging.DEBUG)
 
 package_version = '1.5.7'
+
+
+@contextlib.contextmanager
+def capture_stdout_stderr():
+    oldout, olderr = sys.stdout, sys.stderr
+    out = [StringIO(), StringIO()]
+    try:
+        sys.stdout, sys.stderr = out
+        yield out
+    finally:
+        sys.stdout, sys.stderr = oldout, olderr
+        out[0] = out[0].getvalue()
+        out[1] = out[1].getvalue()
+
+
+def capture_error_trace():
+    with capture_stdout_stderr() as out:
+        traceback.print_exc()
+    caught_out, caught_err = out
+    return caught_err
 
 
 class SpatialRef(object):
@@ -189,6 +217,7 @@ def delete_temp_files(names):
                 try:
                     os.remove(f)
                 except Exception as e:
+                    logger.error(capture_error_trace())
                     logger.warning('Could not remove %s: %s', os.path.basename(f), e)
 
 
@@ -441,6 +470,10 @@ def doesCross180(geom):
     :param geom: <osgeo.ogr.Geometry>
     :return: <bool>
     """
+    if geom.GetGeometryName() == "MULTIPOLYGON":
+        err = "Function does not support testing MULTIPOLYGON geometry"
+        raise RuntimeError(err)
+
     result = False
     _mat = re.findall(r"-?\d+\.\d+", geom.ExportToWkt())
     if _mat:

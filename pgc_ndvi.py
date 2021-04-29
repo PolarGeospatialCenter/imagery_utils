@@ -1,8 +1,16 @@
-import os, sys, shutil, math, glob, re, tarfile, argparse, subprocess, logging
-from datetime import datetime, timedelta
-from osgeo import gdal, ogr, osr, gdalconst, numpy
+#!/usr/bin/env python
 
-from lib import ortho_functions, utils, taskhandler
+import argparse
+import logging
+import math
+import os
+import shutil
+import sys
+
+import numpy
+from osgeo import gdal
+
+from lib import ortho_functions, taskhandler, utils
 
 #### Create Loggers
 logger = logging.getLogger("logger")
@@ -131,6 +139,7 @@ def main():
             try:
                 task_handler = taskhandler.PBSTaskHandler(qsubpath, l)
             except RuntimeError as e:
+                logger.error(utils.capture_error_trace())
                 logger.error(e)
             else:
                 if not args.dryrun:
@@ -140,6 +149,7 @@ def main():
             try:
                 task_handler = taskhandler.SLURMTaskHandler(qsubpath)
             except RuntimeError as e:
+                logger.error(utils.capture_error_trace())
                 logger.error(e)
             else:
                 if not args.dryrun:
@@ -149,6 +159,7 @@ def main():
             try:
                 task_handler = taskhandler.ParallelTaskHandler(args.parallel_processes)
             except RuntimeError as e:
+                logger.error(utils.capture_error_trace())
                 logger.error(e)
             else:
                 logger.info("Number of child processes to spawn: %i", task_handler.num_processes)
@@ -408,12 +419,14 @@ def calc_ndvi(srcfp, dstfp, args):
                     try:
                         os.remove(f)
                     except Exception as e:
+                        logger.error(utils.capture_error_trace())
                         logger.warning('Could not remove %s: %s', os.path.basename(f), e)
             if wd != dstdir:
                 for f in wd_files:
                     try:
                         os.remove(f)
                     except Exception as e:
+                        logger.error(utils.capture_error_trace())
                         logger.warning('Could not remove %s: %s', os.path.basename(f), e)
         else:
             logger.error("pgc_ndvi.py: %s was not created", dstfp_local)

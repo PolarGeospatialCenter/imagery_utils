@@ -1,8 +1,15 @@
-import os, sys, logging, argparse, numpy, glob
-from datetime import datetime, date
-from osgeo import gdal, ogr, osr, gdalconst
+#!/usr/bin/env python
 
-from lib import ortho_functions, mosaic, utils, taskhandler
+import argparse
+import glob
+import logging
+import os
+import sys
+from datetime import date, datetime
+
+from osgeo import ogr, osr
+
+from lib import mosaic, ortho_functions, utils
 
 ### Create Logger
 logger = logging.getLogger("logger")
@@ -75,6 +82,7 @@ def main():
     try:
         dsp, lyrn = utils.get_source_names(src)
     except RuntimeError as e:
+        logger.error(utils.capture_error_trace())
         parser.error(e)
     if not os.path.isfile(csvpath):
         parser.error("Arg2 is not a valid file path: %s" %csvpath)
@@ -190,6 +198,7 @@ def main():
                     try:
                         HandleTile(t, src, dstdir, csvpath, args, exclude_list)
                     except RuntimeError as e:
+                        logger.error(utils.capture_error_trace())
                         logger.error(e)
     
     else:
@@ -201,6 +210,7 @@ def main():
                 try:
                     HandleTile(t, src, dstdir, csvpath, args, exclude_list)
                 except RuntimeError as e:
+                    logger.error(utils.capture_error_trace())
                     logger.error(e)
         
         
