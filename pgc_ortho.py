@@ -189,7 +189,6 @@ def main():
             bittype,
             args.stretch,
             spatial_ref.epsg,
-            ortho_functions.formats[args.format]
         ))
 
         dstfp = dst_basename + ortho_functions.formats[args.format]
