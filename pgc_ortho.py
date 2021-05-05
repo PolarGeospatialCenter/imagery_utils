@@ -184,7 +184,7 @@ def main():
     images_to_process = []
     for srcfp in image_list:
         srcdir, srcfn = os.path.split(srcfp)
-        dstfp = os.path.join(dstdir, "{}_{}{}{}{}".format(
+        dst_basename = os.path.join(dstdir, "{}_{}{}{}".format(
             os.path.splitext(srcfn)[0],
             bittype,
             args.stretch,
@@ -192,24 +192,11 @@ def main():
             ortho_functions.formats[args.format]
         ))
 
-        # Must be a better way to check this
+        dstfp = dst_basename + ortho_functions.formats[args.format]
+        vrtfile1 = dst_basename + "_raw.vrt"
+        vrtfile2 = dst_basename + "_vrt.vrt"
+
         # Check to see if raw.vrt or vrt.vrt are present
-        vrtfile1 = os.path.join(dstdir, "{}_{}{}{}{}".format(
-            os.path.splitext(srcfn)[0],
-            bittype,
-            args.stretch,
-            spatial_ref.epsg,
-            "_raw.vrt"
-        ))
-
-        vrtfile2 = os.path.join(dstdir, "{}_{}{}{}{}".format(
-            os.path.splitext(srcfn)[0],
-            bittype,
-            args.stretch,
-            spatial_ref.epsg,
-            "_vrt.vrt"
-        ))
-
         vrt_done = os.path.isfile(vrtfile1) or os.path.isfile(vrtfile2)
         tif_done = os.path.isfile(dstfp)
         # If no tif file present, need to make one
