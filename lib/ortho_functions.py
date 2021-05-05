@@ -293,9 +293,10 @@ def buildParentArgumentParser():
     parser.add_argument("--bgrn", action="store_true", default=False,
                         help="output multispectral images as 4 band BGRN (reduce 8 band to 4)")
     parser.add_argument("-s", "--save-temps", action="store_true", default=False,
-                        help="save temp files")
+                        help="save temp files, they will be renamed with a .save extension")
     parser.add_argument("--wd",
-                        help="local working directory for cluster jobs (default is dst dir)")
+                        help='local working directory for cluster jobs (default is dst dir)'
+                             'If used with --save-temps ALL files will be preserved in working directory')
     parser.add_argument("--skip-warp", action='store_true', default=False,
                         help="skip warping step")
     parser.add_argument("--skip-dem-overlap-check", action='store_true', default=False,
@@ -357,6 +358,12 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
     info.rawvrt = os.path.splitext(info.localdst)[0] + "_raw.vrt"
     info.warpfile = os.path.splitext(info.localdst)[0] + "_warp.tif"
     info.vrtfile = os.path.splitext(info.localdst)[0] + "_vrt.vrt"
+
+    # Cleanup temp files from failed or interrupted processing attempt
+    if args.wd:
+        utils.delete_temp_files([info.dstfp, info.rawvrt, info.warpfile, info.vrtfile, info.localsrc])
+    else:
+        utils.delete_temp_files([info.dstfp, info.rawvrt, info.warpfile, info.vrtfile])
 
     #### Verify EPSG
     try:
@@ -508,6 +515,11 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
             utils.delete_temp_files([info.rawvrt, info.warpfile, info.vrtfile, info.localsrc])
         else:
             utils.delete_temp_files([info.rawvrt, info.warpfile, info.vrtfile])
+    # Rename temp files if --save-temps
+    elif args.save_temps:
+        os.rename(info.rawvrt, info.rawvrt + ".save")
+        os.rename(info.vrtfile, info.vrtfile + ".save")
+        os.rename(info.warpfile, info.warpfile + ".save")
 
     #### Calculate Total Time
     endtime = datetime.today()

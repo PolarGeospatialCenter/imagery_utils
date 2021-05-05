@@ -192,8 +192,33 @@ def main():
             ortho_functions.formats[args.format]
         ))
 
-        done = os.path.isfile(dstfp)
-        if done is False:
+        # Must be a better way to check this
+        # Check to see if raw.vrt or vrt.vrt are present
+        vrtfile1 = os.path.join(dstdir, "{}_{}{}{}{}".format(
+            os.path.splitext(srcfn)[0],
+            bittype,
+            args.stretch,
+            spatial_ref.epsg,
+            "_raw.vrt"
+        ))
+
+        vrtfile2 = os.path.join(dstdir, "{}_{}{}{}{}".format(
+            os.path.splitext(srcfn)[0],
+            bittype,
+            args.stretch,
+            spatial_ref.epsg,
+            "_vrt.vrt"
+        ))
+
+        vrt_done = os.path.isfile(vrtfile1) or os.path.isfile(vrtfile2)
+        tif_done = os.path.isfile(dstfp)
+        # If no tif file present, need to make one
+        if tif_done is False:
+            i += 1
+            images_to_process.append(srcfp)
+
+        # If tif file is present but one of the vrt files is present, need to rebuild
+        elif tif_done is True and vrt_done is True:
             i += 1
             images_to_process.append(srcfp)
 
@@ -302,6 +327,7 @@ def main():
             for k, v in results.items():
                 if v != 0:
                     logger.warning("Failed Image: %s", k)
+                    sys.exit(1)
 
         logger.info("Done")
 
