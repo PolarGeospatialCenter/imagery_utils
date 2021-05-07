@@ -162,10 +162,6 @@ def main():
 
     #### Get args ready to pass to task handler
     arg_keys_to_remove = ('l', 'qsubscript', 'dryrun', 'pbs', 'slurm', 'parallel_processes', 'tasks_per_job')
-    arg_str_base = taskhandler.convert_optional_args_to_string(args, pos_arg_keys, arg_keys_to_remove)
-
-    #### Backup script args if CSV source argument list is used
-    script_args_orig = args
 
     ## Identify source images
     csv_arg_data = None
@@ -190,13 +186,13 @@ def main():
 
         # Extract src image paths and send to utils.find_images
         csv_src_array = csv_arg_data[:, csv_argname_list.index('src')]
-        image_list1 = utils.find_images(list(csv_src_array), True, ortho_functions.exts)
+        image_list1 = utils.find_images(csv_src_array.tolist(), True, ortho_functions.exts)
 
         # Trim CSV data to intersection with found image paths
-        _, _, csv_rows_src_found = np.intersect1d(np.array(image_list1), csv_src_array, return_indices=True)
+        _, _, csv_rows_src_found = np.intersect1d(np.asarray(image_list1), csv_src_array, return_indices=True)
         csv_arg_data = csv_arg_data[csv_rows_src_found, :]
         csv_src_array = csv_arg_data[:, csv_argname_list.index('src')]
-        assert list(csv_src_array) == image_list1
+        assert set(csv_src_array) == set(image_list1)
     else:
         image_list1 = [src]
 
@@ -211,6 +207,8 @@ def main():
                     break
             image_list2.append(newname)
             if srctype == 'csvfile':
+                # The csv_src_array is a slice/window into the larger CSV data array;
+                # modifications are carried through to the larger CSV data array.
                 csv_src_array[i] = newname
 
         else:
@@ -219,23 +217,37 @@ def main():
     image_list = list(set(image_list2))
     logger.info('Number of src images: %i', len(image_list))
 
+    if srctype == 'csvfile':
+        # Trim CSV data to intersection with updated image path names
+        # (the number of source images should not have changed, so this
+        #  is mainly a check that changes to any image names were also
+        #  properly applied to the CSV data array).
+        _, _, csv_rows_to_keep = np.intersect1d(np.asarray(image_list), csv_src_array, return_indices=True)
+        csv_arg_data = csv_arg_data[csv_rows_to_keep, :]
+        csv_src_array = csv_arg_data[:, csv_argname_list.index('src')]
+        assert set(csv_src_array) == set(image_list)
+        # Use the CSV argument array in place of the standard image list
+        image_list = csv_arg_data
+
     ## Build task queue
     i = 0
     images_to_process = []
-    for srcfp in image_list:
-        srcdir, srcfn = os.path.split(srcfp)
-        dstfp = os.path.join(dstdir, "{}_{}{}{}{}".format(
+    for task_args in yield_task_args(image_list, args,
+                                     task_list_primary_argname='src',
+                                     task_list_header=csv_argname_list):
+        srcdir, srcfn = os.path.split(task_args.src)
+        dstfp = os.path.join(task_args.dst, "{}_{}{}{}{}".format(
             os.path.splitext(srcfn)[0],
-            bittype,
-            args.stretch,
-            spatial_ref.epsg,
-            ortho_functions.formats[args.format]
+            utils.get_bit_depth(task_args.outtype),
+            task_args.stretch,
+            task_args.epsg,
+            ortho_functions.formats[task_args.format]
         ))
 
         done = os.path.isfile(dstfp)
         if done is False:
             i += 1
-            images_to_process.append(srcfp)
+            images_to_process.append(task_args.src)
 
     logger.info('Number of incomplete tasks: %i', i)
 
@@ -246,8 +258,13 @@ def main():
     task_queue = []
 
     if srctype == 'csvfile':
-        _, _, csv_rows_to_process = np.intersect1d(np.array(images_to_process), csv_src_array, return_indices=True)
-        images_to_process = csv_arg_data[csv_rows_to_process, :]
+        # Trim CSV data to intersection with images yet to process
+        _, _, csv_rows_to_process = np.intersect1d(np.asarray(images_to_process), csv_src_array, return_indices=True)
+        csv_arg_data = csv_arg_data[csv_rows_to_process, :]
+        csv_src_array = csv_arg_data[:, csv_argname_list.index('src')]
+        assert set(csv_src_array) == set(images_to_process)
+        # Use the CSV argument array in place of the standard image list
+        images_to_process = csv_arg_data
 
     if args.tasks_per_job and args.tasks_per_job > 1:
         task_srcfp_list = utils.write_task_bundles(
@@ -257,40 +274,24 @@ def main():
     else:
         task_srcfp_list = images_to_process
 
-    for job_count, task_args in enumerate(task_srcfp_list, 1):
-
-        srcfp = None
-        if type(task_args) is str:
-            srcfp = task_args
-        else:
-            assert srctype == 'csvfile'
-            script_args_copy = None
-            for i, argval in enumerate(task_args):
-                argname = csv_argname_list[i]
-                if argname == 'src':
-                    srcfp = argval
-                else:
-                    try:
-                        argval = float(argval)
-                        if int(argval) == argval:
-                            argval = int(argval)
-                    except ValueError:
-                        argval = '"{}"'.format(argval)
-                    if script_args_copy is None:
-                        script_args_copy = copy.copy(script_args_orig)
-                    exec('script_args_copy.{} = {}'.format(argname, argval))
-            args = script_args_copy
-            assert srcfp is not None
+    for job_count, task_args in enumerate(
+            yield_task_args(task_srcfp_list, args,
+                            task_list_primary_argname='src',
+                            task_list_header=csv_argname_list),
+            1):
+        arg_str_base = taskhandler.convert_optional_args_to_string(task_args, pos_arg_keys, arg_keys_to_remove)
+        srcfp = task_args.src
+        dstdir = task_args.dst
 
         srcdir, srcfn = os.path.split(srcfp)
 
         if task_srcfp_list is images_to_process:
             dstfp = os.path.join(dstdir, "{}_{}{}{}{}".format(
                 os.path.splitext(srcfn)[0],
-                utils.get_bit_depth(args.outtype),
-                args.stretch,
-                args.epsg,
-                ortho_functions.formats[args.format]
+                utils.get_bit_depth(task_args.outtype),
+                task_args.stretch,
+                task_args.epsg,
+                ortho_functions.formats[task_args.format]
             ))
         else:
             dstfp = None
@@ -306,7 +307,7 @@ def main():
                 argval2str(dstdir)
             ),
             ortho_functions.process_image,
-            [srcfp, dstfp, args]
+            [srcfp, dstfp, task_args]
         )
         task_queue.append(task)
 
@@ -377,6 +378,47 @@ def main():
 
     else:
         logger.info("No images found to process")
+
+
+def yield_task_args(task_list, script_args,
+                    task_list_primary_argname,
+                    task_list_header=None):
+    if task_list_header is None:
+        task_list_header = [task_list_primary_argname]
+
+    for task in task_list:
+        task_args = copy.copy(script_args)
+
+        if type(task) in (tuple, list):
+            task_arg_list = task
+        elif type(task) is np.ndarray:
+            task_arg_list = task.tolist()
+        else:
+            task_arg_list = [task]
+
+        for i, argval in enumerate(task_arg_list):
+            argname = task_list_header[i]
+
+            if argval is None:
+                argval = None
+            elif type(argval) is str and argval.lower() in ('none', ''):
+                if argval == '':
+                    continue
+                else:
+                    argval = None
+            else:
+                try:
+                    argval = float(argval)
+                    if int(argval) == argval:
+                        argval = int(argval)
+                except ValueError:
+                    argval = '"{}"'.format(argval)
+
+            exec_statement = 'task_args.{} = {}'.format(argname, argval)
+            # print(exec_statement)
+            exec(exec_statement)
+
+        yield task_args
 
 
 if __name__ == "__main__":
