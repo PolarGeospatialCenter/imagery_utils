@@ -1247,13 +1247,19 @@ def WriteOutputMetadata(args, info):
     return 0
 
 
-def prettify(elem):
+def prettify(root):
     """Return a pretty-printed XML string for the Element.
     """
-    rough_string = ET.tostring(elem, 'utf-8')
+    for elem in root.iter('*'):
+        if elem.text is not None:
+            elem.text = elem.text.strip()
+        if elem.tail is not None:
+            elem.tail = elem.tail.strip()
+
+    rough_string = ET.tostring(root, 'utf-8')
     reparsed = minidom.parseString(rough_string)
 
-    return reparsed.toprettyxml(indent="  ")
+    return reparsed.toprettyxml(indent="\t")
 
 
 def WarpImage(args, info, gdal_thread_count=1):
