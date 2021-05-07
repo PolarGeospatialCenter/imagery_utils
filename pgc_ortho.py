@@ -3,11 +3,14 @@
 from __future__ import division
 
 import argparse
+import copy
 import logging
 import math
 import os
 import sys
 import xml.etree.ElementTree as ET
+
+import numpy as np
 
 from lib import ortho_functions, taskhandler, utils
 from lib.taskhandler import argval2str
@@ -51,14 +54,16 @@ def main():
     scriptpath = os.path.abspath(sys.argv[0])
     src = os.path.abspath(args.src)
     dstdir = os.path.abspath(args.dst)
-    scratch = os.path.abspath(args.scratch)
-    bittype = utils.get_bit_depth(args.outtype)
+    args.scratch = os.path.abspath(args.scratch)
+    args.dst = dstdir
 
     #### Validate Required Arguments
     if os.path.isdir(src):
         srctype = 'dir'
     elif os.path.isfile(src) and os.path.splitext(src)[1].lower() == '.txt':
         srctype = 'textfile'
+    elif os.path.isfile(src) and os.path.splitext(src)[1].lower() == '.csv':
+        srctype = 'csvfile'
     elif os.path.isfile(src) and os.path.splitext(src)[1].lower() in ortho_functions.exts:
         srctype = 'image'
     elif os.path.isfile(src.replace('msi', 'blu')) and os.path.splitext(src)[1].lower() in ortho_functions.exts:
@@ -106,10 +111,15 @@ def main():
             os.makedirs(args.scratch)
 
     #### Verify EPSG
-    try:
-        spatial_ref = utils.SpatialRef(args.epsg)
-    except RuntimeError as e:
-        parser.error(e)
+    if srctype == 'csvfile' and args.epsg == 0:
+        # Check for valid EPSG argument in CSV argument list file
+        pass
+    else:
+        try:
+            spatial_ref = utils.SpatialRef(args.epsg)
+            args.epsg = spatial_ref.epsg
+        except RuntimeError as e:
+            parser.error(e)
 
     #### Verify that dem and ortho_height are not both specified
     if args.dem is not None and args.ortho_height is not None:
@@ -154,17 +164,45 @@ def main():
     arg_keys_to_remove = ('l', 'qsubscript', 'dryrun', 'pbs', 'slurm', 'parallel_processes', 'tasks_per_job')
     arg_str_base = taskhandler.convert_optional_args_to_string(args, pos_arg_keys, arg_keys_to_remove)
 
+    #### Backup script args if CSV source argument list is used
+    script_args_orig = args
+
     ## Identify source images
+    csv_arg_data = None
+    csv_argname_list = None
+    csv_src_array = None
     if srctype == 'dir':
         image_list1 = utils.find_images(src, False, ortho_functions.exts)
     elif srctype == 'textfile':
         image_list1 = utils.find_images(src, True, ortho_functions.exts)
+    elif srctype == 'csvfile':
+        csv_arg_data = np.loadtxt(src, dtype=str, delimiter=',')
+        csv_argname_list = [argname.lstrip('-').replace('-', '_').lower() for argname in csv_arg_data[0, :]]
+        if len(csv_argname_list) >= 1 and 'src' in csv_argname_list:
+            pass
+        else:
+            parser.error("'src' should be the header of the first colum of source CSV argument list file")
+        if args.epsg == 0 and 'epsg' not in csv_argname_list:
+            parser.error("A valid EPSG argument must be specified")
+
+        # Remove header row
+        csv_arg_data = csv_arg_data[1:, :]
+
+        # Extract src image paths and send to utils.find_images
+        csv_src_array = csv_arg_data[:, csv_argname_list.index('src')]
+        image_list1 = utils.find_images(list(csv_src_array), True, ortho_functions.exts)
+
+        # Trim CSV data to intersection with found image paths
+        _, _, csv_rows_src_found = np.intersect1d(np.array(image_list1), csv_src_array, return_indices=True)
+        csv_arg_data = csv_arg_data[csv_rows_src_found, :]
+        csv_src_array = csv_arg_data[:, csv_argname_list.index('src')]
+        assert list(csv_src_array) == image_list1
     else:
         image_list1 = [src]
 
     ## Group Ikonos
     image_list2 = []
-    for srcfp in image_list1:
+    for i, srcfp in enumerate(image_list1):
         srcdir, srcfn = os.path.split(srcfp)
         if "IK01" in srcfn and sum([b in srcfn for b in ortho_functions.ikMsiBands]) > 0:
             for b in ortho_functions.ikMsiBands:
@@ -172,6 +210,8 @@ def main():
                     newname = os.path.join(srcdir, srcfn.replace(b, "msi"))
                     break
             image_list2.append(newname)
+            if srctype == 'csvfile':
+                csv_src_array[i] = newname
 
         else:
             image_list2.append(srcfp)
@@ -205,21 +245,51 @@ def main():
 
     task_queue = []
 
+    if srctype == 'csvfile':
+        _, _, csv_rows_to_process = np.intersect1d(np.array(images_to_process), csv_src_array, return_indices=True)
+        images_to_process = csv_arg_data[csv_rows_to_process, :]
+
     if args.tasks_per_job and args.tasks_per_job > 1:
-        task_srcfp_list = utils.write_task_bundles(images_to_process, args.tasks_per_job, scratch, 'Or_src')
+        task_srcfp_list = utils.write_task_bundles(
+            images_to_process, args.tasks_per_job, args.scratch, 'Or_src',
+            header_list=csv_argname_list, bundle_ext=('csv' if srctype == 'csvfile' else 'txt')
+        )
     else:
         task_srcfp_list = images_to_process
 
-    for job_count, srcfp in enumerate(task_srcfp_list, 1):
+    for job_count, task_args in enumerate(task_srcfp_list, 1):
+
+        srcfp = None
+        if type(task_args) is str:
+            srcfp = task_args
+        else:
+            assert srctype == 'csvfile'
+            script_args_copy = None
+            for i, argval in enumerate(task_args):
+                argname = csv_argname_list[i]
+                if argname == 'src':
+                    srcfp = argval
+                else:
+                    try:
+                        argval = float(argval)
+                        if int(argval) == argval:
+                            argval = int(argval)
+                    except ValueError:
+                        argval = '"{}"'.format(argval)
+                    if script_args_copy is None:
+                        script_args_copy = copy.copy(script_args_orig)
+                    exec('script_args_copy.{} = {}'.format(argname, argval))
+            args = script_args_copy
+            assert srcfp is not None
 
         srcdir, srcfn = os.path.split(srcfp)
 
         if task_srcfp_list is images_to_process:
             dstfp = os.path.join(dstdir, "{}_{}{}{}{}".format(
                 os.path.splitext(srcfn)[0],
-                bittype,
+                utils.get_bit_depth(args.outtype),
                 args.stretch,
-                spatial_ref.epsg,
+                args.epsg,
                 ortho_functions.formats[args.format]
             ))
         else:

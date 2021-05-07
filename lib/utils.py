@@ -11,6 +11,7 @@ from datetime import datetime
 from io import StringIO
 from xml.etree import cElementTree as ET
 
+import numpy as np
 from osgeo import gdal, ogr, osr
 
 gdal.SetConfigOption('GDAL_PAM_ENABLED', 'NO')
@@ -145,18 +146,18 @@ def get_sensor(srcfn):
     return vendor, sat.upper()
 
 
-def find_images(inpath, is_textfile, target_exts):
+def find_images(inpath, is_filelist, target_exts):
 
     image_list = []
-    if is_textfile:
-        t = open(inpath, 'r')
-        for line in t.readlines():
-            image = line.rstrip('\n').rstrip('\r')
+    if is_filelist:
+        if type(inpath) is str:
+            with open(inpath, 'r') as textfile_fp:
+                inpath = textfile_fp.read().splitlines()
+        for image in inpath:
             if os.path.isfile(image) and os.path.splitext(image)[1].lower() in target_exts:
                 image_list.append(image)
             else:
                 logger.debug("File in textfile does not exist or has an invalid extension: %s", image)
-        t.close()
 
     else:
         for root, dirs, files in os.walk(inpath):
@@ -169,19 +170,20 @@ def find_images(inpath, is_textfile, target_exts):
     return image_list
 
 
-def find_images_with_exclude_list(inpath, is_textfile, target_exts, exclude_list):
+def find_images_with_exclude_list(inpath, is_filelist, target_exts, exclude_list):
 
     image_list = []
 
-    if is_textfile is True:
-        t = open(inpath, 'r')
-        for line in t.readlines():
+    if is_filelist is True:
+        if type(inpath) is str:
+            with open(inpath, 'r') as textfile_fp:
+                inpath = textfile_fp.read().splitlines()
+        for line in inpath:
             image = line.rstrip('\n').rstrip('\r')
             if os.path.isfile(image) and os.path.splitext(image)[1].lower() in target_exts:
                 image_list.append(image)
             else:
                 logger.info("File in textfile does not exist or has an invalid extension: %s", image)
-        t.close()
 
     else:
         for root, dirs, files in os.walk(inpath):
@@ -570,11 +572,12 @@ def getWrappedGeometry(src_geom):
     return mp_geometry
 
 
-def write_task_bundles(task_list, tasks_per_bundle, dstdir, bundle_prefix, task_delim=','):
+def write_task_bundles(task_list, tasks_per_bundle, dstdir, bundle_prefix,
+                       header_list=None, task_delim=',', bundle_ext='txt'):
 
     jobnum_total = int(math.ceil(len(task_list) / float(tasks_per_bundle)))
     jobnum_fmt = '{:0>'+str(len(str(jobnum_total)))+'}'
-    join_task_items = type(task_list[0]) in (tuple, list)
+    join_task_items = type(task_list[0]) in (tuple, list, np.ndarray)
 
     bundle_prefix = os.path.join(
         dstdir,
@@ -584,11 +587,15 @@ def write_task_bundles(task_list, tasks_per_bundle, dstdir, bundle_prefix, task_
     )
     bundle_file_list = []
 
+    header_line = task_delim.join(header_list) if header_list is not None else None
+
     print("Writing task bundle text files in directory: {}".format(dstdir))
     for jobnum, tasknum in enumerate(range(0, len(task_list), tasks_per_bundle)):
-        bundle_file = '{}_{}.txt'.format(bundle_prefix, jobnum_fmt.format(jobnum+1))
+        bundle_file = '{}_{}.{}'.format(bundle_prefix, jobnum_fmt.format(jobnum+1), bundle_ext)
         task_bundle = task_list[tasknum:tasknum+tasks_per_bundle]
         with open(bundle_file, 'w') as bundle_file_fp:
+            if header_line is not None:
+                bundle_file_fp.write(header_line+'\n')
             for task in task_bundle:
                 task_line = str(task) if not join_task_items else task_delim.join([str(arg) for arg in task])
                 bundle_file_fp.write(task_line+'\n')
