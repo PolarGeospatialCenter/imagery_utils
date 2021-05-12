@@ -284,6 +284,7 @@ def main():
 
         else:
 
+            ret_code = 0
             results = {}
             for task in task_queue:
 
@@ -309,9 +310,10 @@ def main():
             for k, v in results.items():
                 if v != 0:
                     logger.warning("Failed Image: %s", k)
-                    sys.exit(1)
+                    ret_code = 1
 
         logger.info("Done")
+        sys.exit(ret_code)
 
     else:
         logger.info("No images found to process")
