@@ -184,16 +184,23 @@ def main():
     images_to_process = []
     for srcfp in image_list:
         srcdir, srcfn = os.path.split(srcfp)
-        dstfp = os.path.join(dstdir, "{}_{}{}{}{}".format(
+        dst_basename = os.path.join(dstdir, "{}_{}{}{}".format(
             os.path.splitext(srcfn)[0],
             bittype,
             args.stretch,
             spatial_ref.epsg,
-            ortho_functions.formats[args.format]
         ))
 
-        done = os.path.isfile(dstfp)
-        if done is False:
+        dstfp = dst_basename + ortho_functions.formats[args.format]
+        vrtfile1 = dst_basename + "_raw.vrt"
+        vrtfile2 = dst_basename + "_vrt.vrt"
+
+        # Check to see if raw.vrt or vrt.vrt are present
+        vrt_exists = os.path.isfile(vrtfile1) or os.path.isfile(vrtfile2)
+        tif_done = os.path.isfile(dstfp)
+        # If no tif file present, need to make one
+        # If tif file is present but one of the vrt files is present, need to rebuild
+        if (not tif_done) or vrt_exists:
             i += 1
             images_to_process.append(srcfp)
 
@@ -277,6 +284,7 @@ def main():
 
         else:
 
+            ret_code = 0
             results = {}
             for task in task_queue:
 
@@ -302,8 +310,10 @@ def main():
             for k, v in results.items():
                 if v != 0:
                     logger.warning("Failed Image: %s", k)
+                    ret_code = 1
 
         logger.info("Done")
+        sys.exit(ret_code)
 
     else:
         logger.info("No images found to process")
