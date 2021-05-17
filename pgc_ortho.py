@@ -20,6 +20,8 @@ ARGDEF_SCRATCH = os.path.join(os.path.expanduser('~'), 'scratch', 'task_bundles'
 
 
 def main():
+    ret_code = 0
+
     #### Set Up Arguments
     parent_parser, pos_arg_keys = ortho_functions.buildParentArgumentParser()
     parser = argparse.ArgumentParser(
@@ -284,7 +286,6 @@ def main():
 
         else:
 
-            ret_code = 0
             results = {}
             for task in task_queue:
 
@@ -313,10 +314,11 @@ def main():
                     ret_code = 1
 
         logger.info("Done")
-        sys.exit(ret_code)
 
     else:
         logger.info("No images found to process")
+
+    sys.exit(ret_code)
 
 
 if __name__ == "__main__":
