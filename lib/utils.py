@@ -61,7 +61,7 @@ class SpatialRef(object):
             raise RuntimeError("EPSG value must be an integer: {}".format(epsg))
         else:
             err = srs.ImportFromEPSG(epsgcode)
-            if err == 7:
+            if err != 0:
                 raise RuntimeError("Invalid EPSG code: {}".format(epsgcode))
             else:
                 proj4_string = srs.ExportToProj4()

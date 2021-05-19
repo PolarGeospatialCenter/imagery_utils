@@ -173,17 +173,29 @@ def main():
     elif srctype == 'textfile':
         image_list1 = utils.find_images(src, True, ortho_functions.exts)
     elif srctype == 'csvfile':
-        csv_arg_data = np.loadtxt(src, dtype=str, delimiter=',')
+        # Load CSV data
+        csv_arg_data = np.char.strip(np.loadtxt(src, dtype=str, delimiter=','), '\'"')
         csv_header_argname_list = [argname.lstrip('-').replace('-', '_').lower() for argname in csv_arg_data[0, :]]
+        csv_arg_data = csv_arg_data[1:, :]  # remove header row
+
+        # Verify CSV arguments and values
         if len(csv_header_argname_list) >= 1 and 'src' in csv_header_argname_list:
             pass
         else:
             parser.error("'src' should be the header of the first colum of source CSV argument list file")
-        if args.epsg == 0 and 'epsg' not in csv_header_argname_list:
+        if 'epsg' in csv_header_argname_list:
+            csv_epsg_array = csv_arg_data[:, csv_header_argname_list.index('epsg')].astype(int)
+            invalid_epsg_code = False
+            for epsg_code in np.unique(csv_epsg_array):
+                try:
+                    utils.SpatialRef(epsg_code)
+                except Exception:
+                    logger.error(utils.capture_error_trace())
+                    invalid_epsg_code = True
+            if invalid_epsg_code:
+                parser.error("Source CSV argument list file contains invalid EPSG code(s)")
+        elif args.epsg == 0:
             parser.error("A valid EPSG argument must be specified")
-
-        # Remove header row
-        csv_arg_data = csv_arg_data[1:, :]
 
         # Extract src image paths and send to utils.find_images
         csv_src_array = csv_arg_data[:, csv_header_argname_list.index('src')]
