@@ -655,9 +655,9 @@ def yield_task_args(task_list, script_args,
         test_task_nargs = len(test_task)
     else:
         test_task_nargs = 1
-        # If tasks are CSV argument lists and argname_1D is provided,
-        # we assume the CSV argument lists themselves can be provided as the
-        # indicated script argument.
+        # If tasks have a CSV file path as the single argument and argname_1D
+        # is provided, assume the CSV files themselves can be provided as the
+        # argname_1D script argument.
         if (    argname_2D_list is not None and len(argname_2D_list) != 1
             and test_task.endswith('.csv') and argname_1D is not None):
             argname_2D_list = [argname_1D]
@@ -675,7 +675,7 @@ def yield_task_args(task_list, script_args,
             argname_2D_list = [argname_1D]
 
     # Verify that the number of script argument names provided in argname_2D_list
-    # (or through argname_1D) matches the number of argument values in
+    # (or single argument from argname_1D) matches the number of argument values in
     # each row of the task_list.
     if len(argname_2D_list) != test_task_nargs:
         raise InvalidArgumentError(
