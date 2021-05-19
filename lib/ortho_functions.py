@@ -1155,6 +1155,8 @@ def WriteOutputMetadata(args, info):
     ####  Ortho metadata name
     omd = os.path.splitext(info.localdst)[0] + ".xml"
 
+    til = None
+
     ####  Get xml/pvl metadata
     ####  If DG
     if info.vendor == 'DigitalGlobe':
@@ -1167,6 +1169,7 @@ def WriteOutputMetadata(args, info):
             return 1
         else:
             imd = metad.find("IMD")
+            til = metad.find("TIL")
 
     ####  If GE
     elif info.vendor == 'GeoEye' and info.sat == "GE01":
@@ -1250,6 +1253,8 @@ def WriteOutputMetadata(args, info):
 
     if imd is not None:
         ref.append(imd)
+    if til is not None:
+        ref.append(til)
 
     #ET.ElementTree(root).write(omd,xml_declaration=True)
     xmlstring = prettify(root)
@@ -1259,13 +1264,19 @@ def WriteOutputMetadata(args, info):
     return 0
 
 
-def prettify(elem):
+def prettify(root):
     """Return a pretty-printed XML string for the Element.
     """
-    rough_string = ET.tostring(elem, 'utf-8')
+    for elem in root.iter('*'):
+        if elem.text is not None:
+            elem.text = elem.text.strip()
+        if elem.tail is not None:
+            elem.tail = elem.tail.strip()
+
+    rough_string = ET.tostring(root, 'utf-8')
     reparsed = minidom.parseString(rough_string)
 
-    return reparsed.toprettyxml(indent="  ")
+    return reparsed.toprettyxml(indent="\t")
 
 
 def WarpImage(args, info, gdal_thread_count=1):
