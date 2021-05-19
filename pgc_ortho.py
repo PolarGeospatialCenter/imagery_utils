@@ -3,13 +3,11 @@
 from __future__ import division
 
 import argparse
-import copy
 import logging
 import math
 import os
 import sys
 import xml.etree.ElementTree as ET
-from collections.abc import Collection
 
 import numpy as np
 
@@ -168,7 +166,7 @@ def main():
 
     ## Identify source images
     csv_arg_data = None
-    csv_argname_list = None
+    csv_header_argname_list = None
     csv_src_array = None
     if srctype == 'dir':
         image_list1 = utils.find_images(src, False, ortho_functions.exts)
@@ -176,25 +174,25 @@ def main():
         image_list1 = utils.find_images(src, True, ortho_functions.exts)
     elif srctype == 'csvfile':
         csv_arg_data = np.loadtxt(src, dtype=str, delimiter=',')
-        csv_argname_list = [argname.lstrip('-').replace('-', '_').lower() for argname in csv_arg_data[0, :]]
-        if len(csv_argname_list) >= 1 and 'src' in csv_argname_list:
+        csv_header_argname_list = [argname.lstrip('-').replace('-', '_').lower() for argname in csv_arg_data[0, :]]
+        if len(csv_header_argname_list) >= 1 and 'src' in csv_header_argname_list:
             pass
         else:
             parser.error("'src' should be the header of the first colum of source CSV argument list file")
-        if args.epsg == 0 and 'epsg' not in csv_argname_list:
+        if args.epsg == 0 and 'epsg' not in csv_header_argname_list:
             parser.error("A valid EPSG argument must be specified")
 
         # Remove header row
         csv_arg_data = csv_arg_data[1:, :]
 
         # Extract src image paths and send to utils.find_images
-        csv_src_array = csv_arg_data[:, csv_argname_list.index('src')]
+        csv_src_array = csv_arg_data[:, csv_header_argname_list.index('src')]
         image_list1 = utils.find_images(csv_src_array.tolist(), True, ortho_functions.exts)
 
         # Trim CSV data to intersection with found image paths
         _, _, csv_rows_src_found = np.intersect1d(np.asarray(image_list1), csv_src_array, return_indices=True)
         csv_arg_data = csv_arg_data[csv_rows_src_found, :]
-        csv_src_array = csv_arg_data[:, csv_argname_list.index('src')]
+        csv_src_array = csv_arg_data[:, csv_header_argname_list.index('src')]
         assert set(csv_src_array) == set(image_list1)
     else:
         image_list1 = [src]
@@ -227,7 +225,7 @@ def main():
         #  properly applied to the CSV data array).
         _, _, csv_rows_to_keep = np.intersect1d(np.asarray(image_list), csv_src_array, return_indices=True)
         csv_arg_data = csv_arg_data[csv_rows_to_keep, :]
-        csv_src_array = csv_arg_data[:, csv_argname_list.index('src')]
+        csv_src_array = csv_arg_data[:, csv_header_argname_list.index('src')]
         assert set(csv_src_array) == set(image_list)
         # Use the CSV argument array in place of the standard image list
         image_list = csv_arg_data
@@ -235,9 +233,9 @@ def main():
     ## Build task queue
     i = 0
     images_to_process = []
-    for task_args in yield_task_args(image_list, args,
-                                     task_list_1D_argname='src',
-                                     task_list_header=csv_argname_list):
+    for task_args in utils.yield_task_args(image_list, args,
+                                           argname_1D='src',
+                                           argname_2D_list=csv_header_argname_list):
         srcfp = task_args.src
         dstdir = task_args.dst
 
@@ -274,7 +272,7 @@ def main():
         # Trim CSV data to intersection with images yet to process
         _, _, csv_rows_to_process = np.intersect1d(np.asarray(images_to_process), csv_src_array, return_indices=True)
         csv_arg_data = csv_arg_data[csv_rows_to_process, :]
-        csv_src_array = csv_arg_data[:, csv_argname_list.index('src')]
+        csv_src_array = csv_arg_data[:, csv_header_argname_list.index('src')]
         assert set(csv_src_array) == set(images_to_process)
         # Use the CSV argument array in place of the standard image list
         images_to_process = csv_arg_data
@@ -282,15 +280,15 @@ def main():
     if args.tasks_per_job and args.tasks_per_job > 1:
         task_srcfp_list = utils.write_task_bundles(
             images_to_process, args.tasks_per_job, args.scratch, 'Or_src',
-            header_list=csv_argname_list, bundle_ext=('csv' if srctype == 'csvfile' else 'txt')
+            header_list=csv_header_argname_list, bundle_ext=('csv' if srctype == 'csvfile' else 'txt')
         )
     else:
         task_srcfp_list = images_to_process
 
     for job_count, task_args in enumerate(
-            yield_task_args(task_srcfp_list, args,
-                            task_list_1D_argname='src',
-                            task_list_header=csv_argname_list),
+            utils.yield_task_args(task_srcfp_list, args,
+                                  argname_1D='src',
+                                  argname_2D_list=csv_header_argname_list),
             1):
         arg_str_base = taskhandler.convert_optional_args_to_string(task_args, pos_arg_keys, arg_keys_to_remove)
         srcfp = task_args.src
@@ -394,120 +392,6 @@ def main():
         logger.info("No images found to process")
 
     sys.exit(ret_code)
-
-
-def yield_task_args(task_list, script_args,
-                    task_list_1D_argname=None,
-                    task_list_header=None):
-    """
-    Takes a 1D or 2D list of ArgumentParser script argument values,
-    each row of the list corresponding to a separate "task", and applies
-    argument values to the provided ArgumentParser "args" namespace,
-    yielding a copy of the namespace for each task where the argument
-    values for that particular task are set in the namespace.
-    Script argument values that are not modified as part of this operation
-    remain unmodified in the yielded ArgumentParser namespaces.
-
-    Parameters
-    ----------
-    task_list : collection, 1D or 2D
-        Collection of script argument values for a list of tasks.
-        If 2D, the outmost iterable (i.e. row) designates the task,
-        while the innermost iterable (i.e. column) contains argument
-        values corresponding to a single task.
-    script_args : ArgumentParser argument namespace object
-        ArgumentParser argument namespace object for the main script.
-    task_list_1D_argname : string
-        The name of the script argument to which the argument values
-        in a 1D `task_list` correspond. If `task_list` is 2D, the value
-        of this option is ignored. See info on the `task_list_header`
-        option for more information.
-    task_list_header : list of strings
-        The names of script arguments, corresponding to the "columns"
-        of the `task_list` argument values. Script argument names must be
-        formatted as you would normally access them from the ArgumentParser
-        namespace (no leading dashes, and dashes within the argument name
-        should be converted to underscores).
-
-    Yields
-    ------
-    task_args : ArgumentParser argument namespace object
-        Clone of the the `script_args` ArgumentParser argument namespace
-        object, yielded for each task in `task_list`.
-    """
-    test_task = task_list[0]
-    if isinstance(test_task, Collection) and not isinstance(test_task, str):
-        test_task_nargs = len(test_task)
-    else:
-        test_task_nargs = 1
-        # If tasks are CSV argument lists and task_list_1D_argname is provided,
-        # we assume the CSV argument lists themselves can be provided as the
-        # indicated script argument.
-        if (    task_list_header is not None and len(task_list_header) != 1
-            and test_task.endswith('.csv') and task_list_1D_argname is not None):
-            task_list_header = [task_list_1D_argname]
-
-    if task_list_header is None:
-        if task_list_1D_argname is None:
-            raise utils.InvalidArgumentError(
-                "One of the following arguments must be provided: {}".format(
-                    ','.join(["`{}`".format(arg) for arg in [
-                        'task_list_1D_argname',
-                        'task_list_header'
-                    ]])
-                ))
-        else:
-            task_list_header = [task_list_1D_argname]
-
-    # Verify that the number of script argument names provided in task_list_header
-    # (or through task_list_1D_argname) matches the number of argument values in
-    # each row of the task_list.
-    if len(task_list_header) != test_task_nargs:
-        raise utils.InvalidArgumentError(
-            "Number of expected arguments in task list ({}) does not match "
-            "number of argument values found in task list ({})".format(
-                len(task_list_header), test_task_nargs
-            )
-        )
-    del test_task, test_task_nargs
-
-    for task in task_list:
-        # The script_args object from ArgumentParser is mutable,
-        # so we must copy it before modifying.
-        task_args = copy.copy(script_args)
-
-        # Task list could be a 1D list of argument values (likely strings)
-        # or could be a 2D list or NumPy array of argument values.
-        # Convert 1D single-argument task to the multiple-argument
-        # structure (a list with a single argument) for code simplicity.
-        if isinstance(task, Collection) and not isinstance(task, str):
-            task_arg_list = task
-        else:
-            task_arg_list = [task]
-
-        for i, argval in enumerate(task_arg_list):
-            argname = task_list_header[i]
-
-            if argval is None:
-                argval = None
-            elif isinstance(argval, str) and argval.lower() in ('none', ''):
-                if argval == '':
-                    continue
-                else:
-                    argval = None
-            else:
-                try:
-                    argval = float(argval)
-                    if int(argval) == argval:
-                        argval = int(argval)
-                except ValueError:
-                    argval = '"{}"'.format(argval)
-
-            exec_statement = 'task_args.{} = {}'.format(argname, argval)
-            # print(exec_statement)
-            exec(exec_statement)
-
-        yield task_args
 
 
 if __name__ == "__main__":

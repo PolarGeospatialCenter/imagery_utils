@@ -1,5 +1,6 @@
 
 import contextlib
+import copy
 import glob
 import logging
 import math
@@ -8,6 +9,7 @@ import re
 import sys
 import traceback
 from datetime import datetime
+from collections.abc import Collection
 from io import StringIO
 from xml.etree import cElementTree as ET
 
@@ -607,3 +609,117 @@ def write_task_bundles(task_list, tasks_per_bundle, dstdir, bundle_prefix,
         bundle_file_list.append(bundle_file)
 
     return bundle_file_list
+
+
+def yield_task_args(task_list, script_args,
+                    argname_1D=None,
+                    argname_2D_list=None):
+    """
+    Takes a 1D or 2D list of ArgumentParser script argument values,
+    each row of the list corresponding to a separate "task", and applies
+    argument values to the provided ArgumentParser "args" namespace,
+    yielding a copy of the namespace for each task where the argument
+    values for that particular task are set in the namespace.
+    Script argument values that are not modified as part of this operation
+    remain unmodified in the yielded ArgumentParser namespaces.
+
+    Parameters
+    ----------
+    task_list : collection, 1D or 2D
+        Collection of script argument values for a list of tasks.
+        If 2D, the outmost iterable (i.e. row) designates the task,
+        while the innermost iterable (i.e. column) contains argument
+        values corresponding to a single task.
+    script_args : ArgumentParser argument namespace object
+        ArgumentParser argument namespace object for the main script.
+    argname_1D : string
+        The name of the script argument to which the argument values
+        in a 1D `task_list` correspond. If `task_list` is 2D, the value
+        of this option is ignored. See info on the `argname_2D_list`
+        option for more information.
+    argname_2D_list : list of strings
+        The names of script arguments, corresponding to the "columns"
+        of the `task_list` argument values. Script argument names must be
+        formatted as you would normally access them from the ArgumentParser
+        namespace (no leading dashes, and dashes within the argument name
+        should be converted to underscores).
+
+    Yields
+    ------
+    task_args : ArgumentParser argument namespace object
+        Clone of the the `script_args` ArgumentParser argument namespace
+        object, yielded for each task in `task_list`.
+    """
+    test_task = task_list[0]
+    if isinstance(test_task, Collection) and not isinstance(test_task, str):
+        test_task_nargs = len(test_task)
+    else:
+        test_task_nargs = 1
+        # If tasks are CSV argument lists and argname_1D is provided,
+        # we assume the CSV argument lists themselves can be provided as the
+        # indicated script argument.
+        if (    argname_2D_list is not None and len(argname_2D_list) != 1
+            and test_task.endswith('.csv') and argname_1D is not None):
+            argname_2D_list = [argname_1D]
+
+    if argname_2D_list is None:
+        if argname_1D is None:
+            raise InvalidArgumentError(
+                "One of the following arguments must be provided: {}".format(
+                    ','.join(["`{}`".format(arg) for arg in [
+                        'argname_1D',
+                        'argname_2D_list'
+                    ]])
+                ))
+        else:
+            argname_2D_list = [argname_1D]
+
+    # Verify that the number of script argument names provided in argname_2D_list
+    # (or through argname_1D) matches the number of argument values in
+    # each row of the task_list.
+    if len(argname_2D_list) != test_task_nargs:
+        raise InvalidArgumentError(
+            "Number of expected arguments in task list ({}) does not match "
+            "number of argument values found in task list ({})".format(
+                len(argname_2D_list), test_task_nargs
+            )
+        )
+    del test_task, test_task_nargs
+
+    for task in task_list:
+        # The script_args object from ArgumentParser is mutable,
+        # so we must copy it before modifying.
+        task_args = copy.copy(script_args)
+
+        # Task list could be a 1D list of argument values (likely strings)
+        # or could be a 2D list or NumPy array of argument values.
+        # Convert 1D single-argument task to the multiple-argument
+        # structure (a list with a single argument) for code simplicity.
+        if isinstance(task, Collection) and not isinstance(task, str):
+            task_arg_list = task
+        else:
+            task_arg_list = [task]
+
+        for i, argval in enumerate(task_arg_list):
+            argname = argname_2D_list[i]
+
+            if argval is None:
+                argval = None
+            elif isinstance(argval, str) and argval.lower() in ('none', ''):
+                if argval == '':
+                    continue
+                else:
+                    argval = None
+            else:
+                try:
+                    argval = float(argval)
+                    if int(argval) == argval:
+                        argval = int(argval)
+                except ValueError:
+                    argval = '"{}"'.format(argval)
+
+            exec_statement = 'task_args.{} = {}'.format(argname, argval)
+            # print(exec_statement)
+            exec(exec_statement)
+
+        yield task_args
