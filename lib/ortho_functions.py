@@ -22,7 +22,7 @@ logger.setLevel(logging.DEBUG)
 
 DGbandList = ['BAND_P', 'BAND_C', 'BAND_B', 'BAND_G', 'BAND_Y', 'BAND_R', 'BAND_RE', 'BAND_N', 'BAND_N2', 'BAND_S1',
               'BAND_S2', 'BAND_S3', 'BAND_S4', 'BAND_S5', 'BAND_S6', 'BAND_S7', 'BAND_S8']
-formats = {'GTiff': '.tif', 'JP2OpenJPEG': '.jp2', 'ENVI': '.envi', 'HFA': '.img'}
+formats = {'GTiff': '.tif', 'JP2OpenJPEG': '.jp2', 'ENVI': '.envi', 'HFA': '.img', 'JPEG': '.jpg'}
 outtypes = ['Byte', 'UInt16', 'Float32']
 stretches = ["ns", "rf", "mr", "rd"]
 resamples = ["near", "bilinear", "cubic", "cubicspline", "lanczos"]
@@ -756,6 +756,9 @@ def calcStats(args, info):
 
     elif args.format == 'JP2OpenJPEG':   #### add rgb constraint if openjpeg (3 bands only, also test if 16 bit possible)?
         co = '-co "QUALITY=25" '
+
+    elif args.format == 'JPEG':
+        co = ''
 
     else:
         co = ''
