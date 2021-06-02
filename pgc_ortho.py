@@ -127,26 +127,8 @@ def main():
         parser.error("--dem and --ortho_height options are mutually exclusive.  Please choose only one.")
 
     #### Test if DEM exists
-    if args.dem:
-        if not os.path.isfile(args.dem):
-            parser.error("DEM does not exist: {}".format(args.dem))
-        if args.l is None:
-            if args.dem.endswith('.vrt'):
-                total_dem_filesz_gb = 0.0
-                tree = ET.parse(args.dem)
-                root = tree.getroot()
-                for sourceFilename in root.iter('SourceFilename'):
-                    dem_filename = sourceFilename.text
-                    if not os.path.isfile(dem_filename):
-                        parser.error("VRT DEM component raster does not exist: {}".format(dem_filename))
-                    dem_filesz_gb = os.path.getsize(dem_filename) / 1024.0 / 1024 / 1024
-                    total_dem_filesz_gb += dem_filesz_gb
-                dem_filesz_gb = total_dem_filesz_gb
-            else:
-                dem_filesz_gb = os.path.getsize(args.dem) / 1024.0 / 1024 / 1024
-
-            pbs_req_mem_gb = int(max(math.ceil(dem_filesz_gb) + 2, 4))
-            args.l = 'mem={}gb'.format(pbs_req_mem_gb)
+    if args.dem is not None and not os.path.isfile(args.dem):
+        parser.error("DEM does not exist: {}".format(args.dem))
 
     #### Set up console logging handler
     lso = logging.StreamHandler()
@@ -210,6 +192,10 @@ def main():
         elif args.epsg == 0:
             parser.error("A valid EPSG argument must be specified")
 
+        # Create subsets of VRT DEM and trim CSV data if applicable
+        if args.dem is not None and args.dem.endswith('.vrt') and 'dem' in csv_header_argname_list:
+            csv_arg_data = utils.subset_vrt_dem(csv_arg_data, csv_header_argname_list, args)
+
         # Extract src image paths and send to utils.find_images
         csv_src_array = csv_arg_data[:, csv_header_argname_list.index('src')]
         image_list1 = utils.find_images(csv_src_array.tolist(), True, ortho_functions.exts)
@@ -221,6 +207,25 @@ def main():
         assert set(csv_src_array) == set(image_list1)
     else:
         image_list1 = [src]
+
+    ## Automatically set PBS job requested memory if applicable
+    if (    args.dem is not None and args.pbs and args.l is None
+        and (srctype != 'csvfile' or 'dem' not in csv_header_argname_list)):
+        if args.dem.endswith('.vrt'):
+            total_dem_filesz_gb = 0.0
+            tree = ET.parse(args.dem)
+            root = tree.getroot()
+            for sourceFilename in root.iter('SourceFilename'):
+                dem_filename = sourceFilename.text
+                if not os.path.isfile(dem_filename):
+                    parser.error("VRT DEM component raster does not exist: {}".format(dem_filename))
+                dem_filesz_gb = os.path.getsize(dem_filename) / 1024.0 / 1024 / 1024
+                total_dem_filesz_gb += dem_filesz_gb
+            dem_filesz_gb = total_dem_filesz_gb
+        else:
+            dem_filesz_gb = os.path.getsize(args.dem) / 1024.0 / 1024 / 1024
+        pbs_req_mem_gb = int(min(50, max(4, math.ceil(dem_filesz_gb) + 2)))
+        args.l = 'mem={}gb'.format(pbs_req_mem_gb)
 
     ## Group Ikonos
     image_list2 = []
