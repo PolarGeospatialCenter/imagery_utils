@@ -288,6 +288,8 @@ def buildParentArgumentParser():
                              "absolute radiance, au: automatically set]")
     parser.add_argument("--resample", choices=resamples, default="near",
                         help="resampling strategy - mimicks gdalwarp options")
+    parser.add_argument("--tap", action="store_true", default=False,
+                        help="use gdalwarp target aligned pixels option")
     parser.add_argument("--rgb", action="store_true", default=False,
                         help="output multispectral images as 3 band RGB")
     parser.add_argument("--bgrn", action="store_true", default=False,
@@ -970,6 +972,10 @@ def GetImageStats(args, info, target_extent_geom=None):
                 info.res = "-tr {} {} ".format(args.resolution, args.resolution)
             else:
                 info.res = "-tr {0:.12f} {1:.12f} ".format(resx, resy)
+            if args.tap:
+                info.tap = "-tap "
+            else:
+                info.tap = ""
             logger.info("Original image size: %f x %f, res: %.12f x %.12f", rasterxsize_m, rasterysize_m, resx, resy)
 
             #### Set RGB bands
@@ -1363,13 +1369,14 @@ def WarpImage(args, info, gdal_thread_count=1):
 
 
                 #### GDALWARP Command
-                cmd = 'gdalwarp {} -srcnodata "{}" -of GTiff -ot UInt16 {}{}{}-co "TILED=YES" -co "BIGTIFF=IF_SAFER" ' \
+                cmd = 'gdalwarp {} -srcnodata "{}" -of GTiff -ot UInt16 {}{}{}{}-co "TILED=YES" -co "BIGTIFF=IF_SAFER" ' \
                       '-t_srs "{}" -r {} -et 0.01 -rpc -to "{}" "{}" "{}"'.format(
                     config_options,
                     " ".join(nodata_list),
                     info.centerlong,
                     info.extent,
                     info.res,
+                    info.tap,
                     args.spatial_ref.proj4,
                     args.resample,
                     to,
@@ -1384,11 +1391,12 @@ def WarpImage(args, info, gdal_thread_count=1):
 
         else:
             #### GDALWARP Command
-            cmd = 'gdalwarp {} -srcnodata "{}" -of GTiff -ot UInt16 {}-co "TILED=YES" -co "BIGTIFF=IF_SAFER" -t_srs ' \
+            cmd = 'gdalwarp {} -srcnodata "{}" -of GTiff -ot UInt16 {}{}-co "TILED=YES" -co "BIGTIFF=IF_SAFER" -t_srs ' \
                   '"{}" -r {} "{}" "{}"'.format(
                 config_options,
                 " ".join(nodata_list),
                 info.res,
+                info.tap,
                 args.spatial_ref.proj4,
                 args.resample,
                 info.rawvrt,
