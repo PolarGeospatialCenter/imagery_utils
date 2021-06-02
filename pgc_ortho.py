@@ -174,15 +174,28 @@ def main():
         image_list1 = utils.find_images(src, True, ortho_functions.exts)
     elif srctype == 'csvfile':
         # Load CSV data
-        csv_arg_data = np.char.strip(np.loadtxt(src, dtype=str, delimiter=','), '\'"')
-        csv_header_argname_list = [argname.lstrip('-').replace('-', '_').lower() for argname in csv_arg_data[0, :]]
-        csv_arg_data = csv_arg_data[1:, :]  # remove header row
+        csv_arg_data = np.char.strip(np.loadtxt(src, dtype=str, delimiter=',', encoding="utf-8-sig"), '\'"')
+        csv_header = csv_arg_data[0, :]
+
+        # Adjust CSV header argument names
+        # Support ArcGIS export of typical fp.py output
+        if 'OID_' in csv_header:
+            csv_arg_data = np.delete(csv_arg_data, np.where(csv_header == 'OID_')[0], axis=1)
+            csv_header = csv_arg_data[0, :]
+        if 'O_FILEPATH' in csv_header:
+            csv_header[csv_header == 'O_FILEPATH'] = 'src'
+
+        # Convert CSV header argument names to argparse namespace variable format
+        csv_header_argname_list = [argname.lstrip('-').replace('-', '_').lower() for argname in csv_header]
+
+        # Remove header row
+        csv_arg_data = np.delete(csv_arg_data, 0, axis=0)
 
         # Verify CSV arguments and values
         if len(csv_header_argname_list) >= 1 and 'src' in csv_header_argname_list:
             pass
         else:
-            parser.error("'src' should be the header of the first colum of source CSV argument list file")
+            parser.error("'src' should be the header of the first column of source CSV argument list file")
         if 'epsg' in csv_header_argname_list:
             csv_epsg_array = csv_arg_data[:, csv_header_argname_list.index('epsg')].astype(int)
             invalid_epsg_code = False
