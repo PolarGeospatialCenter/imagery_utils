@@ -274,8 +274,9 @@ def buildParentArgumentParser():
                         help="output to the given format (default=GTiff)")
     parser.add_argument("--gtiff-compression", choices=gtiff_compressions, default="lzw",
                         help="GTiff compression type (default=lzw)")
-    parser.add_argument("-p", "--epsg", required=True, type=int,
-                        help="epsg projection code for output files")
+    parser.add_argument("-p", "--epsg", required=False, type=str,
+                        help="EPSG projection code for output files [int: EPSG code, "
+                             "'utm': closest UTM zone, 'auto': closest UTM zone or polar stereo]")
     parser.add_argument("-d", "--dem",
                         help="the DEM to use for orthorectification (elevation values should be relative to the wgs84 "
                              "ellipoid")
@@ -366,14 +367,21 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
         utils.delete_temp_files([info.dstfp, info.rawvrt, info.warpfile, info.vrtfile])
 
     #### Verify EPSG
-    try:
-        spatial_ref = utils.SpatialRef(args.epsg)
-    except RuntimeError as e:
-        logger.error(utils.capture_error_trace())
-        logger.error("Invalid EPSG code: %i", args.epsg)
-        err = 1
+    # epsg argument could also be 'utm' or 'auto', handled in GetImageStats
+    if type(args.epsg) is int:
+        info.epsg = args.epsg
+        try:
+            spatial_ref = utils.SpatialRef(info.epsg)
+        except RuntimeError as e:
+            logger.error(utils.capture_error_trace())
+            logger.error("Invalid EPSG code: %i", info.epsg)
+            err = 1
+        else:
+            info.spatial_ref = spatial_ref
     else:
-        args.spatial_ref = spatial_ref
+        # Determine automatic epsg and srs in GetImageStats
+        info.epsg = None
+        info.spatial_ref = None
 
     #### Verify that dem and ortho_height are not both specified
     if args.dem is not None and args.ortho_height is not None:
@@ -459,7 +467,7 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
     #### Check that DEM overlaps image
     if not err == 1:
         if args.dem and not args.skip_dem_overlap_check:
-            overlap = overlap_check(info.geometry_wkt, args.spatial_ref, args.dem)
+            overlap = overlap_check(info.geometry_wkt, info.spatial_ref, args.dem)
             if overlap is False:
                 err = 1
 
@@ -644,13 +652,75 @@ def stackIkBands(dstfp, members):
     return rc
 
 
+def GetEPSGFromLatLon(lat, lon, mode='auto'):
+    """
+    Get the EPSG code of the UTM or polar stereographic
+    projected coordinate system closest to the provided
+    point latitude and longitude.
+
+    Parameters
+    ----------
+    lat : float [-90, 90]
+        Point latitude in decimal degrees.
+    lon : float [-180, 180]
+        Point longitude in decimal degrees.
+    mode : str
+        If 'utm', use closest UTM zone.
+        If 'auto', use closest UTM zone when
+        `lat` is in the range [-60, 60], otherwise
+        use the proper polar stereographic projection.
+
+    Returns
+    -------
+    epsg_code : int
+        EPSG code of selected projected coordinate system.
+    """
+    mode_choices = ['utm', 'auto']
+
+    if -90 <= lat <= 90:
+        pass
+    else:
+        raise utils.InvalidArgumentError(
+            "`lat` must be in the range [-90, 90] but was {}".format(lat)
+        )
+    if -180 <= lon <= 180:
+        pass
+    else:
+        raise utils.InvalidArgumentError(
+            "`lon` must be in the range [-180, 180] but was {}".format(lon)
+        )
+    if mode not in mode_choices:
+        raise utils.InvalidArgumentError(
+            "`mode` must be one of {} but was '{}'".format(mode_choices, mode)
+        )
+
+    epsg_code = None
+
+    if mode == 'utm' or (mode == 'auto' and (-60 <= lat <= 60)):
+        utm_zone_num = max(1, math.ceil((lon - (-180)) / 6))
+        if lat >= 0:
+            epsg_code = 32600 + utm_zone_num
+        else:
+            epsg_code = 32700 + utm_zone_num
+
+    elif mode == 'auto':
+        if lat > 60:
+            epsg_code = 3413
+        elif lat < 60:
+            epsg_code = 3031
+
+    assert type(epsg_code) is int
+    return epsg_code
+
+
+
 def calcStats(args, info):
 
     logger.info("Calculating image with stats")
     rc = 0
 
     #### Get Well-known Text String of Projection from EPSG Code
-    p = args.spatial_ref.srs
+    p = info.spatial_ref.srs
     prj = p.ExportToWkt()
 
     imax = 2047.0
@@ -775,7 +845,7 @@ def calcStats(args, info):
         base_cmd,
         config_options,
         args.outtype,
-        args.spatial_ref.proj4,
+        info.spatial_ref.proj4,
         info.rgb_bands,
         co,
         args.format,
@@ -899,9 +969,27 @@ def GetImageStats(args, info, target_extent_geom=None):
         lr_geom = ogr.CreateGeometryFromWkt(lr)
         extent_geom = ogr.CreateGeometryFromWkt(poly_wkt)
 
+        #### Get geographic Envelope
+        minlon, maxlon, minlat, maxlat = extent_geom.GetEnvelope()
+
+        ## Determine output image projection if applicable
+        if type(args.epsg) is str:
+            cent_lat = (minlat + maxlat) / 2
+            cent_lon = (minlon + maxlon) / 2
+            info.epsg = GetEPSGFromLatLon(cent_lat, cent_lon, mode=args.epsg)
+            logger.info("Automatically selected output projection EPSG code: %d", info.epsg)
+            try:
+                spatial_ref = utils.SpatialRef(info.epsg)
+            except RuntimeError as e:
+                logger.error(utils.capture_error_trace())
+                logger.error("Invalid EPSG code: %i", info.epsg)
+                rc = 1
+            else:
+                info.spatial_ref = spatial_ref
+
         #### Create srs objects
         s_srs = utils.osr_srs_preserve_axis_order(osr.SpatialReference(proj))
-        t_srs = args.spatial_ref.srs
+        t_srs = info.spatial_ref.srs
         g_srs = utils.osr_srs_preserve_axis_order(osr.SpatialReference())
         g_srs.ImportFromEPSG(WGS84)
         sg_ct = osr.CoordinateTransformation(s_srs, g_srs)
@@ -916,9 +1004,6 @@ def GetImageStats(args, info, target_extent_geom=None):
             lr_geom.Transform(sg_ct)
             extent_geom.Transform(sg_ct)
         logger.info("Geographic extent: %s", str(extent_geom))
-
-        #### Get geographic Envelope
-        minlon, maxlon, minlat, maxlat = extent_geom.GetEnvelope()
 
         #### Transform geoms to target srs
         if not g_srs.IsSame(t_srs):
@@ -1012,7 +1097,14 @@ def GetImageStats(args, info, target_extent_geom=None):
     return info, rc
 
 
-def GetImageGeometryInfo(src_image, spatial_ref):
+def GetImageGeometryInfo(src_image, spatial_ref, args, return_type='extent_geom'):
+    return_type_choices = ['extent_geom', 'epsg_code']
+    if return_type not in return_type_choices:
+        raise utils.InvalidArgumentError(
+            "`return_type` must be one of {} but was '{}'".format(
+                return_type_choices, return_type
+            )
+        )
 
     ds = gdal.Open(src_image, gdalconst.GA_ReadOnly)
     if ds is not None:
@@ -1076,6 +1168,26 @@ def GetImageGeometryInfo(src_image, spatial_ref):
 
         extent_geom = ogr.Geometry(ogr.wkbPolygon)
         extent_geom.AddGeometry(ring)
+
+        #### Get geographic Envelope
+        minlon, maxlon, minlat, maxlat = extent_geom.GetEnvelope()
+
+        ## Determine output image projection if applicable
+        if type(args.epsg) is str:
+            cent_lat = (minlat + maxlat) / 2
+            cent_lon = (minlon + maxlon) / 2
+            img_epsg = GetEPSGFromLatLon(cent_lat, cent_lon, mode=args.epsg)
+            try:
+                spatial_ref = utils.SpatialRef(img_epsg)
+            except RuntimeError as e:
+                logger.error(utils.capture_error_trace())
+                logger.error("Invalid EPSG code: %i", img_epsg)
+                return None
+        else:
+            img_epsg = args.epsg
+
+        if return_type == 'epsg_code':
+            return img_epsg
 
         #### Create srs objects
         s_srs = utils.osr_srs_preserve_axis_order(osr.SpatialReference(proj))
@@ -1316,7 +1428,7 @@ def WriteOutputMetadata(args, info):
     dMD["COMPRESSION"] = args.gtiff_compression
     #dMD["BANDNUMBER"]
     #dMD["BANDMAP"]
-    dMD["EPSG_CODE"] = str(args.epsg)
+    dMD["EPSG_CODE"] = str(info.epsg)
 
     pgcmd = ET.Element("PGC_IMD")
     for tag in dMD:
@@ -1451,7 +1563,7 @@ def WarpImage(args, info, gdal_thread_count=1):
                     info.centerlong,
                     info.extent,
                     info.res,
-                    args.spatial_ref.proj4,
+                    info.spatial_ref.proj4,
                     args.resample,
                     to,
                     info.rawvrt,
@@ -1470,7 +1582,7 @@ def WarpImage(args, info, gdal_thread_count=1):
                 config_options,
                 " ".join(nodata_list),
                 info.res,
-                args.spatial_ref.proj4,
+                info.spatial_ref.proj4,
                 args.resample,
                 info.rawvrt,
                 info.warpfile
