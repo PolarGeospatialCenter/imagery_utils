@@ -1012,6 +1012,87 @@ def GetImageStats(args, info, target_extent_geom=None):
     return info, rc
 
 
+def GetImageGeometryInfo(src_image, spatial_ref):
+
+    ds = gdal.Open(src_image, gdalconst.GA_ReadOnly)
+    if ds is not None:
+
+        ####  Get extent from GCPs
+        num_gcps = ds.GetGCPCount()
+
+        if num_gcps == 4:
+            gcps = ds.GetGCPs()
+            proj = ds.GetGCPProjection()
+
+            gcp_dict = {}
+            id_dict = {"UpperLeft": 1,
+                       "1": 1,
+                       "UpperRight": 2,
+                       "2": 2,
+                       "LowerLeft": 4,
+                       "4": 4,
+                       "LowerRight": 3,
+                       "3": 3}
+
+            for gcp in gcps:
+                gcp_dict[id_dict[gcp.Id]] = [float(gcp.GCPPixel), float(gcp.GCPLine), float(gcp.GCPX),
+                                             float(gcp.GCPY), float(gcp.GCPZ)]
+            ulx = gcp_dict[1][2]
+            uly = gcp_dict[1][3]
+            urx = gcp_dict[2][2]
+            ury = gcp_dict[2][3]
+            llx = gcp_dict[4][2]
+            lly = gcp_dict[4][3]
+            lrx = gcp_dict[3][2]
+            lry = gcp_dict[3][3]
+
+            xsize = gcp_dict[1][0] - gcp_dict[2][0]
+            ysize = gcp_dict[1][1] - gcp_dict[4][1]
+
+        else:
+            xsize = ds.RasterXSize
+            ysize = ds.RasterYSize
+            proj = ds.GetProjectionRef()
+            gtf = ds.GetGeoTransform()
+
+            ulx = gtf[0] + 0 * gtf[1] + 0 * gtf[2]
+            uly = gtf[3] + 0 * gtf[4] + 0 * gtf[5]
+            urx = gtf[0] + xsize * gtf[1] + 0 * gtf[2]
+            ury = gtf[3] + xsize * gtf[4] + 0 * gtf[5]
+            llx = gtf[0] + 0 * gtf[1] + ysize * gtf[2]
+            lly = gtf[3] + 0 * gtf[4] + ysize * gtf[5]
+            lrx = gtf[0] + xsize * gtf[1] + ysize* gtf[2]
+            lry = gtf[3] + xsize * gtf[4] + ysize * gtf[5]
+
+        ds = None
+
+        ####  Create geometry objects
+        ring = ogr.Geometry(ogr.wkbLinearRing)
+        ring.AddPoint(ulx, uly)
+        ring.AddPoint(urx, ury)
+        ring.AddPoint(lrx, lry)
+        ring.AddPoint(llx, lly)
+        ring.AddPoint(ulx, uly)
+
+        extent_geom = ogr.Geometry(ogr.wkbPolygon)
+        extent_geom.AddGeometry(ring)
+
+        #### Create srs objects
+        s_srs = utils.osr_srs_preserve_axis_order(osr.SpatialReference(proj))
+        t_srs = spatial_ref.srs
+        st_ct = osr.CoordinateTransformation(s_srs, t_srs)
+
+        #### Transform geoms to target srs
+        if not s_srs.IsSame(t_srs):
+            extent_geom.Transform(st_ct)
+        #logger.info("Projected extent: %s", str(extent_geom))
+        return extent_geom
+
+    else:
+        logger.error("Cannot open dataset: %s", src_image)
+        return None
+
+
 def GetDGMetadataPath(srcfp):
     """
     Returns the filepath of the XML, if it can be found. Returns
