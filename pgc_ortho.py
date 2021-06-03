@@ -243,7 +243,6 @@ def main():
         image_list = csv_arg_data
 
     ## Build task queue
-    i = 0
     images_to_process = []
     for task_args in utils.yield_task_args(image_list, args,
                                            argname_1D='src',
@@ -269,11 +268,9 @@ def main():
         # If no tif file present, need to make one
         # If tif file is present but one of the vrt files is present, need to rebuild
         if (not tif_done) or vrt_exists:
-            i += 1
             images_to_process.append(srcfp)
 
-    logger.info('Number of incomplete tasks: %i', i)
-
+    logger.info("Number of incomplete tasks: %i", len(images_to_process))
     if len(images_to_process) == 0:
         logger.info("No images found to process")
         sys.exit(0)
