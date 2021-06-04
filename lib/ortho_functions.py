@@ -38,7 +38,8 @@ except AttributeError:
     ARGDEF_CPUS_AVAIL = multiprocessing.cpu_count()
 
 
-WGS84 = 4326
+srs_wgs84 = utils.osr_srs_preserve_axis_order(osr.SpatialReference())
+srs_wgs84.ImportFromEPSG(4326)
 
 formatVRT = "VRT"
 VRTdriver = gdal.GetDriverByName(formatVRT)
@@ -969,6 +970,21 @@ def GetImageStats(args, info, target_extent_geom=None):
         lr_geom = ogr.CreateGeometryFromWkt(lr)
         extent_geom = ogr.CreateGeometryFromWkt(poly_wkt)
 
+        g_srs = srs_wgs84
+
+        #### Create source srs objects
+        s_srs = utils.osr_srs_preserve_axis_order(osr.SpatialReference(proj))
+        sg_ct = osr.CoordinateTransformation(s_srs, g_srs)
+
+        #### Transform geometries to geographic
+        if not s_srs.IsSame(g_srs):
+            ul_geom.Transform(sg_ct)
+            ur_geom.Transform(sg_ct)
+            ll_geom.Transform(sg_ct)
+            lr_geom.Transform(sg_ct)
+            extent_geom.Transform(sg_ct)
+        logger.info("Geographic extent: %s", str(extent_geom))
+
         #### Get geographic Envelope
         minlon, maxlon, minlat, maxlat = extent_geom.GetEnvelope()
 
@@ -987,23 +1003,10 @@ def GetImageStats(args, info, target_extent_geom=None):
             else:
                 info.spatial_ref = spatial_ref
 
-        #### Create srs objects
-        s_srs = utils.osr_srs_preserve_axis_order(osr.SpatialReference(proj))
+        #### Create target srs objects
         t_srs = info.spatial_ref.srs
-        g_srs = utils.osr_srs_preserve_axis_order(osr.SpatialReference())
-        g_srs.ImportFromEPSG(WGS84)
-        sg_ct = osr.CoordinateTransformation(s_srs, g_srs)
         gt_ct = osr.CoordinateTransformation(g_srs, t_srs)
         tg_ct = osr.CoordinateTransformation(t_srs, g_srs)
-
-        #### Transform geometries to geographic
-        if not s_srs.IsSame(g_srs):
-            ul_geom.Transform(sg_ct)
-            ur_geom.Transform(sg_ct)
-            ll_geom.Transform(sg_ct)
-            lr_geom.Transform(sg_ct)
-            extent_geom.Transform(sg_ct)
-        logger.info("Geographic extent: %s", str(extent_geom))
 
         #### Transform geoms to target srs
         if not g_srs.IsSame(t_srs):
@@ -1169,6 +1172,17 @@ def GetImageGeometryInfo(src_image, spatial_ref, args, return_type='extent_geom'
         extent_geom = ogr.Geometry(ogr.wkbPolygon)
         extent_geom.AddGeometry(ring)
 
+        g_srs = srs_wgs84
+
+        #### Create source srs objects
+        s_srs = utils.osr_srs_preserve_axis_order(osr.SpatialReference(proj))
+        sg_ct = osr.CoordinateTransformation(s_srs, g_srs)
+
+        #### Transform geometries to geographic
+        if not s_srs.IsSame(g_srs):
+            extent_geom.Transform(sg_ct)
+        # logger.info("Geographic extent: %s", str(extent_geom))
+
         #### Get geographic Envelope
         minlon, maxlon, minlat, maxlat = extent_geom.GetEnvelope()
 
@@ -1189,15 +1203,15 @@ def GetImageGeometryInfo(src_image, spatial_ref, args, return_type='extent_geom'
         if return_type == 'epsg_code':
             return img_epsg
 
-        #### Create srs objects
-        s_srs = utils.osr_srs_preserve_axis_order(osr.SpatialReference(proj))
+        #### Create target srs objects
         t_srs = spatial_ref.srs
-        st_ct = osr.CoordinateTransformation(s_srs, t_srs)
+        gt_ct = osr.CoordinateTransformation(g_srs, t_srs)
 
         #### Transform geoms to target srs
-        if not s_srs.IsSame(t_srs):
-            extent_geom.Transform(st_ct)
-        #logger.info("Projected extent: %s", str(extent_geom))
+        if not g_srs.IsSame(t_srs):
+            extent_geom.Transform(gt_ct)
+        # logger.info("Projected extent: %s", str(extent_geom))
+
         return extent_geom
 
     else:
