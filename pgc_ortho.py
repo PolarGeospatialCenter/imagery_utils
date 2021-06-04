@@ -252,6 +252,7 @@ def main():
         image_list = csv_arg_data
 
     ## Build task queue
+    i = 0
     images_to_process = []
     for task_args in utils.yield_task_args(image_list, args,
                                            argname_1D='src',
