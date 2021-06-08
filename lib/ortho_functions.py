@@ -285,7 +285,7 @@ def buildParentArgumentParser():
                         help="output pixel resolution in units of the projection")
     parser.add_argument("-c", "--stretch", choices=stretches, default="rf",
                         help="stretch type [ns: nostretch, rf: reflectance (default), mr: modified reflectance, rd: "
-                             "absolute radiance, au: automatically set]")
+                             "absolute radiance, au: automatically set (rf for images below 60S latitude, otherwise mr)]")
     parser.add_argument("--resample", choices=resamples, default="near",
                         help="resampling strategy - mimicks gdalwarp options")
     parser.add_argument("--tap", action="store_true", default=False,
