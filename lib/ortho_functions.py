@@ -277,7 +277,8 @@ def buildParentArgumentParser():
                         help="GTiff compression type (default=lzw)")
     parser.add_argument("-p", "--epsg", required=False, type=str,
                         help="EPSG projection code for output files [int: EPSG code, "
-                             "'utm': closest UTM zone, 'auto': closest UTM zone or polar stereo]")
+                             "'utm': closest UTM zone, 'auto': closest UTM zone or polar stereo "
+                             "(polar stereo cutoff is at 60 N/S latitude)]")
     parser.add_argument("-d", "--dem",
                         help="the DEM to use for orthorectification (elevation values should be relative to the wgs84 "
                              "ellipoid")
