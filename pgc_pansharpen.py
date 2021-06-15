@@ -354,16 +354,28 @@ def main():
         image_list1 = [src]
 
     pair_list = []
+    unmatched_images = set()
     for srcfp in image_list1:
         #print(srcfp)
         try:
             image_pair = ImagePair(srcfp, spatial_ref)
         except RuntimeError as e:
-            logger.error(utils.capture_error_trace())
-            logger.error(e)
+            if (   str(e).startswith("Corresponding panchromatic image not found:")
+                or str(e).startswith("Image does not match multispectral name pattern:")):
+                _, _, non_multi_fn = str(e).partition(':')
+                unmatched_images.add(os.path.basename(non_multi_fn.strip()))
+            else:
+                logger.error(e)
         else:
             logger.info("Image: %s, Sensor: %s", image_pair.mul_srcfn, image_pair.sensor)
             pair_list.append(image_pair)
+
+    pair_pan_images = set([pair.pan_srcfn for pair in pair_list])
+    unmatched_images = unmatched_images.difference(pair_pan_images)
+    if len(unmatched_images) > 0:
+        parser.error("{} src images could not be paired:\n{}".format(
+            len(unmatched_images), '\n'.join(sorted(list(unmatched_images)))
+        ))
                 
     logger.info('Number of src image pairs: %i', len(pair_list))
     
