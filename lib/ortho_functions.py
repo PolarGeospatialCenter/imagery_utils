@@ -24,7 +24,7 @@ DGbandList = ['BAND_P', 'BAND_C', 'BAND_B', 'BAND_G', 'BAND_Y', 'BAND_R', 'BAND_
               'BAND_S2', 'BAND_S3', 'BAND_S4', 'BAND_S5', 'BAND_S6', 'BAND_S7', 'BAND_S8']
 formats = {'GTiff': '.tif', 'JP2OpenJPEG': '.jp2', 'ENVI': '.envi', 'HFA': '.img', 'JPEG': '.jpg'}
 outtypes = ['Byte', 'UInt16', 'Float32']
-stretches = ["ns", "rf", "mr", "rd"]
+stretches = ["ns", "rf", "mr", "rd", "au"]
 resamples = ["near", "bilinear", "cubic", "cubicspline", "lanczos"]
 gtiff_compressions = ["jpeg95", "lzw"]
 exts = ['.ntf', '.tif']
@@ -288,9 +288,11 @@ def buildParentArgumentParser():
                         help="output pixel resolution in units of the projection")
     parser.add_argument("-c", "--stretch", choices=stretches, default="rf",
                         help="stretch type [ns: nostretch, rf: reflectance (default), mr: modified reflectance, rd: "
-                             "absolute radiance, au: automatically set]")
+                             "absolute radiance, au: automatically set (rf for images below 60S latitude, otherwise mr)]")
     parser.add_argument("--resample", choices=resamples, default="near",
                         help="resampling strategy - mimicks gdalwarp options")
+    parser.add_argument("--tap", action="store_true", default=False,
+                        help="use gdalwarp target aligned pixels option")
     parser.add_argument("--rgb", action="store_true", default=False,
                         help="output multispectral images as 3 band RGB")
     parser.add_argument("--bgrn", action="store_true", default=False,
@@ -1059,6 +1061,10 @@ def GetImageStats(args, info, target_extent_geom=None):
                 info.res = "-tr {} {} ".format(args.resolution, args.resolution)
             else:
                 info.res = "-tr {0:.12f} {1:.12f} ".format(resx, resy)
+            if args.tap:
+                info.tap = "-tap "
+            else:
+                info.tap = ""
             logger.info("Original image size: %f x %f, res: %.12f x %.12f", rasterxsize_m, rasterysize_m, resx, resy)
 
             #### Set RGB bands
@@ -1090,10 +1096,11 @@ def GetImageStats(args, info, target_extent_geom=None):
 
             info.stretch = args.stretch
             if args.stretch == 'au':
-                if (maxlat + minlat / 2) <= -60:
+                if ((maxlat + minlat) / 2) <= -60:
                     info.stretch = 'rf'
                 else:
                     info.stretch = 'mr'
+                logger.info("Automatically selected stretch: %s", info.stretch)
     else:
         logger.error("Cannot open dataset: %s", info.localsrc)
         rc = 1
@@ -1571,13 +1578,14 @@ def WarpImage(args, info, gdal_thread_count=1):
 
 
                 #### GDALWARP Command
-                cmd = 'gdalwarp {} -srcnodata "{}" -of GTiff -ot UInt16 {}{}{}-co "TILED=YES" -co "BIGTIFF=IF_SAFER" ' \
+                cmd = 'gdalwarp {} -srcnodata "{}" -of GTiff -ot UInt16 {}{}{}{}-co "TILED=YES" -co "BIGTIFF=IF_SAFER" ' \
                       '-t_srs "{}" -r {} -et 0.01 -rpc -to "{}" "{}" "{}"'.format(
                     config_options,
                     " ".join(nodata_list),
                     info.centerlong,
                     info.extent,
                     info.res,
+                    info.tap,
                     info.spatial_ref.proj4,
                     args.resample,
                     to,
@@ -1592,11 +1600,12 @@ def WarpImage(args, info, gdal_thread_count=1):
 
         else:
             #### GDALWARP Command
-            cmd = 'gdalwarp {} -srcnodata "{}" -of GTiff -ot UInt16 {}-co "TILED=YES" -co "BIGTIFF=IF_SAFER" -t_srs ' \
+            cmd = 'gdalwarp {} -srcnodata "{}" -of GTiff -ot UInt16 {}{}-co "TILED=YES" -co "BIGTIFF=IF_SAFER" -t_srs ' \
                   '"{}" -r {} "{}" "{}"'.format(
                 config_options,
                 " ".join(nodata_list),
                 info.res,
+                info.tap,
                 info.spatial_ref.proj4,
                 args.resample,
                 info.rawvrt,

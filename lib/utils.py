@@ -484,7 +484,7 @@ def doesCross180(geom):
         raise RuntimeError(err)
 
     result = False
-    _mat = re.findall(r"-?\d+\.\d+", geom.ExportToWkt())
+    _mat = re.findall(r"-?\d+(?:\.\d+)?", geom.ExportToWkt())
     if _mat:
         x_coords = [float(lng) for (lng, lat) in [_mat[i:i+2] for i in range(0, len(_mat), 2)]]
         result = (max(x_coords) - min(x_coords)) > 180.0
