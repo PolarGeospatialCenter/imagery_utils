@@ -112,13 +112,22 @@ def main():
             os.makedirs(args.scratch)
 
     #### Verify EPSG
-    if srctype == 'csvfile' and args.epsg == 0:
+    spatial_ref = None
+    if srctype == 'csvfile' and args.epsg is None:
         # Check for valid EPSG argument in CSV argument list file
+        pass
+    elif args.epsg is None:
+        parser.error("--epsg argument is required")
+    elif args.epsg in ('utm', 'auto'):
+        # EPSG code is automatically determined in ortho_functions.GetImageStats function
         pass
     else:
         try:
+            args.epsg = int(args.epsg)
+        except ValueError:
+            parser.error("--epsg must be 'utm', 'auto', or an integer EPSG code")
+        try:
             spatial_ref = utils.SpatialRef(args.epsg)
-            args.epsg = spatial_ref.epsg
         except RuntimeError as e:
             parser.error(e)
 
@@ -189,7 +198,7 @@ def main():
                     invalid_epsg_code = True
             if invalid_epsg_code:
                 parser.error("Source CSV argument list file contains invalid EPSG code(s)")
-        elif args.epsg == 0:
+        elif args.epsg is None:
             parser.error("A valid EPSG argument must be specified")
 
         # Create subsets of VRT DEM and trim CSV data if applicable
@@ -261,13 +270,16 @@ def main():
         image_list = csv_arg_data
 
     ## Build task queue
-    i = 0
     images_to_process = []
     for task_args in utils.yield_task_args(image_list, args,
                                            argname_1D='src',
                                            argname_2D_list=csv_header_argname_list):
         srcfp = task_args.src
         dstdir = task_args.dst
+
+        if type(task_args.epsg) is str:
+            task_args.epsg = ortho_functions.GetImageGeometryInfo(srcfp, spatial_ref, args,
+                                                                  return_type='epsg_code')
 
         srcdir, srcfn = os.path.split(srcfp)
         dst_basename = os.path.join(dstdir, "{}_{}{}{}".format(
@@ -287,11 +299,9 @@ def main():
         # If no tif file present, need to make one
         # If tif file is present but one of the vrt files is present, need to rebuild
         if (not tif_done) or vrt_exists:
-            i += 1
             images_to_process.append(srcfp)
 
-    logger.info('Number of incomplete tasks: %i', i)
-
+    logger.info("Number of incomplete tasks: %i", len(images_to_process))
     if len(images_to_process) == 0:
         logger.info("No images found to process")
         sys.exit(0)
@@ -327,6 +337,9 @@ def main():
         srcdir, srcfn = os.path.split(srcfp)
 
         if task_srcfp_list is images_to_process:
+            if type(task_args.epsg) is str:
+                task_args.epsg = ortho_functions.GetImageGeometryInfo(srcfp, spatial_ref, args,
+                                                                      return_type='epsg_code')
             dstfp = os.path.join(dstdir, "{}_{}{}{}{}".format(
                 os.path.splitext(srcfn)[0],
                 utils.get_bit_depth(task_args.outtype),
