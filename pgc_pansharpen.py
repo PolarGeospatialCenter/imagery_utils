@@ -58,7 +58,7 @@ dRegExs = {
 
 class ImagePair(object):
     
-    def __init__(self, mul_srcfp, spatial_ref):
+    def __init__(self, mul_srcfp, spatial_ref, args):
         self.mul_srcfp = mul_srcfp
         self.srcdir, self.mul_srcfn = os.path.split(mul_srcfp)
         
@@ -77,8 +77,8 @@ class ImagePair(object):
                 raise RuntimeError("Corresponding panchromatic image not found: {}".format(self.mul_srcfp))
             else:
             ## get extent info for both images and calc intersect
-                mul_extent = self._get_image_info(self.mul_srcfp, spatial_ref)
-                pan_extent = self._get_image_info(self.pan_srcfp, spatial_ref)
+                mul_extent = self._get_image_info(self.mul_srcfp, spatial_ref, args)
+                pan_extent = self._get_image_info(self.pan_srcfp, spatial_ref, args)
                 self.intersection_geom = mul_extent.Intersection(pan_extent)
                 # print(mul_extent)
                 # print(mul_extent.Contains(pan_extent))
@@ -115,89 +115,14 @@ class ImagePair(object):
 
         return pan_name
     
-    def _get_image_info(self, src_image, spatial_ref):
+    def _get_image_info(self, src_image, spatial_ref, args):
 
         if self.sensor == 'IK01' and "_msi_" in src_image and not os.path.isfile(src_image):
             src_image_name = os.path.basename(src_image).replace("_msi_", "_blu_")
             src_image = os.path.join(self.srcdir, src_image_name)
-    
-        ds = gdal.Open(src_image, gdalconst.GA_ReadOnly)
-        if ds is not None:
-    
-            ####  Get extent from GCPs
-            num_gcps = ds.GetGCPCount()
-    
-            if num_gcps == 4:
-                gcps = ds.GetGCPs()
-                proj = ds.GetGCPProjection()
-    
-                gcp_dict = {}
-                id_dict = {"UpperLeft": 1,
-                           "1": 1,
-                           "UpperRight": 2,
-                           "2": 2,
-                           "LowerLeft": 4,
-                           "4": 4,
-                           "LowerRight": 3,
-                           "3": 3}
-    
-                for gcp in gcps:
-                    gcp_dict[id_dict[gcp.Id]] = [float(gcp.GCPPixel), float(gcp.GCPLine), float(gcp.GCPX),
-                                                 float(gcp.GCPY), float(gcp.GCPZ)]
-                ulx = gcp_dict[1][2]
-                uly = gcp_dict[1][3]
-                urx = gcp_dict[2][2]
-                ury = gcp_dict[2][3]
-                llx = gcp_dict[4][2]
-                lly = gcp_dict[4][3]
-                lrx = gcp_dict[3][2]
-                lry = gcp_dict[3][3]
-    
-                xsize = gcp_dict[1][0] - gcp_dict[2][0]
-                ysize = gcp_dict[1][1] - gcp_dict[4][1]
-    
-            else:
-                xsize = ds.RasterXSize
-                ysize = ds.RasterYSize
-                proj = ds.GetProjectionRef()
-                gtf = ds.GetGeoTransform()
-    
-                ulx = gtf[0] + 0 * gtf[1] + 0 * gtf[2]
-                uly = gtf[3] + 0 * gtf[4] + 0 * gtf[5]
-                urx = gtf[0] + xsize * gtf[1] + 0 * gtf[2]
-                ury = gtf[3] + xsize * gtf[4] + 0 * gtf[5]
-                llx = gtf[0] + 0 * gtf[1] + ysize * gtf[2]
-                lly = gtf[3] + 0 * gtf[4] + ysize * gtf[5]
-                lrx = gtf[0] + xsize * gtf[1] + ysize* gtf[2]
-                lry = gtf[3] + xsize * gtf[4] + ysize * gtf[5]
-    
-            ds = None
-    
-            ####  Create geometry objects
-            ring = ogr.Geometry(ogr.wkbLinearRing)
-            ring.AddPoint(ulx, uly)
-            ring.AddPoint(urx, ury)
-            ring.AddPoint(lrx, lry)
-            ring.AddPoint(llx, lly)
-            ring.AddPoint(ulx, uly)
 
-            extent_geom = ogr.Geometry(ogr.wkbPolygon)
-            extent_geom.AddGeometry(ring)
-    
-            #### Create srs objects
-            s_srs = utils.osr_srs_preserve_axis_order(osr.SpatialReference(proj))
-            t_srs = spatial_ref.srs
-            st_ct = osr.CoordinateTransformation(s_srs, t_srs)
-    
-            #### Transform geoms to target srs
-            if not s_srs.IsSame(t_srs):
-                extent_geom.Transform(st_ct)
-            #logger.info("Projected extent: %s", str(extent_geom))
-            return extent_geom
-                   
-        else:
-            logger.error("Cannot open dataset: %s", src_image)
-            return None
+        return ortho_functions.GetImageGeometryInfo(src_image, spatial_ref, args,
+                                                    return_type='extent_geom')
 
 
 def main():
@@ -288,11 +213,22 @@ def main():
             os.makedirs(args.scratch)
 
     #### Verify EPSG
-    try:
-        spatial_ref = utils.SpatialRef(args.epsg)
-    except RuntimeError as e:
-        logger.error(utils.capture_error_trace())
-        parser.error(e)
+    spatial_ref = None
+    if args.epsg is None:
+        parser.error("--epsg argument is required")
+    elif args.epsg in ('utm', 'auto'):
+        # EPSG code is automatically determined in ortho_functions.GetImageStats
+        # and ortho_functions.GetImageGeometryInfo functions.
+        pass
+    else:
+        try:
+            args.epsg = int(args.epsg)
+        except ValueError:
+            parser.error("--epsg must be 'utm', 'auto', or an integer EPSG code")
+        try:
+            spatial_ref = utils.SpatialRef(args.epsg)
+        except RuntimeError as e:
+            parser.error(e)
 
     #### Verify that dem and ortho_height are not both specified
     if args.dem is not None and args.ortho_height is not None:
@@ -358,7 +294,7 @@ def main():
     for srcfp in image_list1:
         #print(srcfp)
         try:
-            image_pair = ImagePair(srcfp, spatial_ref)
+            image_pair = ImagePair(srcfp, spatial_ref, args)
         except RuntimeError as e:
             if (   str(e).startswith("Corresponding panchromatic image not found:")
                 or str(e).startswith("Image does not match multispectral name pattern:")):
@@ -383,12 +319,18 @@ def main():
     i = 0
     pairs_to_process = []
     for image_pair in pair_list:
+
+        if type(args.epsg) is str:
+            img_epsg = ortho_functions.GetImageGeometryInfo(image_pair.mul_srcfp, spatial_ref, args,
+                                                            return_type='epsg_code')
+        else:
+            img_epsg = args.epsg
         
         pansh_dstfp = os.path.join(dstdir, "{}_{}{}{}_pansh.tif".format(
             os.path.splitext(image_pair.mul_srcfn)[0],
             bittype,
             args.stretch,
-            args.epsg
+            img_epsg
         ))
 
         done = os.path.isfile(pansh_dstfp)
@@ -416,11 +358,16 @@ def main():
 
         if not tasklist_is_text_bundles:
             image_pair = task_item
+            if type(args.epsg) is str:
+                img_epsg = ortho_functions.GetImageGeometryInfo(image_pair.mul_srcfp, spatial_ref, args,
+                                                                return_type='epsg_code')
+            else:
+                img_epsg = args.epsg
             pansh_dstfp = os.path.join(dstdir, "{}_{}{}{}_pansh.tif".format(
                 os.path.splitext(image_pair.mul_srcfn)[0],
                 bittype,
                 args.stretch,
-                args.epsg
+                img_epsg
             ))
             task_item_srcfp = image_pair.mul_srcfp
             task_item_srcfn = image_pair.mul_srcfn
@@ -540,17 +487,23 @@ def exec_pansharpen(image_pair, pansh_dstfp, args):
     else:
         dem_arg = ""
 
+    if type(args.epsg) is str:
+        img_epsg = ortho_functions.GetImageGeometryInfo(image_pair.mul_srcfp, None, args,
+                                                        return_type='epsg_code')
+    else:
+        img_epsg = args.epsg
+
     bittype = utils.get_bit_depth(args.outtype)
     pan_basename = os.path.splitext(image_pair.pan_srcfn)[0]
     mul_basename = os.path.splitext(image_pair.mul_srcfn)[0]
-    pan_local_dstfp = os.path.join(wd, "{}_{}{}{}.tif".format(pan_basename, bittype, args.stretch, args.epsg))
-    mul_local_dstfp = os.path.join(wd, "{}_{}{}{}.tif".format(mul_basename, bittype, args.stretch, args.epsg))
-    pan_dstfp = os.path.join(dstdir, "{}_{}{}{}.tif".format(pan_basename, bittype, args.stretch, args.epsg))
-    mul_dstfp = os.path.join(dstdir, "{}_{}{}{}.tif".format(mul_basename, bittype, args.stretch, args.epsg))
-    pansh_tempfp = os.path.join(wd, "{}_{}{}{}_pansh_temp.tif".format(mul_basename, bittype, args.stretch, args.epsg))
-    pansh_local_dstfp = os.path.join(wd, "{}_{}{}{}_pansh.tif".format(mul_basename, bittype, args.stretch, args.epsg))
-    pansh_xmlfp = os.path.join(dstdir, "{}_{}{}{}_pansh.xml".format(mul_basename, bittype, args.stretch, args.epsg))
-    mul_xmlfp = os.path.join(dstdir, "{}_{}{}{}.xml".format(mul_basename, bittype, args.stretch, args.epsg))
+    pan_local_dstfp = os.path.join(wd, "{}_{}{}{}.tif".format(pan_basename, bittype, args.stretch, img_epsg))
+    mul_local_dstfp = os.path.join(wd, "{}_{}{}{}.tif".format(mul_basename, bittype, args.stretch, img_epsg))
+    pan_dstfp = os.path.join(dstdir, "{}_{}{}{}.tif".format(pan_basename, bittype, args.stretch, img_epsg))
+    mul_dstfp = os.path.join(dstdir, "{}_{}{}{}.tif".format(mul_basename, bittype, args.stretch, img_epsg))
+    pansh_tempfp = os.path.join(wd, "{}_{}{}{}_pansh_temp.tif".format(mul_basename, bittype, args.stretch, img_epsg))
+    pansh_local_dstfp = os.path.join(wd, "{}_{}{}{}_pansh.tif".format(mul_basename, bittype, args.stretch, img_epsg))
+    pansh_xmlfp = os.path.join(dstdir, "{}_{}{}{}_pansh.xml".format(mul_basename, bittype, args.stretch, img_epsg))
+    mul_xmlfp = os.path.join(dstdir, "{}_{}{}{}.xml".format(mul_basename, bittype, args.stretch, img_epsg))
     
     if not os.path.isdir(wd):
         os.makedirs(wd)
