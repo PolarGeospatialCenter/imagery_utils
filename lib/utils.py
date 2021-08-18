@@ -1,5 +1,6 @@
 
 import contextlib
+import copy
 import glob
 import logging
 import math
@@ -8,9 +9,11 @@ import re
 import sys
 import traceback
 from datetime import datetime
+from collections.abc import Collection
 from io import StringIO
 from xml.etree import cElementTree as ET
 
+import numpy as np
 from osgeo import gdal, ogr, osr
 
 gdal.SetConfigOption('GDAL_PAM_ENABLED', 'NO')
@@ -42,6 +45,11 @@ def capture_error_trace():
     return caught_err
 
 
+class InvalidArgumentError(Exception):
+    def __init__(self, msg=""):
+        super(Exception, self).__init__(msg)
+
+
 class SpatialRef(object):
 
     def __init__(self, epsg):
@@ -53,7 +61,7 @@ class SpatialRef(object):
             raise RuntimeError("EPSG value must be an integer: {}".format(epsg))
         else:
             err = srs.ImportFromEPSG(epsgcode)
-            if err == 7:
+            if err != 0:
                 raise RuntimeError("Invalid EPSG code: {}".format(epsgcode))
             else:
                 proj4_string = srs.ExportToProj4()
@@ -145,18 +153,18 @@ def get_sensor(srcfn):
     return vendor, sat.upper()
 
 
-def find_images(inpath, is_textfile, target_exts):
+def find_images(inpath, is_filelist, target_exts):
 
     image_list = []
-    if is_textfile:
-        t = open(inpath, 'r')
-        for line in t.readlines():
-            image = line.rstrip('\n').rstrip('\r')
+    if is_filelist:
+        if type(inpath) is str:
+            with open(inpath, 'r') as textfile_fp:
+                inpath = textfile_fp.read().splitlines()
+        for image in inpath:
             if os.path.isfile(image) and os.path.splitext(image)[1].lower() in target_exts:
                 image_list.append(image)
             else:
                 logger.debug("File in textfile does not exist or has an invalid extension: %s", image)
-        t.close()
 
     else:
         for root, dirs, files in os.walk(inpath):
@@ -169,19 +177,20 @@ def find_images(inpath, is_textfile, target_exts):
     return image_list
 
 
-def find_images_with_exclude_list(inpath, is_textfile, target_exts, exclude_list):
+def find_images_with_exclude_list(inpath, is_filelist, target_exts, exclude_list):
 
     image_list = []
 
-    if is_textfile is True:
-        t = open(inpath, 'r')
-        for line in t.readlines():
+    if is_filelist is True:
+        if type(inpath) is str:
+            with open(inpath, 'r') as textfile_fp:
+                inpath = textfile_fp.read().splitlines()
+        for line in inpath:
             image = line.rstrip('\n').rstrip('\r')
             if os.path.isfile(image) and os.path.splitext(image)[1].lower() in target_exts:
                 image_list.append(image)
             else:
                 logger.info("File in textfile does not exist or has an invalid extension: %s", image)
-        t.close()
 
     else:
         for root, dirs, files in os.walk(inpath):
@@ -475,7 +484,7 @@ def doesCross180(geom):
         raise RuntimeError(err)
 
     result = False
-    _mat = re.findall(r"-?\d+\.\d+", geom.ExportToWkt())
+    _mat = re.findall(r"-?\d+(?:\.\d+)?", geom.ExportToWkt())
     if _mat:
         x_coords = [float(lng) for (lng, lat) in [_mat[i:i+2] for i in range(0, len(_mat), 2)]]
         result = (max(x_coords) - min(x_coords)) > 180.0
@@ -570,11 +579,12 @@ def getWrappedGeometry(src_geom):
     return mp_geometry
 
 
-def write_task_bundles(task_list, tasks_per_bundle, dstdir, bundle_prefix, task_delim=','):
+def write_task_bundles(task_list, tasks_per_bundle, dstdir, bundle_prefix,
+                       header_list=None, task_delim=',', bundle_ext='txt'):
 
     jobnum_total = int(math.ceil(len(task_list) / float(tasks_per_bundle)))
     jobnum_fmt = '{:0>'+str(len(str(jobnum_total)))+'}'
-    join_task_items = type(task_list[0]) in (tuple, list)
+    join_task_items = type(task_list[0]) in (tuple, list, np.ndarray)
 
     bundle_prefix = os.path.join(
         dstdir,
@@ -584,14 +594,132 @@ def write_task_bundles(task_list, tasks_per_bundle, dstdir, bundle_prefix, task_
     )
     bundle_file_list = []
 
+    header_line = task_delim.join(header_list) if header_list is not None else None
+
     print("Writing task bundle text files in directory: {}".format(dstdir))
     for jobnum, tasknum in enumerate(range(0, len(task_list), tasks_per_bundle)):
-        bundle_file = '{}_{}.txt'.format(bundle_prefix, jobnum_fmt.format(jobnum+1))
+        bundle_file = '{}_{}.{}'.format(bundle_prefix, jobnum_fmt.format(jobnum+1), bundle_ext)
         task_bundle = task_list[tasknum:tasknum+tasks_per_bundle]
         with open(bundle_file, 'w') as bundle_file_fp:
+            if header_line is not None:
+                bundle_file_fp.write(header_line+'\n')
             for task in task_bundle:
                 task_line = str(task) if not join_task_items else task_delim.join([str(arg) for arg in task])
                 bundle_file_fp.write(task_line+'\n')
         bundle_file_list.append(bundle_file)
 
     return bundle_file_list
+
+
+def yield_task_args(task_list, script_args,
+                    argname_1D=None,
+                    argname_2D_list=None):
+    """
+    Takes a 1D or 2D list of ArgumentParser script argument values,
+    each row of the list corresponding to a separate "task", and applies
+    argument values to the provided ArgumentParser "args" namespace,
+    yielding a copy of the namespace for each task where the argument
+    values for that particular task are set in the namespace.
+    Script argument values that are not modified as part of this operation
+    remain unmodified in the yielded ArgumentParser namespaces.
+
+    Parameters
+    ----------
+    task_list : collection, 1D or 2D
+        Collection of script argument values for a list of tasks.
+        If 2D, the outmost iterable (i.e. row) designates the task,
+        while the innermost iterable (i.e. column) contains argument
+        values corresponding to a single task.
+    script_args : ArgumentParser argument namespace object
+        ArgumentParser argument namespace object for the main script.
+    argname_1D : string
+        The name of the script argument to which the argument values
+        in a 1D `task_list` correspond. If `task_list` is 2D, the value
+        of this option is ignored. See info on the `argname_2D_list`
+        option for more information.
+    argname_2D_list : list of strings
+        The names of script arguments, corresponding to the "columns"
+        of the `task_list` argument values. Script argument names must be
+        formatted as you would normally access them from the ArgumentParser
+        namespace (no leading dashes, and dashes within the argument name
+        should be converted to underscores).
+
+    Yields
+    ------
+    task_args : ArgumentParser argument namespace object
+        Clone of the the `script_args` ArgumentParser argument namespace
+        object, yielded for each task in `task_list`.
+    """
+    test_task = task_list[0]
+    if isinstance(test_task, Collection) and not isinstance(test_task, str):
+        test_task_nargs = len(test_task)
+    else:
+        test_task_nargs = 1
+        # If tasks have a CSV file path as the single argument and argname_1D
+        # is provided, assume the CSV files themselves can be provided as the
+        # argname_1D script argument.
+        if (    argname_2D_list is not None and len(argname_2D_list) != 1
+            and test_task.endswith('.csv') and argname_1D is not None):
+            argname_2D_list = [argname_1D]
+
+    if argname_2D_list is None:
+        if argname_1D is None:
+            raise InvalidArgumentError(
+                "One of the following arguments must be provided: {}".format(
+                    ','.join(["`{}`".format(arg) for arg in [
+                        'argname_1D',
+                        'argname_2D_list'
+                    ]])
+                ))
+        else:
+            argname_2D_list = [argname_1D]
+
+    # Verify that the number of script argument names provided in argname_2D_list
+    # (or single argument from argname_1D) matches the number of argument values in
+    # each row of the task_list.
+    if len(argname_2D_list) != test_task_nargs:
+        raise InvalidArgumentError(
+            "Number of expected arguments in task list ({}) does not match "
+            "number of argument values found in task list ({})".format(
+                len(argname_2D_list), test_task_nargs
+            )
+        )
+    del test_task, test_task_nargs
+
+    for task in task_list:
+        # The script_args object from ArgumentParser is mutable,
+        # so we must copy it before modifying.
+        task_args = copy.copy(script_args)
+
+        # Task list could be a 1D list of argument values (likely strings)
+        # or could be a 2D list or NumPy array of argument values.
+        # Convert 1D single-argument task to the multiple-argument
+        # structure (a list with a single argument) for code simplicity.
+        if isinstance(task, Collection) and not isinstance(task, str):
+            task_arg_list = task
+        else:
+            task_arg_list = [task]
+
+        for i, argval in enumerate(task_arg_list):
+            argname = argname_2D_list[i]
+
+            if argval is None:
+                argval = None
+            elif isinstance(argval, str) and argval.lower() in ('none', ''):
+                if argval == '':
+                    continue
+                else:
+                    argval = None
+            else:
+                try:
+                    argval = float(argval)
+                    if int(argval) == argval:
+                        argval = int(argval)
+                except ValueError:
+                    argval = '"{}"'.format(argval)
+
+            exec_statement = 'task_args.{} = {}'.format(argname, argval)
+            # print(exec_statement)
+            exec(exec_statement)
+
+        yield task_args

@@ -35,7 +35,7 @@ echo
 
 cd $PBS_O_WORKDIR
 
-module load gdal/2.1.3
+source ~/.bashrc; conda activate pgc
 
 echo $p1
 time eval $p1
