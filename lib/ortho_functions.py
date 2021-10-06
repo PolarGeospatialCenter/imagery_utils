@@ -1747,6 +1747,7 @@ def ExtractRPB(item, rpb_p):
     tar_p = os.path.splitext(item)[0] + ".tar"
     logger.info(tar_p)
     if os.path.isfile(tar_p):
+        fp_extracted = list()
         try:
             tar = tarfile.open(tar_p, 'r')
             tarlist = tar.getnames()
@@ -1754,8 +1755,11 @@ def ExtractRPB(item, rpb_p):
                 if '.rpb' in t.lower() or '_rpc' in t.lower(): #or '.til' in t.lower():
                     tf = tar.extractfile(t)
                     fp = os.path.splitext(rpb_p)[0] + os.path.splitext(t)[1]
+                    fp_extracted.append(fp)
                     fpfh = open(fp, "w")
                     tfstr = tf.read()
+                    if type(tfstr) is bytes and type(tfstr) is not str:
+                        tfstr = tfstr.decode('utf-8')
                     #print(repr(tfstr))
                     fpfh.write(tfstr)
                     fpfh.close()
@@ -1763,7 +1767,12 @@ def ExtractRPB(item, rpb_p):
                     # status = 0
         except Exception:
             logger.error(utils.capture_error_trace())
-            logger.error("Cannot open Tar file: %s", tar_p)
+            logger.error("Caught Exception when working on Tar file: %s", tar_p)
+            fp_extracted = [fp for fp in fp_extracted if os.path.isfile(fp)]
+            if len(fp_extracted) > 0:
+                logger.error("Removing files extracted from Tar file:\n  {}".format('\n  '.join(fp_extracted)))
+                for fp in fp_extracted:
+                    os.remove(fp)
             rc = 1
     else:
         logger.info("Tar file does not exist: %s", tar_p)
