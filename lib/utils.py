@@ -484,9 +484,13 @@ def doesCross180(geom):
         raise RuntimeError(err)
 
     result = False
-    _mat = re.findall(r"-?\d+(?:\.\d+)?", geom.ExportToWkt())
-    if _mat:
-        x_coords = [float(lng) for (lng, lat) in [_mat[i:i+2] for i in range(0, len(_mat), 2)]]
+
+    # Get an array of the longitudes of all the points of all the rings in the polygon
+    x_coords = []
+    for ring in geom:
+        for pt in range(0, ring.GetPointCount()):
+            x_coords.append(ring.GetX(pt))
+    if x_coords:
         result = (max(x_coords) - min(x_coords)) > 180.0
 
     return result
