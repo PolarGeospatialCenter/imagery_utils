@@ -723,3 +723,206 @@ def yield_task_args(task_list, script_args,
             exec(exec_statement)
 
         yield task_args
+
+
+def subset_vrt_dem(csv_arg_data, csv_header_argname_list, script_args):
+    """
+    If source CSV argument list has tasks listed multiple times but with
+    different argument DEM values, and the script DEM argument is a large
+    VRT file composed of tiled DEMs with locations matching those specified
+    at the task-level argument DEMs, create new VRT files from subsets of
+    the larger script DEM VRT and have the tasks use those instead.
+    This can significantly speed up GDAL operations over using a single,
+    large (~20,000-element) VRT DEM.
+
+    Subset VRT files are created in script argument 'scratch' directory.
+
+    Parameters
+    ----------
+    csv_arg_data : NumPy array, 2D
+        Source CSV argument list in NumPy array format, with header row removed.
+    csv_header_argname_list : list of strings
+        Header row of source CSV argument list, containing script argument names
+        in ArgumentParser namescape variable format.
+    script_args : ArgumentParser argument namespace object
+        ArgumentParser argument namespace object for the main script.
+
+    Returns
+    -------
+    csv_arg_data_trimmed : NumPy array, 2D
+        Source CSV argument list in NumPy array format, with header row and
+        duplicate task rows replaced with single tasks having updated DEM
+        argument value to use new subset VRT files.
+    """
+    csv_col_idx_src = csv_header_argname_list.index('src')
+    csv_col_idx_dem = csv_header_argname_list.index('dem')
+
+    script_arg_vrt_dem = script_args.dem
+    if not script_arg_vrt_dem.endswith('.vrt'):
+        raise InvalidArgumentError(
+            "Script DEM argument does not end with expected .vrt suffix: {}".format(script_arg_vrt_dem)
+        )
+
+    # Get the longest common prefix of all component DEMs
+    # that make up the script argument VRT file.
+    main_vrt_component_dem_prefix = []
+    tree = ET.parse(script_arg_vrt_dem)
+    root = tree.getroot()
+    for sourceFilename in root.iter('SourceFilename'):
+        dem_filename = sourceFilename.text
+        main_vrt_component_dem_prefix.append(dem_filename)
+        main_vrt_component_dem_prefix = [os.path.commonprefix(main_vrt_component_dem_prefix)]
+    if len(main_vrt_component_dem_prefix) == 0:
+        raise InvalidArgumentError(
+            "Cannot find 'SourceFilename' elements in script DEM argument VRT file: {}".format(script_arg_vrt_dem)
+        )
+    else:
+        main_vrt_component_dem_prefix = main_vrt_component_dem_prefix[0]
+
+    # Parse CSV task argument values.
+    # Each src can be listed multiple times, once for each DEM
+    # it intersects with.
+    vrt_src_set = set()
+    vrt_dem_set = set()
+    nonvrt_src_set = set()
+    csv_src_keeprownum_dict = dict()
+    vrt_src_dem_dict = dict()
+    for rownum, task in enumerate(csv_arg_data):
+        task_src = task[csv_col_idx_src]
+        task_dem = task[csv_col_idx_dem]
+
+        # Quick check if task DEM could be a component DEM of the main VRT,
+        # and would be applicable for subsetting.
+        if not task_dem.startswith(main_vrt_component_dem_prefix):
+            nonvrt_src_set.add(task_src)
+            csv_src_keeprownum_dict[task_src] = rownum
+            continue
+
+        vrt_src_set.add(task_src)
+        vrt_dem_set.add(task_dem)
+        if task_src not in vrt_src_dem_dict:
+            vrt_src_dem_dict[task_src] = []
+        vrt_src_dem_dict[task_src].append(task_dem)
+        if task_src not in csv_src_keeprownum_dict:
+            csv_src_keeprownum_dict[task_src] = rownum
+        else:
+            task_first_src = csv_arg_data[csv_src_keeprownum_dict[task_src]]
+            task_first_src[csv_col_idx_dem] = task_dem
+            if task_first_src.tolist() != task.tolist():
+                raise InvalidArgumentError(
+                    "Source CSV argument list rows {} and {} differ more than allowed "
+                    "for VRT DEM subsetting".format(csv_src_keeprownum_dict[task_src], rownum)
+                )
+
+    invalid_src_set = set.intersection(vrt_src_set, nonvrt_src_set)
+    if len(invalid_src_set) > 0:
+        print("Source CSV argument list invalid 'src':\n{}".format('\n'.join(list(invalid_src_set))))
+        raise InvalidArgumentError(
+            "Source CSV argument list has duplicate 'src' tasks listed with DEMs "
+            "not allowed for VRT DEM subsetting"
+        )
+
+    if len(vrt_src_set) == 0:
+        return csv_arg_data
+
+    # Trim CSV data array to first occurrence of unique 'src' arguments,
+    # and tasks with DEM argument that is not part of a VRT subset.
+    keep_rows_idx = sorted(list(csv_src_keeprownum_dict.values()))
+    csv_arg_data_trimmed = csv_arg_data[np.asarray(keep_rows_idx)]
+    vrt_dem_list = sorted(list(vrt_dem_set))
+
+    subset_vrts_all = set()
+
+    # It's likely that the same combination of DEMs is required
+    # by multiple src images.
+    # For each task src:
+    #  - Derive a subset VRT filename for the particular combination of DEMs.
+    #  - Change the DEM argument value for the task to the VRT filename.
+    #  - For each DEM in the subset, add the VRT filename to a set of
+    #    VRTs that need information for that DEM.
+    process_time = datetime.now().strftime("%Y%m%d%H%M%S")
+    process_pid = os.getpid()
+    dem_vrts_dict = dict()
+    for task in csv_arg_data_trimmed:
+        task_src = task[csv_col_idx_src]
+        if task_src in nonvrt_src_set:
+            continue
+        task_subset_dems = vrt_src_dem_dict[task_src]
+        demgroupid = '-'.join([str(vrt_dem_list.index(dem)) for dem in sorted(task_subset_dems)])
+        task_subset_vrt = os.path.join(
+            script_args.scratch,
+            'Or_dem_{}_{}_{}.vrt'.format(
+                process_time, process_pid, demgroupid
+            )
+        )
+        subset_vrts_all.add(task_subset_vrt)
+        task[csv_col_idx_dem] = task_subset_vrt  # modifies mutable csv_arg_data
+        for dem in task_subset_dems:
+            if dem not in dem_vrts_dict:
+                dem_vrts_dict[dem] = set()
+            dem_vrts_dict[dem].add(task_subset_vrt)
+
+    # Get all information subset VRT files need to contain beyond
+    # the 'SimpleSource' information for each DEM in the subset.
+    vrt_contents_prefix = ''
+    with open(script_arg_vrt_dem, 'r') as main_vrt_fp:
+        for line in main_vrt_fp.readlines():
+            if '<SimpleSource>' in line:
+                vrt_contents_prefix += "    "
+                break
+            vrt_contents_prefix += line
+    vrt_contents_suffix = "</VRTRasterBand>\n</VRTDataset>\n"
+
+    print("Writing subsets of VRT DEM in directory: {}".format(script_args.scratch))
+    subset_vrts_started = set()
+
+    # Loop through all 'SimpleSource' items in the main script VRT DEM.
+    # If the 'SourceFilename' of the SimpleSource matches a DEM filename
+    # needed by any of the subset VRT files, append its SimpleSource info
+    # to all subset VRT files that DEM is part of.
+    # Assume main VRT was built from a sorted text file list of component
+    # DEM filenames, so that we only need to scan through the main VRT once.
+    tree = ET.parse(script_arg_vrt_dem)
+    root = tree.getroot()
+    current_vrt_dem_idx = 0
+    for simpleSource in root.iter('SimpleSource'):
+        sourceFilename = simpleSource.find('SourceFilename')
+        if sourceFilename is None:
+            raise InvalidArgumentError(
+                "Source CSV argument list 'SimpleSource' missing 'SourceFilename'"
+            )
+        dem_filename = sourceFilename.text
+        if dem_filename == vrt_dem_list[current_vrt_dem_idx]:
+            for vrt in dem_vrts_dict[dem_filename]:
+                if vrt not in subset_vrts_started:
+                    subset_vrts_started.add(vrt)
+                    with open(vrt, 'a') as subset_vrt_fp:
+                        subset_vrt_fp.write(vrt_contents_prefix)
+                with open(vrt, 'a') as subset_vrt_fp:
+                    subset_vrt_fp.write(ET.tostring(simpleSource, encoding='unicode', method='xml'))
+            current_vrt_dem_idx += 1
+            if current_vrt_dem_idx == len(vrt_dem_list):
+                break
+
+    if current_vrt_dem_idx != len(vrt_dem_list):
+        raise InvalidArgumentError(
+            "Could not find CSV DEM filename '{}' in scan of main VRT DEM (script argument) "
+            "'SimpleSource/SourceFilename' elements. Make sure CSV DEM filenames match exactly "
+            "the elements in the main VRT DEM, and that the VRT DEM was built from a SORTED "
+            "text file list of component DEM filenames.".format(vrt_dem_list[current_vrt_dem_idx])
+        )
+
+    subset_vrts_not_started = subset_vrts_all - subset_vrts_started
+    if len(subset_vrts_not_started) > 0:
+        raise InvalidArgumentError(
+            "For source CSV argument list, {} of {} subset VRT DEMs were not written. "
+            "Make sure main VRT DEM (script argument) was built from a SORTED text file list "
+            "of component DEM filenames.".format(len(subset_vrts_not_started), len(subset_vrts_all))
+        )
+
+    # Finish writing all subset VRT files
+    for vrt in subset_vrts_started:
+        with open(vrt, 'a') as subset_vrt_fp:
+            subset_vrt_fp.write(vrt_contents_suffix)
+
+    return csv_arg_data_trimmed

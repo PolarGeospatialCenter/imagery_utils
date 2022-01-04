@@ -136,26 +136,8 @@ def main():
         parser.error("--dem and --ortho_height options are mutually exclusive.  Please choose only one.")
 
     #### Test if DEM exists
-    if args.dem:
-        if not os.path.isfile(args.dem):
-            parser.error("DEM does not exist: {}".format(args.dem))
-        if args.l is None:
-            if args.dem.endswith('.vrt'):
-                total_dem_filesz_gb = 0.0
-                tree = ET.parse(args.dem)
-                root = tree.getroot()
-                for sourceFilename in root.iter('SourceFilename'):
-                    dem_filename = sourceFilename.text
-                    if not os.path.isfile(dem_filename):
-                        parser.error("VRT DEM component raster does not exist: {}".format(dem_filename))
-                    dem_filesz_gb = os.path.getsize(dem_filename) / 1024.0 / 1024 / 1024
-                    total_dem_filesz_gb += dem_filesz_gb
-                dem_filesz_gb = total_dem_filesz_gb
-            else:
-                dem_filesz_gb = os.path.getsize(args.dem) / 1024.0 / 1024 / 1024
-
-            pbs_req_mem_gb = int(max(math.ceil(dem_filesz_gb) + 2, 4))
-            args.l = 'mem={}gb'.format(pbs_req_mem_gb)
+    if args.dem is not None and not os.path.isfile(args.dem):
+        parser.error("DEM does not exist: {}".format(args.dem))
 
     #### Set up console logging handler
     lso = logging.StreamHandler()
@@ -183,15 +165,28 @@ def main():
         image_list1 = utils.find_images(src, True, ortho_functions.exts)
     elif srctype == 'csvfile':
         # Load CSV data
-        csv_arg_data = np.char.strip(np.loadtxt(src, dtype=str, delimiter=','), '\'"')
-        csv_header_argname_list = [argname.lstrip('-').replace('-', '_').lower() for argname in csv_arg_data[0, :]]
-        csv_arg_data = csv_arg_data[1:, :]  # remove header row
+        csv_arg_data = np.char.strip(np.loadtxt(src, dtype=str, delimiter=',', encoding="utf-8-sig"), '\'"')
+        csv_header = csv_arg_data[0, :]
+
+        # Adjust CSV header argument names
+        # Support ArcGIS export of typical fp.py output
+        if 'OID_' in csv_header:
+            csv_arg_data = np.delete(csv_arg_data, np.where(csv_header == 'OID_')[0], axis=1)
+            csv_header = csv_arg_data[0, :]
+        if 'O_FILEPATH' in csv_header:
+            csv_header[csv_header == 'O_FILEPATH'] = 'src'
+
+        # Convert CSV header argument names to argparse namespace variable format
+        csv_header_argname_list = [argname.lstrip('-').replace('-', '_').lower() for argname in csv_header]
+
+        # Remove header row
+        csv_arg_data = np.delete(csv_arg_data, 0, axis=0)
 
         # Verify CSV arguments and values
         if len(csv_header_argname_list) >= 1 and 'src' in csv_header_argname_list:
             pass
         else:
-            parser.error("'src' should be the header of the first colum of source CSV argument list file")
+            parser.error("'src' should be the header of the first column of source CSV argument list file")
         if 'epsg' in csv_header_argname_list:
             csv_epsg_array = csv_arg_data[:, csv_header_argname_list.index('epsg')].astype(int)
             invalid_epsg_code = False
@@ -206,6 +201,10 @@ def main():
         elif args.epsg is None:
             parser.error("A valid EPSG argument must be specified")
 
+        # Create subsets of VRT DEM and trim CSV data if applicable
+        if args.dem is not None and args.dem.endswith('.vrt') and 'dem' in csv_header_argname_list:
+            csv_arg_data = utils.subset_vrt_dem(csv_arg_data, csv_header_argname_list, args)
+
         # Extract src image paths and send to utils.find_images
         csv_src_array = csv_arg_data[:, csv_header_argname_list.index('src')]
         image_list1 = utils.find_images(csv_src_array.tolist(), True, ortho_functions.exts)
@@ -217,6 +216,25 @@ def main():
         assert set(csv_src_array) == set(image_list1)
     else:
         image_list1 = [src]
+
+    ## Automatically set PBS job requested memory if applicable
+    if (    args.dem is not None and args.pbs and args.l is None
+        and (srctype != 'csvfile' or 'dem' not in csv_header_argname_list)):
+        if args.dem.endswith('.vrt'):
+            total_dem_filesz_gb = 0.0
+            tree = ET.parse(args.dem)
+            root = tree.getroot()
+            for sourceFilename in root.iter('SourceFilename'):
+                dem_filename = sourceFilename.text
+                if not os.path.isfile(dem_filename):
+                    parser.error("VRT DEM component raster does not exist: {}".format(dem_filename))
+                dem_filesz_gb = os.path.getsize(dem_filename) / 1024.0 / 1024 / 1024
+                total_dem_filesz_gb += dem_filesz_gb
+            dem_filesz_gb = total_dem_filesz_gb
+        else:
+            dem_filesz_gb = os.path.getsize(args.dem) / 1024.0 / 1024 / 1024
+        pbs_req_mem_gb = int(min(50, max(4, math.ceil(dem_filesz_gb) + 2)))
+        args.l = 'mem={}gb'.format(pbs_req_mem_gb)
 
     ## Group Ikonos
     image_list2 = []
