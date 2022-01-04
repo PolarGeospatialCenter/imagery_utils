@@ -9,12 +9,16 @@ import re
 import sys
 import traceback
 from datetime import datetime
-from collections.abc import Collection
 from io import StringIO
 from xml.etree import cElementTree as ET
 
 import numpy as np
 from osgeo import gdal, ogr, osr
+
+try:
+    import collections.abc as collectionsAbc
+except ImportError:
+    import collections as collectionsAbc
 
 gdal.SetConfigOption('GDAL_PAM_ENABLED', 'NO')
 
@@ -655,7 +659,7 @@ def yield_task_args(task_list, script_args,
         object, yielded for each task in `task_list`.
     """
     test_task = task_list[0]
-    if isinstance(test_task, Collection) and not isinstance(test_task, str):
+    if isinstance(test_task, collectionsAbc.Iterable) and not isinstance(test_task, str):
         test_task_nargs = len(test_task)
     else:
         test_task_nargs = 1
@@ -699,7 +703,7 @@ def yield_task_args(task_list, script_args,
         # or could be a 2D list or NumPy array of argument values.
         # Convert 1D single-argument task to the multiple-argument
         # structure (a list with a single argument) for code simplicity.
-        if isinstance(task, Collection) and not isinstance(task, str):
+        if isinstance(task, collectionsAbc.Iterable) and not isinstance(task, str):
             task_arg_list = task
         else:
             task_arg_list = [task]
