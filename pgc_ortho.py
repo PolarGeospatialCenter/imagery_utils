@@ -233,7 +233,7 @@ def main():
             dem_filesz_gb = total_dem_filesz_gb
         else:
             dem_filesz_gb = os.path.getsize(args.dem) / 1024.0 / 1024 / 1024
-        pbs_req_mem_gb = int(min(50, max(4, math.ceil(dem_filesz_gb) + 2)))
+        pbs_req_mem_gb = int(min(50, max(8, math.ceil(dem_filesz_gb) + 2)))
         args.l = 'mem={}gb'.format(pbs_req_mem_gb)
 
     ## Group Ikonos

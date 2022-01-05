@@ -5,6 +5,7 @@
 #PBS -m n
 #PBS -k oe
 #PBS -j oe
+#PBS -q batch
 
 echo ________________________________________________________
 echo
