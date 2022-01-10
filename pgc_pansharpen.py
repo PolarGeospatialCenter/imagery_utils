@@ -134,6 +134,9 @@ def main():
         description="Run/Submit batch pansharpening in parallel"
     )
 
+    parser.add_argument("--skip-missing-pairs", action='store_true', default=False,
+                        help="submit available pan/multi image pairs for pansharpening,"
+                             " skipping over cases of image pairs missing a pan or multi image")
     parser.add_argument("--pbs", action='store_true', default=False,
                         help="submit tasks to PBS")
     parser.add_argument("--slurm", action='store_true', default=False,
@@ -288,6 +291,8 @@ def main():
     else:
         image_list1 = [src]
 
+    logger.info("Pairing src panchromatic and multispectral images")
+
     pair_list = []
     unmatched_images = set()
     for srcfp in image_list1:
@@ -297,22 +302,35 @@ def main():
         except RuntimeError as e:
             if (   str(e).startswith("Corresponding panchromatic image not found:")
                 or str(e).startswith("Image does not match multispectral name pattern:")):
+                if str(e).startswith("Corresponding panchromatic image not found:"):
+                    logger.error(str(e))
                 _, _, non_multi_fn = str(e).partition(':')
                 unmatched_images.add(os.path.basename(non_multi_fn.strip()))
             else:
                 logger.error(e)
         else:
-            logger.info("Image: %s, Sensor: %s", image_pair.mul_srcfn, image_pair.sensor)
+            # logger.info("Image: %s, Sensor: %s", image_pair.mul_srcfn, image_pair.sensor)
             pair_list.append(image_pair)
 
     pair_pan_images = set([pair.pan_srcfn for pair in pair_list])
     unmatched_images = unmatched_images.difference(pair_pan_images)
     if len(unmatched_images) > 0:
-        parser.error("{} src images could not be paired:\n{}".format(
-            len(unmatched_images), '\n'.join(sorted(list(unmatched_images)))
-        ))
+        unmatched_images_wv01 = set(fn for fn in unmatched_images if fn.startswith('WV01'))
+        unmatched_images_not_wv01 = unmatched_images.difference(unmatched_images_wv01)
+        if len(unmatched_images_wv01) > 0:
+            logger.warning("{} src WV01 images could not be paired, as WV01 images are pan-only:\n{}".format(
+                len(unmatched_images_wv01), '\n'.join(sorted(list(unmatched_images_wv01)))
+            ))
+        if len(unmatched_images_not_wv01) > 0:
+            logger.error("{} src non-WV01 images could not be paired:\n{}".format(
+                len(unmatched_images_not_wv01), '\n'.join(sorted(list(unmatched_images_not_wv01)))
+            ))
+            if not args.skip_missing_pairs:
+                logger.info("Exiting program without submitting processing tasks due to missing pairs")
+                logger.info("Provide the --skip-missing-pairs to bypass this error and process available pairs")
+                sys.exit(1)
                 
-    logger.info('Number of src image pairs: %i', len(pair_list))
+    logger.info("Number of src image pairs: %i", len(pair_list))
     
     ## Build task queue
     i = 0
@@ -393,7 +411,7 @@ def main():
 
     ## Run tasks
     if len(task_queue) > 0:
-        logger.info("Submitting Tasks")
+        logger.info("Submitting %s processing jobs", len(task_queue))
         if args.pbs:
             l = "-l {}".format(args.l) if args.l else ""
             try:
