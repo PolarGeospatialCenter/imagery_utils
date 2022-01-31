@@ -196,8 +196,9 @@ def convert_optional_args_to_string(args, positional_arg_keys, arg_keys_to_remov
             k = k.replace('_', '-')
             if isinstance(v, (list, tuple)):
                 arg_list.append("--{} {}".format(k, ' '.join([argval2str(item) for item in v])))
-            elif isinstance(v, bool):
-                if v is True:
+                if len(k) == 1:
+                    arg_list.append("-{}".format(k))
+                else:
                     arg_list.append("--{}".format(k))
             else:
                 arg_list.append("--{} {}".format(k, argval2str(v)))

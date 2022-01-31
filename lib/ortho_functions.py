@@ -805,7 +805,7 @@ def calcStats(args, info):
                                     '   <DstRect xOff="0" yOff="0" xSize="{3}" ySize="{4}"/>'
                                     '</ComplexSource>)'.format(info.warpfile, band, LUT, xsize, ysize))
 
-                vds.GetRasterBand(band).SetMetadataItem("source_0", ComplexSourceXML, "new_vrt_sources")
+                vds.GetRasterBand(band).SetMetadataItem("source_0", ComplexSourceXML, "vrt_sources")
                 vds.GetRasterBand(band).SetNoDataValue(0)
                 if vds.GetRasterBand(band).GetColorInterpretation() == gdalconst.GCI_AlphaBand:
                     vds.GetRasterBand(band).SetColorInterpretation(gdalconst.GCI_Undefined)
@@ -1578,7 +1578,7 @@ def WarpImage(args, info, gdal_thread_count=1):
 
 
                 #### GDALWARP Command
-                cmd = 'gdalwarp {} -srcnodata "{}" -of GTiff -ot UInt16 {}{}{}{}-co "TILED=YES" -co "BIGTIFF=IF_SAFER" ' \
+                cmd = 'gdalwarp {} -srcnodata "{}" -of GTiff -ot Float32 {}{}{}{}-co "TILED=YES" -co "BIGTIFF=IF_SAFER" ' \
                       '-t_srs "{}" -r {} -et 0.01 -rpc -to "{}" "{}" "{}"'.format(
                     config_options,
                     " ".join(nodata_list),
