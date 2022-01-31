@@ -55,7 +55,7 @@ class PBSTaskHandler(object):
                 self.qsub_args,
                 task.abrv,
                 task.exe,
-                task.cmd,
+                escape_problem_jobsubmit_chars(task.cmd),
                 self.qsubscript
             )
             if dryrun:
@@ -90,7 +90,7 @@ class SLURMTaskHandler(object):
             cmd = r'sbatch -J {} --export=p1="{} {}" "{}"'.format(
                 task.abrv,
                 task.exe,
-                task.cmd,
+                escape_problem_jobsubmit_chars(task.cmd),
                 self.qsubscript
             )
             subprocess.call(cmd, shell=True)
@@ -127,7 +127,6 @@ class ParallelTaskHandler(object):
 
 def exec_cmd_mp(job):
     job_name, cmd = job
-    cmd = codecs.decode(cmd, 'unicode-escape')
     logger.info('Running job: %s', job_name)
     logger.debug('Cmd: %s', cmd)
     if platform.system() == "Windows":
@@ -168,15 +167,22 @@ def exec_cmd(cmd):
 
 def argval2str(item):
     if type(item) is str:
-        if item.startswith("'") and item.endswith("'"):
-            item_str = r"\'{}\'".format(item[1:-1])
-        elif item.startswith('"') and item.endswith('"'):
-            item_str = r'\"{}\"'.format(item[1:-1])
+        if (   (item.startswith("'") and item.endswith("'"))
+            or (item.startswith('"') and item.endswith('"'))):
+            item_str = item
         else:
-            item_str = r'\"{}\"'.format(item)
+            item_str = '"{}"'.format(item)
     else:
         item_str = '{}'.format(item)
     return item_str
+
+
+def escape_problem_jobsubmit_chars(str_item):
+    str_item = str_item.replace("'", "\\'")
+    str_item = str_item.replace('"', '\\"')
+    # str_item = str_item.replace(',', '@COMMA@')
+    # str_item = str_item.replace(' ', '@SPACE@')
+    return str_item
 
 
 def convert_optional_args_to_string(args, positional_arg_keys, arg_keys_to_remove):
