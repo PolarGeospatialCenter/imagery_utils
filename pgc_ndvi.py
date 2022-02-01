@@ -261,7 +261,7 @@ def calc_ndvi(srcfp, dstfp, args):
     ## open output file for write and copy proj/geotransform info
     if not os.path.isfile(dstfp):
         dstfp_local = os.path.join(wd, os.path.basename(dstfp))
-        gtiff_options = ['TILED=YES', 'COMPRESS=LZW', 'BIGTIFF=IF_SAFER']
+        gtiff_options = ['TILED=YES', 'COMPRESS=LZW', 'BIGTIFF=YES']
         driver = gdal.GetDriverByName('GTiff')
         out_ds = driver.Create(dstfp_local, nx, ny, 1, gdal.GetDataTypeByName(args.outtype), gtiff_options)
         if out_ds:
