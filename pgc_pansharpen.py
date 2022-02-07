@@ -12,6 +12,7 @@ import re
 import shutil
 import sys
 import xml.etree.ElementTree as ET
+import datetime
 
 from osgeo import gdal, gdalconst, ogr, osr
 
@@ -74,7 +75,11 @@ class ImagePair(object):
             self.pan_srcfn = self._get_panchromatic_name()
             self.pan_srcfp = os.path.join(self.srcdir, self.pan_srcfn)
             if not os.path.isfile(self.pan_srcfp):
-                raise RuntimeError("Corresponding panchromatic image not found: {}".format(self.mul_srcfp))
+                logging.info("checking for date difference between pan and mul scenes")
+                try:
+                    self.pan_srcfn, self.pan_srcfp = self._check_datetime_dif()
+                except:
+                    raise RuntimeError("Corresponding panchromatic image not found: {}".format(self.mul_srcfp))
             else:
             ## get extent info for both images and calc intersect
                 mul_extent = self._get_image_info(self.mul_srcfp, spatial_ref, args)
@@ -123,6 +128,40 @@ class ImagePair(object):
 
         return ortho_functions.GetImageGeometryInfo(src_image, spatial_ref, args,
                                                     return_type='extent_geom')
+
+    def _check_datetime_dif(self):
+        # parse date from pan_srcfn (a copy of mul_srcfp with 'M' replaced with 'P')
+        # Assumes 5 character prefix to date (sensor code and _)
+        # WV03 ref: WV03_20150803153108_104001000F657400_15AUG03153108-P1BS-500445078060_01_P009
+        # date str: YYYYMMDDHHMMSS
+        # strptime: %Y%m%d%H%M%S
+        # strptime v2 (for second date str in DG filenames): %y%b%d%H%M%S .upper()
+
+        # parse date from mul str to datetime object and str format to lookup in fn
+        mul_date_parse = datetime.datetime.strptime(self.pan_srcfn[5:19], '%Y%m%d%H%M%S')
+        mul_date_form_1 = datetime.datetime.strftime(mul_date_parse, '%Y%m%d%H%M%S')
+
+        # loop through 1 second prior to and 1 second after mul time stamp (Pan is usually 1 sec prior if there is dif)
+        for time_dif in [-1, 1]:
+            # add 1 second time difference to datetime obj and format it to str
+            mul_date_parse_dif_1 = mul_date_parse + datetime.timedelta(seconds=time_dif)
+            mul_date_form_dif_1 = datetime.datetime.strftime(mul_date_parse_dif_1, '%Y%m%d%H%M%S')
+
+            # get format for 2nd date str in fn for original time and dif time
+            mul_date_2 = datetime.datetime.strftime(mul_date_parse, '%y%b%d%H%M%S').upper()
+            mul_date_2_dif_1 = datetime.datetime.strftime(mul_date_parse_dif_1, '%y%b%d%H%M%S').upper()
+
+            # construct filename with updated time stamp
+            # some scenes do not have the second time stamp. the second .replace() will have no effect
+            pan_name_dif_1 = self.pan_srcfn.replace(mul_date_form_1, mul_date_form_dif_1).replace(mul_date_2, mul_date_2_dif_1)
+
+            # check if filename with dif time stamp exists, if so, return for ImagePair class
+            if os.path.isfile(os.path.join(self.srcdir, pan_name_dif_1)):
+                pan_fn_w_diff = pan_name_dif_1
+                pan_fp_w_diff = os.path.join(self.srcdir, pan_fn_w_diff)
+                return pan_fn_w_diff, pan_fp_w_diff
+
+        raise Exception("Cannot find pan scene with 1 sec datetime diff")
 
 
 def main():
