@@ -185,7 +185,7 @@ def main():
                 compress_option = '-co "compress=jpeg" -co "jpeg_quality=95"'
                 
             cmd = 'gdal_translate -stats -of GTiff {} -co "PHOTOMETRIC=MINISBLACK" -co "TILED=YES" -co ' \
-                  '"BIGTIFF=IF_SAFER" "{}" "{}"'.format(compress_option, localtile1, localtile2)
+                  '"BIGTIFF=YES" "{}" "{}"'.format(compress_option, localtile1, localtile2)
             taskhandler.exec_cmd(cmd)
         
         ####  Build Pyramids        
@@ -227,7 +227,7 @@ def BandSubtractMedian(iinfo, dstfp):
         out_min = -2147483647
     
     if not os.path.isfile(dstfp):
-        gtiff_options = ['TILED=YES', 'COMPRESS=LZW', 'BIGTIFF=IF_SAFER']
+        gtiff_options = ['TILED=YES', 'COMPRESS=LZW', 'BIGTIFF=YES']
         driver = gdal.GetDriverByName('GTiff')
         out_ds = driver.Create(dstfp, iinfo.xsize, iinfo.ysize, iinfo.bands, out_datatype, gtiff_options)
         if not out_ds:

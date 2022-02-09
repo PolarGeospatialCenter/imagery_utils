@@ -820,10 +820,10 @@ def calcStats(args, info):
 
     if args.format == 'GTiff':
         if args.gtiff_compression == 'lzw':
-            co = '-co "PHOTOMETRIC=MINISBLACK" -co "TILED=YES" -co "COMPRESS=LZW" -co "BIGTIFF=IF_SAFER" '
+            co = '-co "PHOTOMETRIC=MINISBLACK" -co "TILED=YES" -co "COMPRESS=LZW" -co "BIGTIFF=YES" '
         elif args.gtiff_compression == 'jpeg95':
             co = '-co "PHOTOMETRIC=MINISBLACK" -co "TILED=YES" -co "compress=jpeg" -co "jpeg_quality=95" -co ' \
-                 '"BIGTIFF=IF_SAFER" '
+                 '"BIGTIFF=YES" '
 
     elif args.format == 'HFA':
         co = '-co "COMPRESSED=YES" -co "STATISTICS=YES" '
@@ -1578,7 +1578,7 @@ def WarpImage(args, info, gdal_thread_count=1):
 
 
                 #### GDALWARP Command
-                cmd = 'gdalwarp {} -srcnodata "{}" -of GTiff -ot Float32 {}{}{}{}-co "TILED=YES" -co "BIGTIFF=IF_SAFER" ' \
+                cmd = 'gdalwarp {} -srcnodata "{}" -of GTiff -ot Float32 {}{}{}{}-co "TILED=YES" -co "BIGTIFF=YES" ' \
                       '-t_srs "{}" -r {} -et 0.01 -rpc -to "{}" "{}" "{}"'.format(
                     config_options,
                     " ".join(nodata_list),
@@ -1600,7 +1600,7 @@ def WarpImage(args, info, gdal_thread_count=1):
 
         else:
             #### GDALWARP Command
-            cmd = 'gdalwarp {} -srcnodata "{}" -of GTiff -ot UInt16 {}{}-co "TILED=YES" -co "BIGTIFF=IF_SAFER" -t_srs ' \
+            cmd = 'gdalwarp {} -srcnodata "{}" -of GTiff -ot UInt16 {}{}-co "TILED=YES" -co "BIGTIFF=YES" -t_srs ' \
                   '"{}" -r {} "{}" "{}"'.format(
                 config_options,
                 " ".join(nodata_list),
