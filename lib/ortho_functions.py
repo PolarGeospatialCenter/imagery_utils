@@ -16,6 +16,8 @@ from osgeo import gdal, gdalconst, ogr, osr
 
 from lib import taskhandler, utils
 
+from gooey import GooeyParser
+
 #### Create Loggers
 logger = logging.getLogger("logger")
 logger.setLevel(logging.DEBUG)
@@ -262,11 +264,11 @@ def thread_type():
 def buildParentArgumentParser():
 
     #### Set Up Arguments
-    parser = argparse.ArgumentParser(add_help=False)
+    parser = GooeyParser(add_help=False)
 
     #### Positional Arguments
-    parser.add_argument("src", help="source image, text file, or directory")
-    parser.add_argument("dst", help="destination directory")
+    parser.add_argument("src", help="source image, text file, or directory", widget="FileChooser")
+    parser.add_argument("dst", help="destination directory", widget="DirChooser")
     pos_arg_keys = ["src", "dst"]
 
 
@@ -281,7 +283,7 @@ def buildParentArgumentParser():
                              "(polar stereo cutoff is at 60 N/S latitude)]")
     parser.add_argument("-d", "--dem",
                         help="the DEM to use for orthorectification (elevation values should be relative to the wgs84 "
-                             "ellipoid")
+                             "ellipoid", widget="FileChooser")
     parser.add_argument("-t", "--outtype", choices=outtypes, default="Byte",
                         help="output data type (default=Byte)")
     parser.add_argument("-r", "--resolution", type=float,
@@ -301,7 +303,8 @@ def buildParentArgumentParser():
                         help="save temp files, they will be renamed with a .save extension")
     parser.add_argument("--wd",
                         help='local working directory for cluster jobs (default is dst dir)'
-                             'If used with --save-temps ALL files will be preserved in working directory')
+                             'If used with --save-temps ALL files will be preserved in working directory',
+                        widget="DirChooser")
     parser.add_argument("--skip-warp", action='store_true', default=False,
                         help="skip warping step")
     parser.add_argument("--skip-dem-overlap-check", action='store_true', default=False,

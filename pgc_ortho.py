@@ -13,6 +13,7 @@ import numpy as np
 
 from lib import ortho_functions, taskhandler, utils
 from lib.taskhandler import argval2str
+from gooey import Gooey, GooeyParser
 
 #### Create Loggers
 logger = logging.getLogger("logger")
@@ -20,13 +21,17 @@ logger.setLevel(logging.DEBUG)
 
 ARGDEF_SCRATCH = os.path.join(os.path.expanduser('~'), 'scratch', 'task_bundles')
 
+if len(sys.argv) >= 2:
+    if not '--ignore-gooey' in sys.argv:
+        sys.argv.append('--ignore-gooey')
 
+@Gooey
 def main():
     ret_code = 0
 
     #### Set Up Arguments
     parent_parser, pos_arg_keys = ortho_functions.buildParentArgumentParser()
-    parser = argparse.ArgumentParser(
+    parser = GooeyParser(
         parents=[parent_parser],
         description="Run/submit batch image ortho and conversion tasks"
     )
