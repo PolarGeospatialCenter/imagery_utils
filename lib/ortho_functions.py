@@ -289,7 +289,7 @@ def buildParentArgumentParser():
                              "Arctic Stereographic North: 3431.")
     parser.add_argument("-d", "--dem",
                         help="the DEM to use for orthorectification (elevation values should be relative to the wgs84 "
-                             "ellipoid)", widget="FileChooser")
+                             "ellipsoid)", widget="FileChooser")
     parser.add_argument("-t", "--outtype", choices=outtypes, default="Byte",
                         help="output data type (default=Byte)")
     parser.add_argument("-r", "--resolution", type=float,
