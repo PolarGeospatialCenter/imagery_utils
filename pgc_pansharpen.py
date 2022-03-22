@@ -171,14 +171,15 @@ class ImagePair(object):
         raise Exception("Cannot find pan scene with 1 sec datetime diff")
 
 
-@Gooey
+@Gooey(required_cols=1,
+       optional_cols=2)
 def main():
 
     #### Set Up Arguments
     parent_parser, pos_arg_keys = ortho_functions.buildParentArgumentParser()
     parser = GooeyParser(
         parents=[parent_parser],
-        description="Run/Submit batch pansharpening in parallel"
+        description="Run/Submit batch pansharpening in parallel."
     )
 
     parser.add_argument("--skip-missing-pairs", action='store_true', default=False,
