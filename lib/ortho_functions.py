@@ -305,7 +305,6 @@ def buildParentArgumentParser():
                         help="output multispectral images as 3 band RGB")
     parser.add_argument("--bgrn", action="store_true", default=False,
                         help="output multispectral images as 4 band BGRN (reduce 8 band to 4)")
-    parser.add_argument("--version", action='version', version="imagery_utils v{}".format(utils.package_version))
 
     # rarely used optional arguments
     rare_options = parser.add_argument_group("Rarely used optional argumants",
