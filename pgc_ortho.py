@@ -21,11 +21,13 @@ logger.setLevel(logging.DEBUG)
 
 ARGDEF_SCRATCH = os.path.join(os.path.expanduser('~'), 'scratch', 'task_bundles')
 
+# skip GUI (ignore gooey decorator) if any CLI args are given
 if len(sys.argv) >= 2:
     if not '--ignore-gooey' in sys.argv:
         sys.argv.append('--ignore-gooey')
 
-@Gooey
+@Gooey(required_cols=1,
+       optional_cols=2)
 def main():
     ret_code = 0
 
@@ -33,7 +35,7 @@ def main():
     parent_parser, pos_arg_keys = ortho_functions.buildParentArgumentParser()
     parser = GooeyParser(
         parents=[parent_parser],
-        description="Run/submit batch image ortho and conversion tasks"
+        description="Run/submit batch image ortho and conversion tasks."
     )
 
     parser.add_argument("--pbs", action='store_true', default=False,
