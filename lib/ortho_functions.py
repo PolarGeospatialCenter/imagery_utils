@@ -267,7 +267,10 @@ def buildParentArgumentParser():
     parser = GooeyParser(add_help=False)
 
     #### Positional Arguments
-    parser.add_argument("src", help="source image, text file, or directory", widget="FileChooser")
+    parser.add_argument("src", help="source image, text file, or directory. "
+                                    "GUI note: for single image or text file, select the folder from the browse menu "
+                                    "and then copy/paste in the file name (with extension).",
+                        widget="DirChooser")
     parser.add_argument("dst", help="destination directory", widget="DirChooser")
     pos_arg_keys = ["src", "dst"]
 
@@ -280,16 +283,18 @@ def buildParentArgumentParser():
     parser.add_argument("-p", "--epsg", required=False, type=str,
                         help="EPSG projection code for output files [int: EPSG code, "
                              "'utm': closest UTM zone, 'auto': closest UTM zone or polar stereo "
-                             "(polar stereo cutoff is at 60 N/S latitude)]")
+                             "(polar stereo cutoff is at 60 N/S latitude)]. "
+                             "Antarctic Polar Stereographic: 3031. "
+                             "Arctic Stereographic North: 3431.")
     parser.add_argument("-d", "--dem",
                         help="the DEM to use for orthorectification (elevation values should be relative to the wgs84 "
-                             "ellipoid", widget="FileChooser")
+                             "ellipoid)", widget="FileChooser")
     parser.add_argument("-t", "--outtype", choices=outtypes, default="Byte",
                         help="output data type (default=Byte)")
     parser.add_argument("-r", "--resolution", type=float,
-                        help="output pixel resolution in units of the projection")
+                        help="output pixel resolution in units of the projection. Default is native resolution of input")
     parser.add_argument("-c", "--stretch", choices=stretches, default="rf",
-                        help="stretch type [ns: nostretch, rf: reflectance (default), mr: modified reflectance, rd: "
+                        help="stretch type [ns: no stretch, rf: reflectance (default), mr: modified reflectance, rd: "
                              "absolute radiance, au: automatically set (rf for images below 60S latitude, otherwise mr)]")
     parser.add_argument("--resample", choices=resamples, default="near",
                         help="resampling strategy - mimicks gdalwarp options")
