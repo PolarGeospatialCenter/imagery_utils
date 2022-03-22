@@ -18,6 +18,13 @@ from osgeo import gdal, gdalconst, ogr, osr
 from lib import ortho_functions, taskhandler, utils
 from lib.taskhandler import argval2str
 
+from gooey import Gooey, GooeyParser
+
+# skip GUI (ignore gooey decorator) if any CLI args are given
+if len(sys.argv) >= 2:
+    if not '--ignore-gooey' in sys.argv:
+        sys.argv.append('--ignore-gooey')
+
 #### Create Loggers
 logger = logging.getLogger("logger")
 logger.setLevel(logging.DEBUG)
@@ -124,12 +131,12 @@ class ImagePair(object):
         return ortho_functions.GetImageGeometryInfo(src_image, spatial_ref, args,
                                                     return_type='extent_geom')
 
-
+@Gooey
 def main():
 
     #### Set Up Arguments
     parent_parser, pos_arg_keys = ortho_functions.buildParentArgumentParser()
-    parser = argparse.ArgumentParser(
+    parser = GooeyParser(
         parents=[parent_parser],
         description="Run/Submit batch pansharpening in parallel"
     )
