@@ -38,21 +38,24 @@ def main():
         description="Run/submit batch image ortho and conversion tasks."
     )
 
-    parser.add_argument("--pbs", action='store_true', default=False,
+    cluster_group = parser.add_argument_group("Cluster Processing Options",
+                                              "Customize options for cluster processing. Ignore if running locally.")
+
+    cluster_group.add_argument("--pbs", action='store_true', default=False,
                         help="submit tasks to PBS")
-    parser.add_argument("--slurm", action='store_true', default=False,
+    cluster_group.add_argument("--slurm", action='store_true', default=False,
                         help="submit tasks to SLURM")
-    parser.add_argument("--tasks-per-job", type=int,
+    cluster_group.add_argument("--tasks-per-job", type=int,
                         help="Number of tasks to bundle into a single job. (requires --pbs or --slurm option) (Warning:"
                              " a higher number of tasks per job may require modification of default wallclock limit.)")
-    parser.add_argument('--scratch', default=ARGDEF_SCRATCH,
+    cluster_group.add_argument('--scratch', default=ARGDEF_SCRATCH,
                         help="Scratch space to build task bundle text files. (default={})".format(ARGDEF_SCRATCH))
-    parser.add_argument("--parallel-processes", type=int, default=1,
+    cluster_group.add_argument("--parallel-processes", type=int, default=1,
                         help="number of parallel processes to spawn (default 1)")
-    parser.add_argument("--qsubscript",
+    cluster_group.add_argument("--qsubscript",
                         help="submission script to use in PBS/SLURM submission (PBS default is qsub_ortho.sh, SLURM "
                              "default is slurm_ortho.py, in script root folder)")
-    parser.add_argument("-l",
+    cluster_group.add_argument("-l",
                         help="PBS resources requested (mimicks qsub syntax, PBS only)")
     parser.add_argument("--dryrun", action='store_true', default=False,
                         help='print actions without executing')

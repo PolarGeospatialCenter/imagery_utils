@@ -305,23 +305,28 @@ def buildParentArgumentParser():
                         help="output multispectral images as 3 band RGB")
     parser.add_argument("--bgrn", action="store_true", default=False,
                         help="output multispectral images as 4 band BGRN (reduce 8 band to 4)")
-    parser.add_argument("-s", "--save-temps", action="store_true", default=False,
+    parser.add_argument("--version", action='version', version="imagery_utils v{}".format(utils.package_version))
+
+    # rarely used optional arguments
+    rare_options = parser.add_argument_group("Rarely used optional argumants",
+                                             "Typically not used under normal circumstances")
+    rare_options.add_argument("-s", "--save-temps", action="store_true", default=False,
                         help="save temp files, they will be renamed with a .save extension")
-    parser.add_argument("--wd",
+    rare_options.add_argument("--wd",
                         help='local working directory for cluster jobs (default is dst dir)'
                              'If used with --save-temps ALL files will be preserved in working directory',
                         widget="DirChooser")
-    parser.add_argument("--skip-warp", action='store_true', default=False,
+    rare_options.add_argument("--skip-warp", action='store_true', default=False,
                         help="skip warping step")
-    parser.add_argument("--skip-dem-overlap-check", action='store_true', default=False,
+    rare_options.add_argument("--skip-dem-overlap-check", action='store_true', default=False,
                         help="skip verification of image-DEM overlap")
-    parser.add_argument("--no-pyramids", action='store_true', default=False,
+    rare_options.add_argument("--no-pyramids", action='store_true', default=False,
                         help='suppress calculation of output image pyramids')
-    parser.add_argument("--pyramid-type", choices=['near', 'cubic'], default='near', help='pyramid resampling strategy')
-    parser.add_argument("--ortho-height", type=int,
+    rare_options.add_argument("--pyramid-type", choices=['near', 'cubic'], default='near', help='pyramid resampling strategy')
+    rare_options.add_argument("--ortho-height", type=int,
                         help='constant elevation to use for orthorectification (value should be in meters above '
                         'the wgs84 ellipoid)')
-    parser.add_argument("--threads", type=thread_type(),
+    rare_options.add_argument("--threads", type=thread_type(),
                         help='Number of threads to use for gdalwarp and gdal_pansharpen processes, if applicable '
                              '(default={0}, number on system={1}). Can use any positive integer, or ALL_CPUS. '
                              'Any value above system count will default to ALL_CPUS. If used with '
