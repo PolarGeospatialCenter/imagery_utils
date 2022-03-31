@@ -1528,18 +1528,22 @@ def WarpImage(args, info, gdal_thread_count=1):
                 elif info.vendor == "GeoEye" and info.sat == "GE01":
                     rpb_p = os.path.splitext(info.localsrc)[0] + "_rpc.txt"
 
+                elif info.sat in ['IK01']:
+                    rpb_p = os.path.splitext(info.localsrc)[0] + "_rpc.txt"
+
                 else:
                     rpb_p = None
-                    logger.error("Cannot extract rpc's for Ikonos. Image cannot be terrain corrected with a DEM or "
-                                 "avg elevation.")
-                    rc = 1
+                    # logger.error("Cannot extract rpc's for Ikonos. Image cannot be terrain corrected with a DEM or "
+                    #              "avg elevation.")
+                    # rc = 1
 
-                if rpb_p:
-                    if not os.path.isfile(rpb_p):
+                # if rpb_p:
+                if True:
+                    if rpb_p is None or not os.path.isfile(rpb_p):
                         err = ExtractRPB(info.localsrc, rpb_p)
                         if err == 1:
                             rc = 1
-                    if not os.path.isfile(rpb_p):
+                    if rpb_p is None or not os.path.isfile(rpb_p):
                         logger.error("No RPC information found. Image cannot be terrain corrected with a DEM or avg "
                                      "elevation.")
                         rc = 1
