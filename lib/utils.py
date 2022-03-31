@@ -347,6 +347,8 @@ def getIKMetadataAsXml(metafile):
         "Pan_Along_Scan",
         "MS_Cross_Scan",
         "MS_Along_Scan",
+        "Hemisphere",
+        "Zone_Number",
     ]
     ignores = [
         "Company Information",
@@ -433,7 +435,8 @@ def getIKMetadataAsXml(metafile):
                     # Adjust depth if we just finished a Coordinate block
                     if tag not in tags_coords and current.tag in ["Coordinate",
                                                                   "Component_Map_Coordinates_in_Map_Units",
-                                                                  "Acquired_Nominal_GSD"]:
+                                                                  "Acquired_Nominal_GSD",
+                                                                  "UTM_Specific_Parameters"]:
                         while current.tag not in tags_2L and current.tag not in tags_1L and current.tag != "root":
                             current = parent
                             parent = node_stack.pop()
