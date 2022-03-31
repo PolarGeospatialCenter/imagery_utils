@@ -276,6 +276,8 @@ def buildParentArgumentParser():
                         help="output to the given format (default=GTiff)")
     parser.add_argument("--gtiff-compression", choices=gtiff_compressions, default="lzw",
                         help="GTiff compression type (default=lzw)")
+    parser.add_argument("--wv-correct", action='store_true', default=False,
+                        help='apply wv_correct')
     parser.add_argument("-p", "--epsg", required=False, type=str,
                         help="EPSG projection code for output files [int: EPSG code, "
                              "'utm': closest UTM zone, 'auto': closest UTM zone or polar stereo "
@@ -365,16 +367,25 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
     else:
         info.localsrc = info.srcfp
     info.localdst = os.path.join(wd, info.dstfn)
+    info.wvcfile = os.path.splitext(info.localdst)[0] + "_wvc.tif"
+    info.wvcfilexml = os.path.splitext(info.localdst)[0] + "_wvc.xml"
     info.rawvrt = os.path.splitext(info.localdst)[0] + "_raw.vrt"
     info.warpfile = os.path.splitext(info.localdst)[0] + "_warp.tif"
     info.vrtfile = os.path.splitext(info.localdst)[0] + "_vrt.vrt"
     ik_stacked_sem = "{}.stacked".format(os.path.join(wd, info.srcfn))
+    info.localsrcxml = None
+    srcfp_noext, srcfp_ext = os.path.splitext(info.srcfp)
+    for xml_ext in ('xml', 'XML'):
+        test_fp = '{}.{}'.format(srcfp_noext, xml_ext)
+        if os.path.isfile(test_fp):
+            info.localsrcxml = test_fp
+            break
 
     # Cleanup temp files from failed or interrupted processing attempt
     if args.wd or os.path.isfile(ik_stacked_sem):
-        utils.delete_temp_files([info.dstfp, info.rawvrt, info.warpfile, info.vrtfile, info.localsrc])
+        utils.delete_temp_files([info.dstfp, info.wvcfile, info.wvcfilexml, info.rawvrt, info.warpfile, info.vrtfile, info.localsrc])
     else:
-        utils.delete_temp_files([info.dstfp, info.rawvrt, info.warpfile, info.vrtfile])
+        utils.delete_temp_files([info.dstfp, info.wvcfile, info.wvcfilexml, info.rawvrt, info.warpfile, info.vrtfile])
 
     #### Verify EPSG
     # epsg argument could also be 'utm' or 'auto', handled in GetImageStats
@@ -485,6 +496,17 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
                 err = 1
 
     if not os.path.isfile(info.dstfp):
+        #### Apply wv_correct
+        if not err == 1 and args.wv_correct and info.srcfn.startswith(('WV01', 'WV02')) and not os.path.isfile(info.wvcfile):
+            if info.localsrcxml is None:
+                err = 1
+                logger.error("Could not locate source image XML file for wv_correct application")
+            if not err == 1:
+                rc = WvcImage(args, info, wv_correct_threads=gdal_thread_count)
+                if rc == 1:
+                    err = 1
+                    logger.error("Error in wv_correct application")
+
         #### Warp Image
         if not err == 1 and not os.path.isfile(info.warpfile):
             rc = WarpImage(args, info, gdal_thread_count=gdal_thread_count)
@@ -527,15 +549,15 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
         logger.error("Processing failed: %s", info.srcfn)
         if not args.save_temps:
             if args.wd or os.path.isfile(ik_stacked_sem):
-                utils.delete_temp_files([info.dstfp, info.rawvrt, info.warpfile, info.vrtfile, info.localsrc])
+                utils.delete_temp_files([info.dstfp, info.wvcfile, info.wvcfilexml, info.rawvrt, info.warpfile, info.vrtfile, info.localsrc])
             else:
-                utils.delete_temp_files([info.dstfp, info.rawvrt, info.warpfile, info.vrtfile])
+                utils.delete_temp_files([info.dstfp, info.wvcfile, info.wvcfilexml, info.rawvrt, info.warpfile, info.vrtfile])
 
     elif not args.save_temps:
         if args.wd or os.path.isfile(ik_stacked_sem):
-            utils.delete_temp_files([info.rawvrt, info.warpfile, info.vrtfile, info.localsrc])
+            utils.delete_temp_files([info.wvcfile, info.wvcfilexml, info.rawvrt, info.warpfile, info.vrtfile, info.localsrc])
         else:
-            utils.delete_temp_files([info.rawvrt, info.warpfile, info.vrtfile])
+            utils.delete_temp_files([info.wvcfile, info.wvcfilexml, info.rawvrt, info.warpfile, info.vrtfile])
     # Rename temp files if --save-temps
     elif args.save_temps:
         os.rename(info.rawvrt, info.rawvrt + ".save")
@@ -1397,6 +1419,7 @@ def GetGEMetadataPath(srcfp):
 
 
 def WriteOutputMetadata(args, info):
+    # TODO: Add wv_correct meta
 
     ####  Ortho metadata name
     omd = os.path.splitext(info.localdst)[0] + ".xml"
@@ -1538,6 +1561,33 @@ def prettify(root):
     return reparsed.toprettyxml(indent="\t")
 
 
+def WvcImage(args, info, wv_correct_threads=1):
+
+    rc = 0
+
+    logger.info("Running image through wv_correct")
+
+    #### wv_correct command
+    cmd = 'wv_correct --threads {} "{}" "{}" "{}"'.format(
+        wv_correct_threads,
+        info.localsrc,
+        info.localsrcxml,
+        info.wvcfile
+    )
+
+    (err, so, se) = taskhandler.exec_cmd(cmd)
+    if err == 1:
+        rc = 1
+
+    if os.path.isfile(info.wvcfile):
+        shutil.copyfile(info.localsrcxml, info.wvcfilexml)
+    else:
+        logger.error("wv_correct output image was not created")
+        rc = 1
+
+    return rc
+
+
 def WarpImage(args, info, gdal_thread_count=1):
 
     rc = 0
@@ -1590,7 +1640,8 @@ def WarpImage(args, info, gdal_thread_count=1):
                         rc = 1
 
         #### convert to VRT and modify 4th band
-        cmd = 'gdal_translate -of VRT "{0}" "{1}"'.format(info.localsrc, info.rawvrt)
+        srcfp = info.wvcfile if os.path.isfile(info.wvcfile) else info.localsrc
+        cmd = 'gdal_translate -of VRT "{0}" "{1}"'.format(srcfp, info.rawvrt)
         (err, so, se) = taskhandler.exec_cmd(cmd)
         if err == 1:
             rc = 1
