@@ -26,13 +26,17 @@ if len(sys.argv) >= 2:
     if not '--ignore-gooey' in sys.argv:
         sys.argv.append('--ignore-gooey')
 
-@Gooey(required_cols=1,
-       optional_cols=2,
-       menu=[{
-    'type': 'Link',
-    'menuTitle': 'pgc_ortho.py Documentation',
-    'url': 'https://docs.google.com/document/d/1FIuIm45rQCng_A22rW0Mu6L-46mdU41eJrSSYHaDcZ4/edit#heading=h.gjdgxs'
-}])
+@Gooey(
+    program_name="PGC Ortho Processing",
+    required_cols=1,
+    optional_cols=2,
+    menu=[{'name':'Help',
+           'items':[{
+               'type': 'Link',
+               'menuTitle': 'pgc_ortho.py Documentation',
+               'url': 'https://docs.google.com/document/d/1FIuIm45rQCng_A22rW0Mu6L-46mdU41eJrSSYHaDcZ4/edit#heading=h.gjdgxs'
+           }]
+    }])
 def main():
     ret_code = 0
 
