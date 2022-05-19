@@ -44,10 +44,7 @@ def main():
     parent_parser, pos_arg_keys = ortho_functions.buildParentArgumentParser()
     parser = GooeyParser(
         parents=[parent_parser],
-        description="Run/submit batch image ortho and conversion tasks."
-                    "See more details about running pgc_ortho.py here:"
-                    "https://docs.google.com/document/d/1FIuIm45rQCng_A22rW0Mu6L-46mdU41eJrSSYHaDcZ4/edit#heading=h.gjdgxs"
-    )
+        description="Run/submit batch image ortho and conversion tasks.")
 
     cluster_group = parser.add_argument_group("Cluster Processing Options",
                                               "Customize options for cluster processing. Ignore if running locally.")
