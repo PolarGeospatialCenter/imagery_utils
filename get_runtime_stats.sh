@@ -86,6 +86,8 @@ string_lstrip() {
     print_string "$string_stripped"
 }
 
+string_join() { local IFS="$1"; shift; print_string "$*"; }
+
 indexOf() {
     local el="$1"     # Save first argument in a variable
     shift             # Shift all arguments to the left (original $1 gets lost)
