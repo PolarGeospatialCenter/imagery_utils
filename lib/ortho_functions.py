@@ -1402,6 +1402,14 @@ def WriteOutputMetadata(args, info):
             elem.remove(rpc)
             imd.append(elem)
 
+        elem = metad.find('productOrderInfo')
+        elem.remove(elem.find('numberOfAOICoordinates'))
+        for child in elem.findall('aoiGeoCoordinate'):
+            elem.remove(child)
+        for child in elem.findall('aoiMapCoordinate'):
+            elem.remove(child)
+        imd.append(elem)
+
         for tag in include_tags:
             elems = metad.findall(tag)
             imd.extend(elems)
@@ -1428,6 +1436,11 @@ def WriteOutputMetadata(args, info):
             for child in elem.findall("Component_ID"):
                 if not child.attrib['id'] == component:
                     elem.remove(child)
+            imd.append(elem)
+
+            elem = metad.find('Product_Order_Metadata')
+            elem.remove(elem.find('Product_Order_Area_Geographic_Coordinates'))
+            elem.remove(elem.find('Product_Order_Area_Map_Coordinates_in_Map_Units'))
             imd.append(elem)
 
     ####  Determine custom MD
