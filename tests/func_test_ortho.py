@@ -22,11 +22,11 @@ class TestOrthoFunc(unittest.TestCase):
         self.dstdir = os.path.join(script_dir, 'testdata', 'output')
 
         if platform.system() == 'Windows':
-            self.gimpdem = r'Y:\elevation\dem\GIMP\GIMPv2\gimpdem_v2_30m.tif'
-            self.rampdem = r'Y:\elevation\dem\RAMP\RAMPv2\RAMPv2_wgs84_200m.tif'
+            self.gimpdem = r'V:\pgc\data\elev\dem\gimp\GIMPv2\gimpdem_v2_30m.tif'
+            self.rampdem = r'V:\pgc\data\elev\dem\ramp\RAMPv2_wgs84_200m.tif'
         else:
-            self.gimpdem = '/mnt/agic/storage00/agic/private/elevation/dem/GIMP/GIMPv2/gimpdem_v2_30m.tif'
-            self.rampdem = '/mnt/agic/storage00/agic/private/elevation/dem/RAMP/RAMPv2/RAMPv2_wgs84_200m.tif'
+            self.gimpdem = '/mnt/pgc/data/elev/dem/gimp/GIMPv2/gimpdem_v2_30m.tif'
+            self.rampdem = '/mnt/pgc/data/elev/dem/ramp/RAMPv2_wgs84_200m.tif'
 
         # if os.path.isdir(self.dstdir):
         #     shutil.rmtree(self.dstdir)
@@ -63,6 +63,7 @@ class TestOrthoFunc(unittest.TestCase):
         for test_image, epsg in test_images:
             
             srcfp = os.path.join(self.srcdir, test_image)
+            print(srcfp)
             cmd = r"""python "{}" -r 10 -p {} "{}" "{}" """.format(self.scriptpath, epsg, srcfp, self.dstdir)
             p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
             se, so = p.communicate()

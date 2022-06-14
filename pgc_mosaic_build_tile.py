@@ -10,6 +10,7 @@ import numpy
 from osgeo import gdal
 
 from lib import mosaic, taskhandler, utils
+from lib import VERSION
 
 logger = logging.getLogger("logger")
 logger.setLevel(logging.DEBUG)
@@ -49,7 +50,7 @@ def main():
                         help="scratch space (default is mosaic directory)")
     parser.add_argument("--gtiff-compression", choices=mosaic.GTIFF_COMPRESSIONS, default="lzw",
                         help="GTiff compression type. Default=lzw ({})".format(','.join(mosaic.GTIFF_COMPRESSIONS)))
-    parser.add_argument("--version", action='version', version="imagery_utils v{}".format(utils.package_version))
+    parser.add_argument("--version", action='version', version="imagery_utils v{}".format(VERSION))
 
     
     #### Parse Arguments

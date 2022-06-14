@@ -10,6 +10,7 @@ from datetime import date, datetime
 from osgeo import ogr, osr
 
 from lib import mosaic, ortho_functions, utils
+from lib import VERSION
 
 ### Create Logger
 logger = logging.getLogger("logger")
@@ -67,7 +68,7 @@ def main():
                         help="build shapefile of intersecting images (only invoked if --no_sort is not used)")
     parser.add_argument("--require-pan", action='store_true', default=False,
                         help="limit search to imagery with both a multispectral and a panchromatic component")
-    parser.add_argument("--version", action='version', version="imagery_utils v{}".format(utils.package_version))
+    parser.add_argument("--version", action='version', version="imagery_utils v{}".format(VERSION))
 
  
     #### Parse Arguments

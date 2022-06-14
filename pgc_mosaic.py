@@ -10,6 +10,8 @@ from datetime import date, datetime
 from osgeo import ogr, osr
 
 from lib import mosaic, taskhandler, utils
+from lib import VERSION
+
 
 ### Create Logger
 logger = logging.getLogger("logger")
@@ -92,7 +94,7 @@ def main():
                         help="PBS resources requested (mimicks qsub syntax). Use only on HPC systems.")
     parser.add_argument("--log",
                         help="file to log progress (default is <output dir>\{}".format(default_logfile))
-    parser.add_argument("--version", action='version', version="imagery_utils v{}".format(utils.package_version))
+    parser.add_argument("--version", action='version', version="imagery_utils v{}".format(VERSION))
 
     
     #### Parse Arguments

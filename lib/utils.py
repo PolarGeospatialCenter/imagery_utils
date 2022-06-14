@@ -26,9 +26,6 @@ gdal.SetConfigOption('GDAL_PAM_ENABLED', 'NO')
 logger = logging.getLogger("logger")
 logger.setLevel(logging.DEBUG)
 
-package_version = '1.5.7'
-
-
 @contextlib.contextmanager
 def capture_stdout_stderr():
     oldout, olderr = sys.stdout, sys.stderr

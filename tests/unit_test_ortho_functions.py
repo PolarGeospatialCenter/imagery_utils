@@ -8,6 +8,7 @@ root_dir = os.path.dirname(script_dir)
 sys.path.append(root_dir)
 
 from lib import ortho_functions, utils
+from lib import VERSION
 
 #logger = logging.getLogger("logger")
 # lso = logging.StreamHandler()
@@ -203,7 +204,7 @@ class TestWriteMetadata(unittest.TestCase):
             '<EPSG_CODE>4326</EPSG_CODE>',
             '<FORMAT>GTiff</FORMAT>',
             '<STRETCH>rf</STRETCH>',
-            '<VERSION>imagery_utils v{}</VERSION>'.format(utils.package_version),
+            '<VERSION>imagery_utils v{}</VERSION>'.format(VERSION),
             '<ORTHO_HEIGHT>2568.0</ORTHO_HEIGHT>',
             '<RESAMPLEMETHOD>near</RESAMPLEMETHOD>'
         ]

@@ -11,6 +11,7 @@ import numpy
 from osgeo import gdal
 
 from lib import ortho_functions, taskhandler, utils
+from lib import VERSION
 
 #### Create Loggers
 logger = logging.getLogger("logger")
@@ -47,7 +48,7 @@ def main():
     parser.add_argument("-l", help="PBS resources requested (mimicks qsub syntax, PBS only)")
     parser.add_argument("--dryrun", action="store_true", default=False,
                         help="print actions without executing")
-    parser.add_argument("--version", action='version', version="imagery_utils v{}".format(utils.package_version))
+    parser.add_argument("--version", action='version', version="imagery_utils v{}".format(VERSION))
 
 
     #### Parse Arguments
