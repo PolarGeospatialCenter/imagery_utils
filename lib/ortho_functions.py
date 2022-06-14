@@ -15,6 +15,7 @@ from xml.etree import cElementTree as ET
 from osgeo import gdal, gdalconst, ogr, osr
 
 from lib import taskhandler, utils
+from lib import VERSION
 
 #### Create Loggers
 logger = logging.getLogger("logger")
@@ -320,7 +321,7 @@ def buildParentArgumentParser():
                              '--pbs/--slurm will only accept 1 thread.'
                         .format(ARGDEF_THREADS, ARGDEF_CPUS_AVAIL),
                         default=ARGDEF_THREADS)
-    parser.add_argument("--version", action='version', version="imagery_utils v{}".format(utils.package_version))
+    parser.add_argument("--version", action='version', version="imagery_utils v{}".format(VERSION))
 
     return parser, pos_arg_keys
 
@@ -1445,7 +1446,7 @@ def WriteOutputMetadata(args, info):
 
     ####  Determine custom MD
     dMD = {}
-    dMD["VERSION"] = "imagery_utils v{}".format(utils.package_version)
+    dMD["VERSION"] = "imagery_utils v{}".format(VERSION)
     tm = datetime.today()
     dMD["PROCESS_DATE"] = tm.strftime("%d-%b-%Y %H:%M:%S")
     if not args.skip_warp:
