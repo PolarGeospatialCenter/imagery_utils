@@ -94,6 +94,8 @@ def main():
                         help="PBS resources requested (mimicks qsub syntax). Use only on HPC systems.")
     parser.add_argument("--log",
                         help="file to log progress (default is <output dir>\{}".format(default_logfile))
+    parser.add_argument("--skip-cmd-txt", action='store_true', default=False,
+                        help='Skip writing the txt file containing the input command.')
     parser.add_argument("--version", action='version', version="imagery_utils v{}".format(VERSION))
 
     
@@ -174,6 +176,13 @@ def main():
             parser.error("Supplied year {0} is not valid, or its format is incorrect; should be 4 digits for single "
                          "year (e.g., 2017), eight digits and dash for range (e.g., 2015-2017)".format(args.tyear))
             sys.exit(1)
+
+    # write input command to text file next to output folder for reference
+    command_str = ' '.join(sys.argv)
+    logger.info("Running command: {}".format(command_str))
+    if not args.skip_cmd_txt and not args.dryrun:
+        utils.write_input_command_txt(command_str,mosaic_dir)
+        args.skip_cmd_txt = True
 
     #### Get exclude list if specified
     if args.exclude is not None:
