@@ -50,6 +50,8 @@ def main():
                         help="scratch space (default is mosaic directory)")
     parser.add_argument("--gtiff-compression", choices=mosaic.GTIFF_COMPRESSIONS, default="lzw",
                         help="GTiff compression type. Default=lzw ({})".format(','.join(mosaic.GTIFF_COMPRESSIONS)))
+    parser.add_argument("--skip-cmd-txt", action='store_true', default=True,
+                        help='Skip writing the txt file containing the input command.')
     parser.add_argument("--version", action='version', version="imagery_utils v{}".format(VERSION))
 
     
@@ -81,6 +83,13 @@ def main():
             parser.error("scratch space directory does not exist: {0}".format(args.wd))
     else:
         localpath = os.path.dirname(tile)
+
+    #### write input command to text file next to output folder for reference
+    command_str = ' '.join(sys.argv)
+    logger.info("Running command: {}".format(command_str))
+    if not args.skip_cmd_txt:
+        utils.write_input_command_txt(command_str,localpath)
+        args.skip_cmd_txt = True
     
     intersects = []
     
