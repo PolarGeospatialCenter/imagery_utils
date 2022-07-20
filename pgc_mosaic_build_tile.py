@@ -87,7 +87,7 @@ def main():
     #### write input command to text file next to output folder for reference
     command_str = ' '.join(sys.argv)
     logger.info("Running command: {}".format(command_str))
-    if not args.skip_cmd_txt and not args.dryrun:
+    if not args.skip_cmd_txt:
         utils.write_input_command_txt(command_str,localpath)
         args.skip_cmd_txt = True
     
