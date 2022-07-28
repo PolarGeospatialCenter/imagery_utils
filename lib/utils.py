@@ -730,7 +730,7 @@ def yield_task_args(task_list, script_args,
                     if int(argval) == argval:
                         argval = int(argval)
                 except ValueError:
-                    argval = '"{}"'.format(argval)
+                    argval = 'r"{}"'.format(argval)
 
             exec_statement = 'task_args.{} = {}'.format(argname, argval)
             # print(exec_statement)
