@@ -1,0 +1,10 @@
+python <PGC_ORTHO_SCRIPT_LOCATION> <ARGLIST> <DSTDIR>\test_01 -d <DEM> -f GTiff -t Byte -c ns --resample near --epsg auto
+python <PGC_ORTHO_SCRIPT_LOCATION> <ARGLIST> <DSTDIR>\test_02 -d <DEM> -f JP2OpenJPEG -t Byte -c ns --resample near --epsg auto
+python <PGC_ORTHO_SCRIPT_LOCATION> <ARGLIST> <DSTDIR>\test_03 -d <DEM> -f GTiff -t UInt16 -c ns --resample near --epsg auto
+python <PGC_ORTHO_SCRIPT_LOCATION> <ARGLIST> <DSTDIR>\test_04 -d <DEM> -f GTiff -t Byte -c rf --resample near --epsg auto
+python <PGC_ORTHO_SCRIPT_LOCATION> <ARGLIST> <DSTDIR>\test_05 -d <DEM> -f GTiff -t Byte -c rd --resample near --epsg auto
+python <PGC_ORTHO_SCRIPT_LOCATION> <ARGLIST> <DSTDIR>\test_06 -d <DEM> -f GTiff -t Byte -c mr --resample near --epsg auto
+python <PGC_ORTHO_SCRIPT_LOCATION> <ARGLIST> <DSTDIR>\test_07 -d <DEM> -f GTiff -t Byte -c ns --resample bilinear --epsg auto
+python <PGC_ORTHO_SCRIPT_LOCATION> <ARGLIST> <DSTDIR>\test_08 -d <DEM> -f GTiff -t Byte -c ns --resample cubic --epsg auto
+python <PGC_ORTHO_SCRIPT_LOCATION> <ARGLIST> <DSTDIR>\test_09 -d <DEM> -f GTiff -t Byte -c ns --resample near -r 5 --epsg auto
+python <PGC_ORTHO_SCRIPT_LOCATION> <ARGLIST> <DSTDIR>\test_10 -d <DEM> -f GTiff -t Byte -c ns --resample near -r 2 --epsg auto
