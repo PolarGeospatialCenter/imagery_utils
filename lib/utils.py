@@ -61,9 +61,15 @@ class SpatialRef(object):
         except ValueError:
             raise RuntimeError("EPSG value must be an integer: {}".format(epsg))
         else:
-            err = srs.ImportFromEPSG(epsgcode)
+            # test epsg code
+            err = srs.SetFromUserInput("EPSG:{}".format(epsgcode))
             if err != 0:
-                raise RuntimeError("Invalid EPSG code: {}".format(epsgcode))
+                # test esri code
+                err = srs.SetFromUserInput("ESRI:{}".format(epsgcode))
+                if err != 0:
+                    raise RuntimeError("Invalid EPSG/ERSI code: {}".format(epsgcode))
+                else:
+                    proj4_string = srs.ExportToProj4()
             else:
                 proj4_string = srs.ExportToProj4()
 
@@ -724,7 +730,7 @@ def yield_task_args(task_list, script_args,
                     if int(argval) == argval:
                         argval = int(argval)
                 except ValueError:
-                    argval = '"{}"'.format(argval)
+                    argval = 'r"{}"'.format(argval)
 
             exec_statement = 'task_args.{} = {}'.format(argname, argval)
             # print(exec_statement)
