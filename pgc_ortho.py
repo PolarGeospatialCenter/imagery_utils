@@ -47,6 +47,8 @@ def main():
                              "default is slurm_ortho.py, in script root folder)")
     parser.add_argument("-l",
                         help="PBS resources requested (mimicks qsub syntax, PBS only)")
+    parser.add_argument("--queue",
+                        help="PBS queue to submit jobs to")
     parser.add_argument("--dryrun", action='store_true', default=False,
                         help='print actions without executing')
 
@@ -160,7 +162,7 @@ def main():
         args.skip_cmd_txt = True
 
     #### Get args ready to pass to task handler
-    arg_keys_to_remove = ('l', 'qsubscript', 'dryrun', 'pbs', 'slurm', 'parallel_processes', 'tasks_per_job')
+    arg_keys_to_remove = ('l', 'queue', 'qsubscript', 'dryrun', 'pbs', 'slurm', 'parallel_processes', 'tasks_per_job')
 
     ## Identify source images
     csv_arg_data = None
@@ -376,9 +378,13 @@ def main():
     if len(task_queue) > 0:
         logger.info("Submitting Tasks")
         if args.pbs:
-            l = "-l {}".format(args.l) if args.l else ""
+            qsub_args = ""
+            if args.l:
+                qsub_args += "-l {}".format(args.l)
+            if args.queue:
+                qsub_args += "-q {}".format(args.queue)
             try:
-                task_handler = taskhandler.PBSTaskHandler(qsubpath, l)
+                task_handler = taskhandler.PBSTaskHandler(qsubpath, qsub_args)
             except RuntimeError as e:
                 logger.error(utils.capture_error_trace())
                 logger.error(e)
