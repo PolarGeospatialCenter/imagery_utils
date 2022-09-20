@@ -130,7 +130,7 @@ hms2sec() {
 
 
 # A couple custom logging info prints have been added in this version of get_stats from
-# https://github.com/ehusby/shell-utils/blob/main/linux_bash/lib/bash_shell_func.sh
+# https://github.com/ehusby/shell-utils/blob/main/linux/lib/bash_shell_func.sh
 get_stats() {
     # Adapted from https://stackoverflow.com/a/9790056/8896374
     local perl_cmd
@@ -171,6 +171,7 @@ runtime_report_choices=( 'separate' 'sum' )
 runtime_report='sum'
 count_first_choices=( 'on' 'off' )
 count_first='on'
+max_files=''
 
 
 ## Script usage
@@ -280,6 +281,11 @@ Options:
         (directories) that match --logfname-pattern so that this
         number can be displayed in a progress bar during the
         subsequent step of parsing timestamps from those files.
+-mf,--max-files
+        Specify the maximum number of logfiles that are processed
+        in each LOG_PATH directory.
+        If not provided, all logfiles found within all LOG_PATH
+        directories are processed.
 EOM
 if (( $# < 1 )); then
     echo_e -e "$script_usage"
@@ -362,6 +368,10 @@ while (( "$#" )); do
         elif [ "$arg_opt" = 'cf' ] || [ "$arg_opt" = 'count-first' ]; then
             arg_opt_nargs=1
             count_first="$arg_val"
+
+        elif [ "$arg_opt" = 'mf' ] || [ "$arg_opt" = 'max-files' ]; then
+            arg_opt_nargs=1
+            max_files="$arg_val"
 
         else
             echo_e "Unexpected argument: ${arg}"
@@ -471,7 +481,14 @@ fi
 if [ "$count_first" = 'on' ]; then
     echo "First counting log files in source LOG_PATHs..."
     echo "(set --count-first='off' to skip this step)"
-    nlogfiles_total=$(eval find "${log_path_arr[@]}" ${find_args} -type f "${find_name_args}" | wc -l)
+    nlogfiles_total=0
+    for log_path in "${log_path_arr[@]}"; do
+        nlogfiles_path=$(eval find "$log_path" ${find_args} -type f "${find_name_args}" | wc -l)
+        if [ -n "$max_files" ] && (( nlogfiles_path > max_files )); then
+            nlogfiles_path="$max_files"
+        fi
+        nlogfiles_total=$((nlogfiles_total + nlogfiles_path))
+    done
     echo
 elif [ "$count_first" = 'off' ]; then
     nlogfiles_total='?'
@@ -482,93 +499,101 @@ fi
 nlogfiles_format="%0${#nlogfiles_total}d"
 nlogfiles_i=0
 printf "Processing log files matching ${logfname_patt_combined_str}: (${nlogfiles_format}/${nlogfiles_total})\r" "$nlogfiles_i" >/dev/stderr
-while IFS= read -r -d '' logfile; do
-    if [ -z "$logfile" ]; then continue; fi
-    ((nlogfiles_i++))
-#    echo -en "Processing log files matching ${logfname_patt_combined_str}: (${nlogfiles_i}/${nlogfiles_total})\r" >/dev/stderr
-    printf "Processing log files matching ${logfname_patt_combined_str}: (${nlogfiles_format}/${nlogfiles_total})\r" "$nlogfiles_i" >/dev/stderr
+for log_path in "${log_path_arr[@]}"; do
+    nlogfiles_i_path=0
+    while IFS= read -r -d '' logfile; do
+        if [ -z "$logfile" ]; then continue; fi
+        ((nlogfiles_i++))
+        ((nlogfiles_i_path++))
+    #    echo -en "Processing log files matching ${logfname_patt_combined_str}: (${nlogfiles_i}/${nlogfiles_total})\r" >/dev/stderr
+        printf "Processing log files matching ${logfname_patt_combined_str}: (${nlogfiles_format}/${nlogfiles_total})\r" "$nlogfiles_i" >/dev/stderr
 
-    if [ "$mode" = 'timestamp' ]; then
+        if [ "$mode" = 'timestamp' ]; then
 
-        time_start_match=$(grep -Eo -m1 "$timestamp_grep" "$logfile")
-        if (( $? != 0 )); then
-            continue
-        fi
-        set +o pipefail
-        time_end_match=$(tac "$logfile" | grep -Eo -m1 "$timestamp_grep")
-        status=$?
-        set -o pipefail
-        if (( status != 0 )); then
-            continue
-        fi
-
-#        if [ "$matched_a_time_in_any_logfile" = false ]; then
-#            matched_a_time_in_any_logfile=true
-#        fi
-
-        time_start_datetime=$(printf '%s' "$time_start_match" | sed -r "s|${timestamp_grep}|\1|" | sed -r "$timestamp_sed")
-        time_start_sec=$(date -d "$time_start_datetime" +%s)
-
-        time_end_datetime=$(printf '%s' "$time_end_match" | sed -r "s|${timestamp_grep}|\1|" | sed -r "$timestamp_sed")
-        time_end_sec=$(date -d "$time_end_datetime" +%s)
-
-        runtime_sec="$((time_end_sec - time_start_sec))"
-        runtime_min=$(echo "scale=3 ; ${runtime_sec} / 60" | bc)
-
-        echo "$runtime_min"
-
-    elif [ "$mode" = 'runtime' ]; then
-        runtime_min_total=0
-        matched_a_runtime_in_this_logfile=false
-
-        while IFS= read -r runtime_match; do
-#            if [ "$matched_a_time_in_any_logfile" = false ]; then
-#                matched_a_time_in_any_logfile=true
-#            fi
-            if [ "$matched_a_runtime_in_this_logfile" = false ]; then
-                matched_a_runtime_in_this_logfile=true
-            fi
-
-            if [ "$runtime_is_hms" = true ]; then
-                runtime_sec=$(hms2sec "$runtime_match")
-                if (( $? != 0 )); then
-                    echo_e "Function failure: hms2sec '${runtime_match}', ${logfile}"
-                    exit_script_with_status 1
-                fi
-            else
-                runtime_sec=$(echo "$runtime_match" | bc)
-                if (( $? != 0 )); then
-                    echo_e "Function failure: echo '${runtime_match}' | bc, ${logfile}"
-                    exit_script_with_status 1
-                fi
-            fi
-
-            bc_expr_sec2min="scale=3 ; ${runtime_sec} / 60"
-            runtime_min=$(echo "$bc_expr_sec2min" | bc)
+            time_start_match=$(grep -Eo -m1 "$timestamp_grep" "$logfile")
             if (( $? != 0 )); then
-                echo_e "Function failure: echo '${bc_expr_sec2min}' | bc, ${logfile}"
-                exit_script_with_status 1
+                continue
+            fi
+            set +o pipefail
+            time_end_match=$(tac "$logfile" | grep -Eo -m1 "$timestamp_grep")
+            status=$?
+            set -o pipefail
+            if (( status != 0 )); then
+                continue
             fi
 
-            if [ "$runtime_report" = 'separate' ]; then
-                echo "$runtime_min"
-            elif [ "$runtime_report" = 'sum' ]; then
-                bc_expr_sum="${runtime_min_total} + ${runtime_min}"
-                runtime_min_total=$(echo "$bc_expr_sum" | bc)
+    #        if [ "$matched_a_time_in_any_logfile" = false ]; then
+    #            matched_a_time_in_any_logfile=true
+    #        fi
+
+            time_start_datetime=$(printf '%s' "$time_start_match" | sed -r "s|${timestamp_grep}|\1|" | sed -r "$timestamp_sed")
+            time_start_sec=$(date -d "$time_start_datetime" +%s)
+
+            time_end_datetime=$(printf '%s' "$time_end_match" | sed -r "s|${timestamp_grep}|\1|" | sed -r "$timestamp_sed")
+            time_end_sec=$(date -d "$time_end_datetime" +%s)
+
+            runtime_sec="$((time_end_sec - time_start_sec))"
+            runtime_min=$(echo "scale=3 ; ${runtime_sec} / 60" | bc)
+
+            echo "$runtime_min"
+
+        elif [ "$mode" = 'runtime' ]; then
+            runtime_min_total=0
+            matched_a_runtime_in_this_logfile=false
+
+            while IFS= read -r runtime_match; do
+    #            if [ "$matched_a_time_in_any_logfile" = false ]; then
+    #                matched_a_time_in_any_logfile=true
+    #            fi
+                if [ "$matched_a_runtime_in_this_logfile" = false ]; then
+                    matched_a_runtime_in_this_logfile=true
+                fi
+
+                if [ "$runtime_is_hms" = true ]; then
+                    runtime_sec=$(hms2sec "$runtime_match")
+                    if (( $? != 0 )); then
+                        echo_e "Function failure: hms2sec '${runtime_match}', ${logfile}"
+                        exit_script_with_status 1
+                    fi
+                else
+                    runtime_sec=$(echo "$runtime_match" | bc)
+                    if (( $? != 0 )); then
+                        echo_e "Function failure: echo '${runtime_match}' | bc, ${logfile}"
+                        exit_script_with_status 1
+                    fi
+                fi
+
+                bc_expr_sec2min="scale=3 ; ${runtime_sec} / 60"
+                runtime_min=$(echo "$bc_expr_sec2min" | bc)
                 if (( $? != 0 )); then
-                    echo_e "Function failure: echo '${bc_expr_sum}' | bc, ${logfile}"
+                    echo_e "Function failure: echo '${bc_expr_sec2min}' | bc, ${logfile}"
                     exit_script_with_status 1
                 fi
+
+                if [ "$runtime_report" = 'separate' ]; then
+                    echo "$runtime_min"
+                elif [ "$runtime_report" = 'sum' ]; then
+                    bc_expr_sum="${runtime_min_total} + ${runtime_min}"
+                    runtime_min_total=$(echo "$bc_expr_sum" | bc)
+                    if (( $? != 0 )); then
+                        echo_e "Function failure: echo '${bc_expr_sum}' | bc, ${logfile}"
+                        exit_script_with_status 1
+                    fi
+                fi
+
+            done < <(${runtime_grep_preprocess} "$logfile" | grep -Eo ${runtime_grep_match_count_arg} "$runtime_grep" | sed -r "s|${runtime_grep}|\1|" | sed -r "$runtime_sed")
+
+            if [ "$runtime_report" = 'sum' ] && [ "$matched_a_runtime_in_this_logfile" = true ]; then
+                echo "$runtime_min_total"
             fi
-
-        done < <(${runtime_grep_preprocess} "$logfile" | grep -Eo ${runtime_grep_match_count_arg} "$runtime_grep" | sed -r "s|${runtime_grep}|\1|" | sed -r "$runtime_sed")
-
-        if [ "$runtime_report" = 'sum' ] && [ "$matched_a_runtime_in_this_logfile" = true ]; then
-            echo "$runtime_min_total"
         fi
-    fi
 
-done < <(eval find "${log_path_arr[@]}" ${find_args} -type f "${find_name_args}" -print0 2>/dev/null) | get_stats
+        if [ -n "$max_files" ] && (( nlogfiles_i_path == max_files )); then
+            break;
+        fi
+
+    done < <(eval find "$log_path" ${find_args} -type f "${find_name_args}" -print0 2>/dev/null)
+done | get_stats
 
 # Commented this out because these variables can't be updated
 # when while loop output is piped to 'get_stats' function
