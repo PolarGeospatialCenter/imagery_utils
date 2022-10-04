@@ -2000,7 +2000,7 @@ def getIKMetadata(fp_mode, metafile):
         logger.error("Unable to parse metadata from %s", metafile)
         return None
 
-    # metad_map = dict((c, p) for p in metad.getiterator() for c in p)  # Child/parent mapping
+    # metad_map = dict((c, p) for p in metad.iter() for c in p)  # Child/parent mapping
     # attribs = ["Source_Image_ID", "Component_ID"]  # nodes we need the attributes of
 
     # We must identify the exact Source_Image_ID and Component_ID for this image
@@ -2042,7 +2042,7 @@ def getIKMetadata(fp_mode, metafile):
 
 
     # Now assemble the dict
-    for node in siid_node.getiterator():
+    for node in siid_node.iter():
         if node.tag in search_keys:
             if node.tag == "Source_Image_ID":
                 metadict[node.tag] = node.attrib["id"]
