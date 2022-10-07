@@ -84,7 +84,7 @@ class SLURMTaskHandler(object):
 
         self.qsub_args = qsub_args
 
-    def run_tasks(self, tasks):
+    def run_tasks(self, tasks, dryrun=False):
 
         for task in tasks:
             cmd = r'sbatch -J {} --export=p1="{} {}" "{}"'.format(
@@ -93,7 +93,10 @@ class SLURMTaskHandler(object):
                 escape_problem_jobsubmit_chars(task.cmd),
                 self.qsubscript
             )
-            subprocess.call(cmd, shell=True)
+            if dryrun:
+                print(cmd)
+            else:
+                subprocess.call(cmd, shell=True)
             
 
 class ParallelTaskHandler(object):
@@ -107,15 +110,19 @@ class ParallelTaskHandler(object):
             raise RuntimeError("Specified number of processes ({0}) must be greater than 0, using default".
                                format(num_processes))
 
-    def run_tasks(self, tasks):
+    def run_tasks(self, tasks, dryrun=False):
 
         task_queue = [[task.name, self._format_task(task)] for task in tasks]
-        pool = mp.Pool(self.num_processes)
-        try:
-            pool.map(exec_cmd_mp, task_queue, 1)
-        except KeyboardInterrupt:
-            pool.terminate()
-            raise RuntimeError("Processes terminated without file cleanup")
+        if dryrun:
+            for task in task_queue:
+                print(task)
+        else:
+            pool = mp.Pool(self.num_processes)
+            try:
+                pool.map(exec_cmd_mp, task_queue, 1)
+            except KeyboardInterrupt:
+                pool.terminate()
+                raise RuntimeError("Processes terminated without file cleanup")
 
     def _format_task(self, task):
         _cmd = r'{} {}'.format(

@@ -7,6 +7,7 @@ import logging
 import math
 import os
 import sys
+import time
 import xml.etree.ElementTree as ET
 
 import numpy as np
@@ -376,7 +377,12 @@ def main():
 
     ## Run tasks
     if len(task_queue) > 0:
-        logger.info("Submitting Tasks")
+        pause_sec = 5
+        logger.info("Pausing for {} seconds before submitting tasks{}".format(
+            pause_sec, ' (dryrun)' if args.dryrun else ''
+        ))
+        time.sleep(pause_sec)
+
         if args.pbs:
             qsub_args = ""
             if args.l:
@@ -389,8 +395,7 @@ def main():
                 logger.error(utils.capture_error_trace())
                 logger.error(e)
             else:
-                if not args.dryrun:
-                    task_handler.run_tasks(task_queue, dryrun=args.dryrun)
+                task_handler.run_tasks(task_queue, dryrun=args.dryrun)
 
         elif args.slurm:
             try:
@@ -399,8 +404,7 @@ def main():
                 logger.error(utils.capture_error_trace())
                 logger.error(e)
             else:
-                if not args.dryrun:
-                    task_handler.run_tasks(task_queue)
+                task_handler.run_tasks(task_queue, dryrun=args.dryrun)
 
         elif args.parallel_processes > 1:
             try:
@@ -410,8 +414,7 @@ def main():
                 logger.error(e)
             else:
                 logger.info("Number of child processes to spawn: %i", task_handler.num_processes)
-                if not args.dryrun:
-                    task_handler.run_tasks(task_queue)
+                task_handler.run_tasks(task_queue, dryrun=args.dryrun)
 
         else:
 
@@ -420,21 +423,21 @@ def main():
 
                 src, dstfp, task_arg_obj = task.method_arg_list
 
-                #### Set up processing log handler
-                logfile = os.path.splitext(dstfp)[0] + ".log"
-                lfh = logging.FileHandler(logfile)
-                lfh.setLevel(logging.DEBUG)
-                formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s', '%m-%d-%Y %H:%M:%S')
-                lfh.setFormatter(formatter)
-                logger.addHandler(lfh)
-
-                if not args.dryrun:
-                    results[task.name] = task.method(src, dstfp, task_arg_obj)
-                else:
+                if args.dryrun:
                     print(src)
+                else:
+                    #### Set up processing log handler
+                    logfile = os.path.splitext(dstfp)[0] + ".log"
+                    lfh = logging.FileHandler(logfile)
+                    lfh.setLevel(logging.DEBUG)
+                    formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s', '%m-%d-%Y %H:%M:%S')
+                    lfh.setFormatter(formatter)
+                    logger.addHandler(lfh)
 
-                #### remove existing file handler
-                logger.removeHandler(lfh)
+                    results[task.name] = task.method(src, dstfp, task_arg_obj)
+
+                    #### remove existing file handler
+                    logger.removeHandler(lfh)
 
             #### Print Images with Errors
             for k, v in results.items():

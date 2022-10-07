@@ -11,6 +11,7 @@ import platform
 import re
 import shutil
 import sys
+import time
 import xml.etree.ElementTree as ET
 import datetime
 
@@ -165,6 +166,7 @@ class ImagePair(object):
 
 
 def main():
+    ret_code = 0
 
     #### Set Up Arguments
     parent_parser, pos_arg_keys = ortho_functions.buildParentArgumentParser()
@@ -381,7 +383,6 @@ def main():
     logger.info("Number of src image pairs: %i", len(pair_list))
     
     ## Build task queue
-    i = 0
     pairs_to_process = []
     for image_pair in pair_list:
 
@@ -400,11 +401,9 @@ def main():
 
         done = os.path.isfile(pansh_dstfp)
         if done is False:
-            i += 1
             pairs_to_process.append(image_pair)
             
-    logger.info('Number of incomplete tasks: %i', i)
-
+    logger.info("Number of incomplete tasks: %i", len(pairs_to_process))
     if len(pairs_to_process) == 0:
         logger.info("No images pairs found to process")
         sys.exit(0)
@@ -459,7 +458,12 @@ def main():
 
     ## Run tasks
     if len(task_queue) > 0:
-        logger.info("Submitting %s processing jobs", len(task_queue))
+        pause_sec = 5
+        logger.info("Pausing for {} seconds before submitting tasks{}".format(
+            pause_sec, ' (dryrun)' if args.dryrun else ''
+        ))
+        time.sleep(pause_sec)
+
         if args.pbs:
             qsub_args = ""
             if args.l:
@@ -472,9 +476,8 @@ def main():
                 logger.error(utils.capture_error_trace())
                 logger.error(e)
             else:
-                if not args.dryrun:
-                    task_handler.run_tasks(task_queue, dryrun=args.dryrun)
-                
+                task_handler.run_tasks(task_queue, dryrun=args.dryrun)
+
         elif args.slurm:
             try:
                 task_handler = taskhandler.SLURMTaskHandler(qsubpath)
@@ -482,9 +485,8 @@ def main():
                 logger.error(utils.capture_error_trace())
                 logger.error(e)
             else:
-                if not args.dryrun:
-                    task_handler.run_tasks(task_queue)
-            
+                task_handler.run_tasks(task_queue, dryrun=args.dryrun)
+
         elif args.parallel_processes > 1:
             try:
                 task_handler = taskhandler.ParallelTaskHandler(args.parallel_processes)
@@ -493,42 +495,43 @@ def main():
                 logger.error(e)
             else:
                 logger.info("Number of child processes to spawn: %i", task_handler.num_processes)
-                if not args.dryrun:
-                    task_handler.run_tasks(task_queue)
-    
+                task_handler.run_tasks(task_queue, dryrun=args.dryrun)
+
         else:
+
             results = {}
-            lfh = None
             for task in task_queue:
-                           
+
                 src, dstfp, task_arg_obj = task.method_arg_list
-                
-                #### Set up processing log handler
-                logfile = os.path.splitext(dstfp)[0] + ".log"
-                lfh = logging.FileHandler(logfile)
-                lfh.setLevel(logging.DEBUG)
-                formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s', '%m-%d-%Y %H:%M:%S')
-                lfh.setFormatter(formatter)
-                logger.addHandler(lfh)
-                
-                if not args.dryrun:
+
+                if args.dryrun:
+                    print(src)
+                else:
+                    #### Set up processing log handler
+                    logfile = os.path.splitext(dstfp)[0] + ".log"
+                    lfh = logging.FileHandler(logfile)
+                    lfh.setLevel(logging.DEBUG)
+                    formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s', '%m-%d-%Y %H:%M:%S')
+                    lfh.setFormatter(formatter)
+                    logger.addHandler(lfh)
+
                     results[task.name] = task.method(src, dstfp, task_arg_obj)
-                    
-                #### remove existing file handler
-                logger.removeHandler(lfh)
-            
-                #### remove existing file handler
-                logger.removeHandler(lfh)
-                
-            #### Print Images with Errors    
+
+                    #### remove existing file handler
+                    logger.removeHandler(lfh)
+
+            #### Print Images with Errors
             for k, v in results.items():
                 if v != 0:
                     logger.warning("Failed Image: %s", k)
-        
+                    ret_code = 1
+
         logger.info("Done")
         
     else:
         logger.info("No images found to process")
+
+    sys.exit(ret_code)
 
 
 def exec_pansharpen(image_pair, pansh_dstfp, args):
