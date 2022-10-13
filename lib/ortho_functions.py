@@ -580,7 +580,7 @@ def stackIkBands(dstfp, members):
                 del m[k]
         #### Make the dictionary into a list and append the ones we set ourselves
         m_list = []
-        keys = m.keys()
+        keys = list(m.keys())
         keys.sort()
         for k in keys:
             if '"' not in m[k]:
@@ -1105,7 +1105,7 @@ def GetImageStats(args, info, target_extent_geom=None):
                     info.stretch = 'mr'
                 logger.info("Automatically selected stretch: %s", info.stretch)
     else:
-        logger.error("Cannot open dataset: %s", info.localsrc)
+        logger.error("Cannot open dataset: %s", src_image)
         rc = 1
 
     return info, rc
@@ -1119,6 +1119,11 @@ def GetImageGeometryInfo(src_image, spatial_ref, args, return_type='extent_geom'
                 return_type_choices, return_type
             )
         )
+
+    srcfn = os.path.basename(src_image)
+    if not os.path.isfile(src_image) and srcfn.startswith("IK01") and "_msi_" in srcfn:
+        srcfn = srcfn.replace("_msi_", "_blu_")
+        src_image = os.path.join(os.path.dirname(src_image), srcfn)
 
     ds = gdal.Open(src_image, gdalconst.GA_ReadOnly)
     if ds is not None:
@@ -2000,7 +2005,7 @@ def getIKMetadata(fp_mode, metafile):
         logger.error("Unable to parse metadata from %s", metafile)
         return None
 
-    # metad_map = dict((c, p) for p in metad.getiterator() for c in p)  # Child/parent mapping
+    # metad_map = dict((c, p) for p in metad.iter() for c in p)  # Child/parent mapping
     # attribs = ["Source_Image_ID", "Component_ID"]  # nodes we need the attributes of
 
     # We must identify the exact Source_Image_ID and Component_ID for this image
@@ -2042,7 +2047,7 @@ def getIKMetadata(fp_mode, metafile):
 
 
     # Now assemble the dict
-    for node in siid_node.getiterator():
+    for node in siid_node.iter():
         if node.tag in search_keys:
             if node.tag == "Source_Image_ID":
                 metadict[node.tag] = node.attrib["id"]

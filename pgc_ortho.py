@@ -380,9 +380,9 @@ def main():
         if args.pbs:
             qsub_args = ""
             if args.l:
-                qsub_args += "-l {}".format(args.l)
+                qsub_args += " -l {}".format(args.l)
             if args.queue:
-                qsub_args += "-q {}".format(args.queue)
+                qsub_args += " -q {}".format(args.queue)
             try:
                 task_handler = taskhandler.PBSTaskHandler(qsubpath, qsub_args)
             except RuntimeError as e:
