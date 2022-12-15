@@ -379,6 +379,9 @@ def main():
                 sys.exit(1)
                 
     logger.info("Number of src image pairs: %i", len(pair_list))
+    if len(pair_list) == 0:
+        logger.info("No images pairs found to process")
+        sys.exit(0)
     
     ## Build task queue
     i = 0
@@ -406,7 +409,7 @@ def main():
     logger.info('Number of incomplete tasks: %i', i)
 
     if len(pairs_to_process) == 0:
-        logger.info("No images pairs found to process")
+        logger.info("No incomplete tasks to process")
         sys.exit(0)
 
     task_queue = []

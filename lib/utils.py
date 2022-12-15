@@ -661,9 +661,12 @@ def yield_task_args(task_list, script_args,
     Yields
     ------
     task_args : ArgumentParser argument namespace object
-        Clone of the the `script_args` ArgumentParser argument namespace
+        Clone of the `script_args` ArgumentParser argument namespace
         object, yielded for each task in `task_list`.
     """
+    if len(task_list) == 0:
+        return
+
     test_task = task_list[0]
     if isinstance(test_task, collectionsAbc.Iterable) and not isinstance(test_task, str):
         test_task_nargs = len(test_task)
