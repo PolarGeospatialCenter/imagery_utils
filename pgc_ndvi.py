@@ -271,7 +271,13 @@ def calc_ndvi(srcfp, dstfp, args):
     ## open output file for write and copy proj/geotransform info
     if not os.path.isfile(dstfp):
         dstfp_local = os.path.join(wd, os.path.basename(dstfp))
-        gtiff_options = ['TILED=YES', 'COMPRESS=LZW', 'BIGTIFF=YES']
+        if args.outtype == 'Float32':
+            predictor = 3
+        else:
+            # FIXME: The default predictor setting for integer output should probably be 2.
+            #   -f Currently testing against no-predictor default setting of 1.
+            predictor = 1
+        gtiff_options = ['TILED=YES', 'COMPRESS=LZW', 'PREDICTOR={}'.format(predictor), 'BIGTIFF=YES']
         driver = gdal.GetDriverByName('GTiff')
         out_ds = driver.Create(dstfp_local, nx, ny, 1, gdal.GetDataTypeByName(args.outtype), gtiff_options)
         if out_ds:

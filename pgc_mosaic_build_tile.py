@@ -190,7 +190,9 @@ def main():
         ####  Write to Compressed file
         if os.path.isfile(localtile1):
             if args.gtiff_compression == 'lzw':
-                compress_option = '-co "compress=lzw"'
+                # FIXME: The default predictor setting for integer output should probably be 2.
+                #   -f Currently testing against no-predictor default setting of 1.
+                compress_option = '-co "compress=lzw" -co "predictor=1"'
             elif args.gtiff_compression == 'jpeg95':
                 compress_option = '-co "compress=jpeg" -co "jpeg_quality=95"'
                 

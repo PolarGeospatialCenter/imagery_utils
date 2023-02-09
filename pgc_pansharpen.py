@@ -615,8 +615,14 @@ def exec_pansharpen(image_pair, pansh_dstfp, args):
     logger.info("Pansharpening multispectral image")
     if os.path.isfile(pan_local_dstfp) and os.path.isfile(mul_local_dstfp):
         if not os.path.isfile(pansh_local_dstfp):
-            cmd = 'gdal_pansharpen{} -co BIGTIFF=YES -co COMPRESS=LZW -co TILED=YES {} "{}" "{}" "{}"'.\
-                format(py_ext, pan_threading, pan_local_dstfp, mul_local_dstfp, pansh_local_dstfp)
+            # FIXME: The default predictor setting for integer output should probably be 2.
+            #   -f Currently testing against no-predictor default setting of 1.
+            if args.outtype == 'Float32':
+                predictor = 3
+            else:
+                predictor = 1
+            cmd = 'gdal_pansharpen{} -co BIGTIFF=YES -co COMPRESS=LZW -co PREDICTOR={} -co TILED=YES {} "{}" "{}" "{}"'.\
+                format(py_ext, predictor, pan_threading, pan_local_dstfp, mul_local_dstfp, pansh_local_dstfp)
             taskhandler.exec_cmd(cmd)
     else:
         logger.warning("Pan or Multi warped image does not exist\n\t{}\n\t{}".format(pan_local_dstfp, mul_local_dstfp))

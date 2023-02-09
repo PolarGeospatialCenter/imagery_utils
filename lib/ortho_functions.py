@@ -823,7 +823,13 @@ def calcStats(args, info):
 
     if args.format == 'GTiff':
         if args.gtiff_compression == 'lzw':
-            co = '-co "PHOTOMETRIC=MINISBLACK" -co "TILED=YES" -co "COMPRESS=LZW" -co "BIGTIFF=YES" '
+            # FIXME: The default predictor setting for integer output should probably be 2.
+            #   -f Currently testing against no-predictor default setting of 1.
+            if args.outtype == 'Float32':
+                predictor = 3
+            else:
+                predictor = 1
+            co = '-co "PHOTOMETRIC=MINISBLACK" -co "TILED=YES" -co "COMPRESS=LZW" -co "PREDICTOR={}" -co "BIGTIFF=YES" '.format(predictor)
         elif args.gtiff_compression == 'jpeg95':
             co = '-co "PHOTOMETRIC=MINISBLACK" -co "TILED=YES" -co "compress=jpeg" -co "jpeg_quality=95" -co ' \
                  '"BIGTIFF=YES" '
