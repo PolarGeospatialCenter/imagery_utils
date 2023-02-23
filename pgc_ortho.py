@@ -265,6 +265,9 @@ def main():
 
     image_list = list(set(image_list2))
     logger.info('Number of src images: %i', len(image_list))
+    if len(image_list) == 0:
+        logger.info("No images found to process")
+        sys.exit(0)
 
     if srctype == 'csvfile':
         # Trim CSV data to intersection with updated image path names
@@ -312,7 +315,7 @@ def main():
 
     logger.info("Number of incomplete tasks: %i", len(images_to_process))
     if len(images_to_process) == 0:
-        logger.info("No images found to process")
+        logger.info("No incomplete tasks to process")
         sys.exit(0)
 
     task_queue = []
