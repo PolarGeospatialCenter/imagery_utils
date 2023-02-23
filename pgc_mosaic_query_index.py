@@ -68,7 +68,7 @@ def main():
                         help="build shapefile of intersecting images (only invoked if --no_sort is not used)")
     parser.add_argument("--require-pan", action='store_true', default=False,
                         help="limit search to imagery with both a multispectral and a panchromatic component")
-    parser.add_argument("--skip-cmd-txt", action='store_true', default=False,
+    parser.add_argument("--skip-cmd-txt", action='store_true', default=True,
                         help='Skip writing the txt file containing the input command.')
     parser.add_argument("--version", action='version', version="imagery_utils v{}".format(VERSION))
 
@@ -445,7 +445,7 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
                     mtxt = open(mtxtpath, 'w')
 
                     # write header
-                    ttxt.write("{0},{1},{2}\n".format("SCENE_ID", "S_FILEPATH", "STATUS"))
+                    ttxt.write("{0},{1},{2},{3}\n".format("SCENE_ID", "CATALOG_ID", "S_FILEPATH", "STATUS"))
 
                     tape_ct = 0
                     
@@ -456,7 +456,7 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
                             
                         if iinfo.status == "tape":
                             tape_ct += 1
-                            ttxt.write("{0},{1},{2}\n".format(iinfo.scene_id, iinfo.srcfp, iinfo.status))
+                            ttxt.write("{0},{1},{2},{3}\n".format(iinfo.scene_id, iinfo.catalog_id, iinfo.srcfp, iinfo.status))
                             # get srcfp with file extension
                             srcfp_file = os.path.basename(iinfo.srcfp)
                             otxt.write("{}\n".format(os.path.join(rn_fromtape_path, srcfp_file)))
