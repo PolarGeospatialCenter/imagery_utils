@@ -40,7 +40,7 @@ echo ________________________________________________________
 echo
 
 # init gdal tools
-source /opt/PGSC-2.1.0/init-gdal.sh
+source ~/.bashrc; conda activate pgc
 
 echo $p1
 time eval $p1
