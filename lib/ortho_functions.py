@@ -1853,7 +1853,13 @@ def getDGXmlData(xmlpath, stretch):
             nodeIMAGE = nodeIMD.getElementsByTagName('IMAGE')
 
             sat = nodeIMAGE[0].getElementsByTagName('SATID')[0].firstChild.data
-            t = nodeIMAGE[0].getElementsByTagName('FIRSTLINETIME')[0].firstChild.data
+
+            tTag = nodeIMAGE[0].getElementsByTagName('FIRSTLINETIME')
+            if len(tTag) == 0:
+                tTag = nodeIMAGE[0].getElementsByTagName('EARLIESTACQTIME')
+            if len(tTag) == 0:
+                raise utils.InvalidMetadataError(f"Metadata file {xmlpath} is missing the FIRSTLINETIME and EARLIESTACQTIME xml tags")
+            t = tTag[0].firstChild.data
 
             if len(nodeIMAGE[0].getElementsByTagName('MEANSUNEL')) >= 1:
                 sunEl = float(nodeIMAGE[0].getElementsByTagName('MEANSUNEL')[0].firstChild.data)
