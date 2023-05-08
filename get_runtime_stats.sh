@@ -189,7 +189,7 @@ get_stats_plus_ref() {
 
 ## Arguments
 log_path_arr=()
-logfname_patt_arr=( "qsub_*.sh.out" )
+logfname_patt_arr=( "*.log" )
 logfname_patt_provided=false
 find_args=''
 mode_choices=( 'timestamp' 'timestamp-filemod' 'runtime' )
@@ -204,7 +204,7 @@ filemod_grep="^Modify: ([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2})"
 runtime_grep="Total Processing Time: ([0-9]+:[0-9]{2}:[0-9]{2})"  # reported in (H)H:MM:SS
 runtime_sed="s|^||"  # sed expression to not change anything
 runtime_is_hms_choices=( 'true' 'false' )
-runtime_is_hms=false
+runtime_is_hms=true
 runtime_match_choices=( 'first' 'last' 'all' )
 runtime_match='all'
 runtime_report_choices=( 'separate' 'sum' )
@@ -642,13 +642,13 @@ for log_path in "${log_path_arr[@]}"; do
 
                 if [ "$runtime_is_hms" = true ]; then
                     runtime_sec=$(hms2sec "$runtime_match")
-                    if (( $? != 0 )); then
+                    if (( $? != 0 )) || [ -z "$runtime_sec" ]; then
                         echo_e "Function failure: hms2sec '${runtime_match}', ${logfile}"
                         exit_script_with_status 1
                     fi
                 else
                     runtime_sec=$(echo "$runtime_match" | bc)
-                    if (( $? != 0 )); then
+                    if (( $? != 0 )) || [ -z "$runtime_sec" ]; then
                         echo_e "Function failure: echo '${runtime_match}' | bc, ${logfile}"
                         exit_script_with_status 1
                     fi
@@ -656,7 +656,7 @@ for log_path in "${log_path_arr[@]}"; do
 
                 bc_expr_sec2min="scale=3 ; ${runtime_sec} / 60"
                 runtime_min=$(echo "$bc_expr_sec2min" | bc)
-                if (( $? != 0 )); then
+                if (( $? != 0 )) || [ -z "$runtime_min" ]; then
                     echo_e "Function failure: echo '${bc_expr_sec2min}' | bc, ${logfile}"
                     exit_script_with_status 1
                 fi
@@ -666,7 +666,7 @@ for log_path in "${log_path_arr[@]}"; do
                 elif [ "$runtime_report" = 'sum' ]; then
                     bc_expr_sum="${runtime_min_total} + ${runtime_min}"
                     runtime_min_total=$(echo "$bc_expr_sum" | bc)
-                    if (( $? != 0 )); then
+                    if (( $? != 0 )) || [ -z "$runtime_min_total" ]; then
                         echo_e "Function failure: echo '${bc_expr_sum}' | bc, ${logfile}"
                         exit_script_with_status 1
                     fi
@@ -706,7 +706,7 @@ done | ${get_stats_fn}
 if (( $? != 0 )); then
     echo
     if [ "$count_first" = 'on' ] && (( nlogfiles_total == 0 )); then
-        echo_e "No files found in LOG_PATHs matching log filename pattern(s): \"${find_name_args}\""
+        echo_e "No files found in LOG_PATHs matching log filename pattern(s): ${logfname_patt_combined_str}"
     elif [ "$count_first" = 'off' ]; then
         echo_e "Failed to get runtime stats"
         echo_e "Please try again with --count-first='on' to further diagnose any issues"
