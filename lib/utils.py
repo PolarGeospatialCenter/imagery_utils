@@ -50,6 +50,9 @@ class InvalidArgumentError(Exception):
     def __init__(self, msg=""):
         super(Exception, self).__init__(msg)
 
+class InvalidMetadataError(Exception):
+    def __init__(self, msg=""):
+        super(Exception, self).__init__(msg)
 
 class SpatialRef(object):
 
