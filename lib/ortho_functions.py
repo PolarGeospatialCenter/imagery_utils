@@ -280,6 +280,8 @@ def buildParentArgumentParser():
                         help="EPSG projection code for output files [int: EPSG code, "
                              "'utm': closest UTM zone, 'auto': closest UTM zone or polar stereo "
                              "(polar stereo cutoff is at 60 N/S latitude)]")
+    parser.add_argument("--epsg-auto-nad83", action='store_true', default=False,
+                        help="Use NAD83 datum instead of WGS84 for '--epsg auto/utm' UTM projection EPSG codes")
     parser.add_argument("-d", "--dem",
                         help="the DEM to use for orthorectification (elevation values should be relative to the wgs84 "
                              "ellipoid")
@@ -659,7 +661,7 @@ def stackIkBands(dstfp, members):
     return rc
 
 
-def GetEPSGFromLatLon(lat, lon, mode='auto'):
+def GetEPSGFromLatLon(lat, lon, mode='auto', utm_nad83=False):
     """
     Get the EPSG code of the UTM or polar stereographic
     projected coordinate system closest to the provided
@@ -706,9 +708,23 @@ def GetEPSGFromLatLon(lat, lon, mode='auto'):
     if mode == 'utm' or (mode == 'auto' and (-60 <= lat <= 60)):
         utm_zone_num = max(1, math.ceil((lon - (-180)) / 6))
         if lat >= 0:
-            epsg_code = 32600 + utm_zone_num
+            if utm_nad83:
+                epsg_code = 26900 + utm_zone_num
+                if 26901 <= epsg_code <= 26923:
+                    pass
+                else:
+                    raise utils.InvalidArgumentError(
+                        "--epsg-auto-nad83 option is only applicable for images in northern hemisphere UTM zones 1-23"
+                    )
+            else:
+                epsg_code = 32600 + utm_zone_num
         else:
-            epsg_code = 32700 + utm_zone_num
+            if utm_nad83:
+                raise utils.InvalidArgumentError(
+                    "--epsg-auto-nad83 option is not applicable for images in the southern hemisphere"
+                )
+            else:
+                epsg_code = 32700 + utm_zone_num
 
     elif mode == 'auto':
         if lat > 60:
@@ -998,7 +1014,7 @@ def GetImageStats(args, info, target_extent_geom=None):
         if type(args.epsg) is str:
             cent_lat = (minlat + maxlat) / 2
             cent_lon = (minlon + maxlon) / 2
-            info.epsg = GetEPSGFromLatLon(cent_lat, cent_lon, mode=args.epsg)
+            info.epsg = GetEPSGFromLatLon(cent_lat, cent_lon, mode=args.epsg, utm_nad83=args.epsg_auto_nad83)
             logger.info("Automatically selected output projection EPSG code: %d", info.epsg)
             try:
                 spatial_ref = utils.SpatialRef(info.epsg)
@@ -1206,7 +1222,7 @@ def GetImageGeometryInfo(src_image, spatial_ref, args, return_type='extent_geom'
         if type(args.epsg) is str:
             cent_lat = (minlat + maxlat) / 2
             cent_lon = (minlon + maxlon) / 2
-            img_epsg = GetEPSGFromLatLon(cent_lat, cent_lon, mode=args.epsg)
+            img_epsg = GetEPSGFromLatLon(cent_lat, cent_lon, mode=args.epsg, utm_nad83=args.epsg_auto_nad83)
             try:
                 spatial_ref = utils.SpatialRef(img_epsg)
             except RuntimeError as e:
