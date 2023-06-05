@@ -280,8 +280,8 @@ def buildParentArgumentParser():
                         help="EPSG projection code for output files [int: EPSG code, "
                              "'utm': closest UTM zone, 'auto': closest UTM zone or polar stereo "
                              "(polar stereo cutoff is at 60 N/S latitude)]")
-    parser.add_argument("--epsg-auto-nad83", action='store_true', default=False,
-                        help="Use NAD83 datum instead of WGS84 for '--epsg auto/utm' UTM projection EPSG codes")
+    parser.add_argument("--epsg-utm-nad83", action='store_true', default=False,
+                        help="Use NAD83 datum instead of WGS84 for '--epsg auto/utm' UTM zone projection EPSG codes")
     parser.add_argument("-d", "--dem",
                         help="the DEM to use for orthorectification (elevation values should be relative to the wgs84 "
                              "ellipoid")
@@ -1014,7 +1014,7 @@ def GetImageStats(args, info, target_extent_geom=None):
         if type(args.epsg) is str:
             cent_lat = (minlat + maxlat) / 2
             cent_lon = (minlon + maxlon) / 2
-            info.epsg = GetEPSGFromLatLon(cent_lat, cent_lon, mode=args.epsg, utm_nad83=args.epsg_auto_nad83)
+            info.epsg = GetEPSGFromLatLon(cent_lat, cent_lon, mode=args.epsg, utm_nad83=args.epsg_utm_nad83)
             logger.info("Automatically selected output projection EPSG code: %d", info.epsg)
             try:
                 spatial_ref = utils.SpatialRef(info.epsg)
@@ -1222,7 +1222,7 @@ def GetImageGeometryInfo(src_image, spatial_ref, args, return_type='extent_geom'
         if type(args.epsg) is str:
             cent_lat = (minlat + maxlat) / 2
             cent_lon = (minlon + maxlon) / 2
-            img_epsg = GetEPSGFromLatLon(cent_lat, cent_lon, mode=args.epsg, utm_nad83=args.epsg_auto_nad83)
+            img_epsg = GetEPSGFromLatLon(cent_lat, cent_lon, mode=args.epsg, utm_nad83=args.epsg_utm_nad83)
             try:
                 spatial_ref = utils.SpatialRef(img_epsg)
             except RuntimeError as e:
