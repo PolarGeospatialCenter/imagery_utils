@@ -368,9 +368,10 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
     info.rawvrt = os.path.splitext(info.localdst)[0] + "_raw.vrt"
     info.warpfile = os.path.splitext(info.localdst)[0] + "_warp.tif"
     info.vrtfile = os.path.splitext(info.localdst)[0] + "_vrt.vrt"
+    ik_stacked_sem = "{}.stacked".format(os.path.join(wd, info.srcfn))
 
     # Cleanup temp files from failed or interrupted processing attempt
-    if args.wd:
+    if args.wd or os.path.isfile(ik_stacked_sem):
         utils.delete_temp_files([info.dstfp, info.rawvrt, info.warpfile, info.vrtfile, info.localsrc])
     else:
         utils.delete_temp_files([info.dstfp, info.rawvrt, info.warpfile, info.vrtfile])
@@ -444,6 +445,9 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
                 if rc == 1:
                     logger.error("Error building merged Ikonos image: %s", info.srcfp)
                     err = 1
+                elif os.path.isfile(info.localsrc):
+                    with open(ik_stacked_sem, 'w') as _:
+                        pass
 
     if not err == 1 and args.wd:
         def copy_to_wd(source_fp, wd):
@@ -522,13 +526,13 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
     if err == 1:
         logger.error("Processing failed: %s", info.srcfn)
         if not args.save_temps:
-            if args.wd:
+            if args.wd or os.path.isfile(ik_stacked_sem):
                 utils.delete_temp_files([info.dstfp, info.rawvrt, info.warpfile, info.vrtfile, info.localsrc])
             else:
                 utils.delete_temp_files([info.dstfp, info.rawvrt, info.warpfile, info.vrtfile])
 
     elif not args.save_temps:
-        if args.wd:
+        if args.wd or os.path.isfile(ik_stacked_sem):
             utils.delete_temp_files([info.rawvrt, info.warpfile, info.vrtfile, info.localsrc])
         else:
             utils.delete_temp_files([info.rawvrt, info.warpfile, info.vrtfile])
