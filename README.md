@@ -51,13 +51,14 @@ The pansharpening utility applies the orthorectification process to both the pan
 The NDVI utility calculates NDVI from multispectral image(s).  The tool is designed to run on data that have already been run through the pgc_ortho utility.
 
 ## INSTALLATION AND DEPENDANCIES
-### LINUX
+PGC uses the Mamabaforge installer to build our Python/GDAL software stack.  You can find installers for your OS here:
+https://github.com/conda-forge/miniforge#mambaforge
 
-Installation of PGC's GDAL stack is documented on our Github page (https://github.com/PolarGeospatialCenter/gdal-full).
-
-### WINDOWS
-
-The OSGeo4w Express Installation provides a Windows environment to use some of these tools.  You can get the installers here: http://trac.osgeo.org/osgeo4w/.
+Users should expect a recent (less than 1-2 years old) version of Python and GDAL to be compatible with tools in this repo.
+The following conda/mamba environment likely contains more dependencies than are needed for tools in this repo, but should suffice:
+```
+conda create --name pgc -c conda-forge python=3.11 gdal=3.6.4 numpy scipy pandas geopandas rasterio shapely postgresql psycopg2 sqlalchemy configargparse lxml pathlib2 python-dateutil pytest rtree xlsxwriter
+```
 
 
 ## CONTACT
