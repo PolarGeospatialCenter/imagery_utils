@@ -62,6 +62,5 @@ conda create --name pgc -c conda-forge python=3.11 gdal=3.6.4 numpy scipy pandas
 
 
 ## CONTACT
-Claire Porter
-Polar Geospatial Center
-porte254@umn.edu
+To report any questions or issues, please open a github issue or contact the Polar Geospatial Center: 
+pgc-support@umn.edu
