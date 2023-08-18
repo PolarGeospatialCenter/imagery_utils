@@ -7,8 +7,8 @@
 #SBATCH -c 32
 
 # job log path
-#SBATCH -o slurm.%N.%j.out
-#SBATCH -e slurm.%N.%j.err
+#SBATCH -o %x.o%j
+#SBATCH -e %x.o%j
 
 echo ________________________________________
 echo
@@ -40,7 +40,7 @@ echo ________________________________________________________
 echo
 
 # init gdal tools
-source /opt/PGSC-2.1.0/init-gdal.sh
+source ~/.bashrc; conda activate pgc
 
 echo $p1
 time eval $p1

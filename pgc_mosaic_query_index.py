@@ -109,7 +109,7 @@ def main():
         if len(str(args.tyear)) == 4:
             ## ensure single year is valid
             try:
-                tyear_test = datetime(year=args.tyear, month=1, day=1)
+                tyear_test = datetime(year=int(args.tyear), month=1, day=1)
             except ValueError:
                 parser.error("Supplied year {0} is not valid".format(args.tyear))
                 sys.exit(1)
@@ -139,7 +139,7 @@ def main():
     # write input command to text file next to output folder for reference
     command_str = ' '.join(sys.argv)
     logger.info("Running command: {}".format(command_str))
-    if not args.skip_cmd_txt and not args.dryrun:
+    if not args.skip_cmd_txt:
         utils.write_input_command_txt(command_str,dstdir)
         args.skip_cmd_txt = True
 
@@ -445,7 +445,7 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
                     mtxt = open(mtxtpath, 'w')
 
                     # write header
-                    ttxt.write("{0},{1},{2}\n".format("SCENE_ID", "S_FILEPATH", "STATUS"))
+                    ttxt.write("{0},{1},{2},{3},{4}\n".format("SCENE_ID", "STRIP_ID", "CATALOG_ID", "S_FILEPATH", "STATUS"))
 
                     tape_ct = 0
                     
@@ -456,7 +456,7 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
                             
                         if iinfo.status == "tape":
                             tape_ct += 1
-                            ttxt.write("{0},{1},{2}\n".format(iinfo.scene_id, iinfo.srcfp, iinfo.status))
+                            ttxt.write("{0},{1},{2},{3},{4}\n".format(iinfo.scene_id, iinfo.strip_id, iinfo.catid, iinfo.srcfp, iinfo.status))
                             # get srcfp with file extension
                             srcfp_file = os.path.basename(iinfo.srcfp)
                             otxt.write("{}\n".format(os.path.join(rn_fromtape_path, srcfp_file)))

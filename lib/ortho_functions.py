@@ -280,6 +280,8 @@ def buildParentArgumentParser():
                         help="EPSG projection code for output files [int: EPSG code, "
                              "'utm': closest UTM zone, 'auto': closest UTM zone or polar stereo "
                              "(polar stereo cutoff is at 60 N/S latitude)]")
+    parser.add_argument("--epsg-utm-nad83", action='store_true', default=False,
+                        help="Use NAD83 datum instead of WGS84 for '--epsg auto/utm' UTM zone projection EPSG codes")
     parser.add_argument("-d", "--dem",
                         help="the DEM to use for orthorectification (elevation values should be relative to the wgs84 "
                              "ellipoid")
@@ -366,9 +368,10 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
     info.rawvrt = os.path.splitext(info.localdst)[0] + "_raw.vrt"
     info.warpfile = os.path.splitext(info.localdst)[0] + "_warp.tif"
     info.vrtfile = os.path.splitext(info.localdst)[0] + "_vrt.vrt"
+    ik_stacked_sem = "{}.stacked".format(os.path.join(wd, info.srcfn))
 
     # Cleanup temp files from failed or interrupted processing attempt
-    if args.wd:
+    if args.wd or os.path.isfile(ik_stacked_sem):
         utils.delete_temp_files([info.dstfp, info.rawvrt, info.warpfile, info.vrtfile, info.localsrc])
     else:
         utils.delete_temp_files([info.dstfp, info.rawvrt, info.warpfile, info.vrtfile])
@@ -442,6 +445,9 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
                 if rc == 1:
                     logger.error("Error building merged Ikonos image: %s", info.srcfp)
                     err = 1
+                elif os.path.isfile(info.localsrc):
+                    with open(ik_stacked_sem, 'w') as _:
+                        pass
 
     if not err == 1 and args.wd:
         def copy_to_wd(source_fp, wd):
@@ -520,13 +526,13 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
     if err == 1:
         logger.error("Processing failed: %s", info.srcfn)
         if not args.save_temps:
-            if args.wd:
+            if args.wd or os.path.isfile(ik_stacked_sem):
                 utils.delete_temp_files([info.dstfp, info.rawvrt, info.warpfile, info.vrtfile, info.localsrc])
             else:
                 utils.delete_temp_files([info.dstfp, info.rawvrt, info.warpfile, info.vrtfile])
 
     elif not args.save_temps:
-        if args.wd:
+        if args.wd or os.path.isfile(ik_stacked_sem):
             utils.delete_temp_files([info.rawvrt, info.warpfile, info.vrtfile, info.localsrc])
         else:
             utils.delete_temp_files([info.rawvrt, info.warpfile, info.vrtfile])
@@ -659,7 +665,7 @@ def stackIkBands(dstfp, members):
     return rc
 
 
-def GetEPSGFromLatLon(lat, lon, mode='auto'):
+def GetEPSGFromLatLon(lat, lon, mode='auto', utm_nad83=False):
     """
     Get the EPSG code of the UTM or polar stereographic
     projected coordinate system closest to the provided
@@ -706,9 +712,23 @@ def GetEPSGFromLatLon(lat, lon, mode='auto'):
     if mode == 'utm' or (mode == 'auto' and (-60 <= lat <= 60)):
         utm_zone_num = max(1, math.ceil((lon - (-180)) / 6))
         if lat >= 0:
-            epsg_code = 32600 + utm_zone_num
+            if utm_nad83:
+                epsg_code = 26900 + utm_zone_num
+                if 26901 <= epsg_code <= 26923:
+                    pass
+                else:
+                    raise utils.InvalidArgumentError(
+                        "--epsg-auto-nad83 option is only applicable for images in northern hemisphere UTM zones 1-23"
+                    )
+            else:
+                epsg_code = 32600 + utm_zone_num
         else:
-            epsg_code = 32700 + utm_zone_num
+            if utm_nad83:
+                raise utils.InvalidArgumentError(
+                    "--epsg-auto-nad83 option is not applicable for images in the southern hemisphere"
+                )
+            else:
+                epsg_code = 32700 + utm_zone_num
 
     elif mode == 'auto':
         if lat > 60:
@@ -1004,7 +1024,7 @@ def GetImageStats(args, info, target_extent_geom=None):
         if type(args.epsg) is str:
             cent_lat = (minlat + maxlat) / 2
             cent_lon = (minlon + maxlon) / 2
-            info.epsg = GetEPSGFromLatLon(cent_lat, cent_lon, mode=args.epsg)
+            info.epsg = GetEPSGFromLatLon(cent_lat, cent_lon, mode=args.epsg, utm_nad83=args.epsg_utm_nad83)
             logger.info("Automatically selected output projection EPSG code: %d", info.epsg)
             try:
                 spatial_ref = utils.SpatialRef(info.epsg)
@@ -1212,7 +1232,7 @@ def GetImageGeometryInfo(src_image, spatial_ref, args, return_type='extent_geom'
         if type(args.epsg) is str:
             cent_lat = (minlat + maxlat) / 2
             cent_lon = (minlon + maxlon) / 2
-            img_epsg = GetEPSGFromLatLon(cent_lat, cent_lon, mode=args.epsg)
+            img_epsg = GetEPSGFromLatLon(cent_lat, cent_lon, mode=args.epsg, utm_nad83=args.epsg_utm_nad83)
             try:
                 spatial_ref = utils.SpatialRef(img_epsg)
             except RuntimeError as e:
@@ -1859,7 +1879,13 @@ def getDGXmlData(xmlpath, stretch):
             nodeIMAGE = nodeIMD.getElementsByTagName('IMAGE')
 
             sat = nodeIMAGE[0].getElementsByTagName('SATID')[0].firstChild.data
-            t = nodeIMAGE[0].getElementsByTagName('FIRSTLINETIME')[0].firstChild.data
+
+            tTag = nodeIMAGE[0].getElementsByTagName('FIRSTLINETIME')
+            if len(tTag) == 0:
+                tTag = nodeIMAGE[0].getElementsByTagName('EARLIESTACQTIME')
+            if len(tTag) == 0:
+                raise utils.InvalidMetadataError(f"Metadata file {xmlpath} is missing the FIRSTLINETIME and EARLIESTACQTIME xml tags")
+            t = tTag[0].firstChild.data
 
             if len(nodeIMAGE[0].getElementsByTagName('MEANSUNEL')) >= 1:
                 sunEl = float(nodeIMAGE[0].getElementsByTagName('MEANSUNEL')[0].firstChild.data)

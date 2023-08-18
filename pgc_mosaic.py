@@ -150,7 +150,7 @@ def main():
         if len(str(args.tyear)) == 4:
             ## ensure single year is valid
             try:
-                tyear_test = datetime(year=args.tyear, month=1, day=1)
+                tyear_test = datetime(year=int(args.tyear), month=1, day=1)
             except ValueError:
                 parser.error("Supplied year {0} is not valid".format(args.tyear))
                 sys.exit(1)

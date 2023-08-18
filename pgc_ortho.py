@@ -184,6 +184,8 @@ def main():
             csv_header = csv_arg_data[0, :]
         if 'O_FILEPATH' in csv_header:
             csv_header[csv_header == 'O_FILEPATH'] = 'src'
+        if 'o_filepath' in csv_header:
+            csv_header[csv_header == 'o_filepath'] = 'src'
 
         # Convert CSV header argument names to argparse namespace variable format
         csv_header_argname_list = [argname.lstrip('-').replace('-', '_').lower() for argname in csv_header]
@@ -216,6 +218,12 @@ def main():
 
         # Extract src image paths and send to utils.find_images
         csv_src_array = csv_arg_data[:, csv_header_argname_list.index('src')]
+        csv_src_list = csv_src_array.tolist()
+        if len(csv_src_list) != len(set(csv_src_list)):
+            parser.error("Detected duplicate 'src' items in CSV argument list file."
+                         " If meaning to use the subset-VRT-DEM functionality, you must"
+                         " provide the path to the full tileset VRT DEM file (.vrt extension)"
+                         " with the -d argument.")
         image_list1 = utils.find_images(csv_src_array.tolist(), True, ortho_functions.exts)
 
         # Trim CSV data to intersection with found image paths

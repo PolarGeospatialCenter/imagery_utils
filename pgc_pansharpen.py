@@ -394,11 +394,12 @@ def main():
         else:
             img_epsg = args.epsg
         
-        pansh_dstfp = os.path.join(dstdir, "{}_{}{}{}_pansh.tif".format(
+        pansh_dstfp = os.path.join(dstdir, "{}_{}{}{}_pansh{}".format(
             os.path.splitext(image_pair.mul_srcfn)[0],
             bittype,
             args.stretch,
-            img_epsg
+            img_epsg,
+            ortho_functions.formats[args.format]
         ))
 
         done = os.path.isfile(pansh_dstfp)
@@ -566,14 +567,15 @@ def exec_pansharpen(image_pair, pansh_dstfp, args):
         img_epsg = args.epsg
 
     bittype = utils.get_bit_depth(args.outtype)
+    out_ext = ortho_functions.formats[args.format]
     pan_basename = os.path.splitext(image_pair.pan_srcfn)[0]
     mul_basename = os.path.splitext(image_pair.mul_srcfn)[0]
-    pan_local_dstfp = os.path.join(wd, "{}_{}{}{}.tif".format(pan_basename, bittype, args.stretch, img_epsg))
-    mul_local_dstfp = os.path.join(wd, "{}_{}{}{}.tif".format(mul_basename, bittype, args.stretch, img_epsg))
-    pan_dstfp = os.path.join(dstdir, "{}_{}{}{}.tif".format(pan_basename, bittype, args.stretch, img_epsg))
-    mul_dstfp = os.path.join(dstdir, "{}_{}{}{}.tif".format(mul_basename, bittype, args.stretch, img_epsg))
-    pansh_tempfp = os.path.join(wd, "{}_{}{}{}_pansh_temp.tif".format(mul_basename, bittype, args.stretch, img_epsg))
-    pansh_local_dstfp = os.path.join(wd, "{}_{}{}{}_pansh.tif".format(mul_basename, bittype, args.stretch, img_epsg))
+    pan_local_dstfp = os.path.join(wd, "{}_{}{}{}{}".format(pan_basename, bittype, args.stretch, img_epsg, out_ext))
+    mul_local_dstfp = os.path.join(wd, "{}_{}{}{}{}".format(mul_basename, bittype, args.stretch, img_epsg, out_ext))
+    pan_dstfp = os.path.join(dstdir, "{}_{}{}{}{}".format(pan_basename, bittype, args.stretch, img_epsg, out_ext))
+    mul_dstfp = os.path.join(dstdir, "{}_{}{}{}{}".format(mul_basename, bittype, args.stretch, img_epsg, out_ext))
+    pansh_tempfp = os.path.join(wd, "{}_{}{}{}_pansh_temp{}".format(mul_basename, bittype, args.stretch, img_epsg, out_ext))
+    pansh_local_dstfp = os.path.join(wd, "{}_{}{}{}_pansh{}".format(mul_basename, bittype, args.stretch, img_epsg, out_ext))
     pansh_xmlfp = os.path.join(dstdir, "{}_{}{}{}_pansh.xml".format(mul_basename, bittype, args.stretch, img_epsg))
     mul_xmlfp = os.path.join(dstdir, "{}_{}{}{}.xml".format(mul_basename, bittype, args.stretch, img_epsg))
     
@@ -611,24 +613,43 @@ def exec_pansharpen(image_pair, pansh_dstfp, args):
     if hasattr(args, 'threads'):
         if args.threads != 1:
             pan_threading = '-threads {}'.format(args.threads)
-    
-    logger.info("Pansharpening multispectral image")
-    if os.path.isfile(pan_local_dstfp) and os.path.isfile(mul_local_dstfp):
-        if not os.path.isfile(pansh_local_dstfp):
+
+    if args.format == 'GTiff':
+        if args.gtiff_compression == 'lzw':
             # FIXME: The default predictor setting for integer output should probably be 2.
             #   -f Currently testing against no-predictor default setting of 1.
             if args.outtype == 'Float32':
                 predictor = 3
             else:
                 predictor = 1
-            cmd = 'gdal_pansharpen{} -co BIGTIFF=YES -co COMPRESS=LZW -co PREDICTOR={} -co TILED=YES {} "{}" "{}" "{}"'.\
-                format(py_ext, predictor, pan_threading, pan_local_dstfp, mul_local_dstfp, pansh_local_dstfp)
+            co = '-co "PHOTOMETRIC=MINISBLACK" -co "TILED=YES" -co "COMPRESS=LZW" -co "PREDICTOR={}" -co "BIGTIFF=YES" '.format(predictor)
+        elif args.gtiff_compression == 'jpeg95':
+            co = '-co "PHOTOMETRIC=MINISBLACK" -co "TILED=YES" -co "compress=jpeg" -co "jpeg_quality=95" -co ' \
+                 '"BIGTIFF=YES" '
+
+    elif args.format == 'HFA':
+        co = '-co "COMPRESSED=YES" -co "STATISTICS=YES" '
+
+    elif args.format == 'JP2OpenJPEG':   #### add rgb constraint if openjpeg (3 bands only, also test if 16 bit possible)?
+        co = '-co "QUALITY=25" '
+
+    elif args.format == 'JPEG':
+        co = ''
+
+    else:
+        co = ''
+
+    logger.info("Pansharpening multispectral image")
+    if os.path.isfile(pan_local_dstfp) and os.path.isfile(mul_local_dstfp):
+        if not os.path.isfile(pansh_local_dstfp):
+            cmd = 'gdal_pansharpen{} -of {} {} {} "{}" "{}" "{}"'.\
+                format(py_ext, args.format, pan_threading, co, pan_local_dstfp, mul_local_dstfp, pansh_local_dstfp)
             taskhandler.exec_cmd(cmd)
     else:
         logger.warning("Pan or Multi warped image does not exist\n\t{}\n\t{}".format(pan_local_dstfp, mul_local_dstfp))
 
     #### Make pyramids
-    if os.path.isfile(pansh_local_dstfp):
+    if (not args.no_pyramids) and os.path.isfile(pansh_local_dstfp):
         cmd = 'gdaladdo -r {} "{}" 2 4 8 16'.format(args.pyramid_type, pansh_local_dstfp)
         taskhandler.exec_cmd(cmd)
        

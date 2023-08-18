@@ -540,7 +540,7 @@ class ImageInfo:
                             ydeltas = [0]
                             continue
                         else:
-                            ydeltas.append(abs(yr - self.acqdate.year))
+                            ydeltas.append(abs(int(yr) - self.acqdate.year))
 
                     if len(ydeltas) > 1:
                         self.year_diff = min(ydeltas)
