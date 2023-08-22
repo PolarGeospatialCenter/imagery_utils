@@ -616,7 +616,7 @@ def exec_pansharpen(image_pair, pansh_dstfp, args):
 
     if args.format == 'GTiff':
         if args.gtiff_compression == 'lzw':
-            co = '-co "PHOTOMETRIC=MINISBLACK" -co "TILED=YES" -co "COMPRESS=LZW" -co "PREDICTOR=2" -co "BIGTIFF=YES" '
+            co = '-co "PHOTOMETRIC=MINISBLACK" -co "TILED=YES" -co "COMPRESS=LZW" -co "BIGTIFF=YES" '
         elif args.gtiff_compression == 'jpeg95':
             co = '-co "PHOTOMETRIC=MINISBLACK" -co "TILED=YES" -co "compress=jpeg" -co "jpeg_quality=95" -co ' \
                  '"BIGTIFF=YES" '
