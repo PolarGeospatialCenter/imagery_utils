@@ -38,6 +38,9 @@ except AttributeError:
     import multiprocessing
     ARGDEF_CPUS_AVAIL = multiprocessing.cpu_count()
 
+ARGDEF_DEMDIR_CACHE = "../imagery_utils_cache_dem/"
+ARGDEF_SRC_CACHE = "../imagery_utils_cache_src/"
+
 
 srs_wgs84 = utils.osr_srs_preserve_axis_order(osr.SpatialReference())
 srs_wgs84.ImportFromEPSG(4326)
@@ -276,6 +279,7 @@ def buildParentArgumentParser():
                         help="output to the given format (default=GTiff)")
     parser.add_argument("--gtiff-compression", choices=gtiff_compressions, default="lzw",
                         help="GTiff compression type (default=lzw)")
+    # Note that EPSG argument is required in all cases except when src is a CSV file and has an EPSG field.
     parser.add_argument("-p", "--epsg", required=False, type=str,
                         help="EPSG projection code for output files [int: EPSG code, "
                              "'utm': closest UTM zone, 'auto': closest UTM zone or polar stereo "
@@ -283,8 +287,26 @@ def buildParentArgumentParser():
     parser.add_argument("--epsg-utm-nad83", action='store_true', default=False,
                         help="Use NAD83 datum instead of WGS84 for '--epsg auto/utm' UTM zone projection EPSG codes")
     parser.add_argument("-d", "--dem",
-                        help="the DEM to use for orthorectification (elevation values should be relative to the wgs84 "
-                             "ellipoid")
+                        help="The DEM to use for orthorectification (elevation values should be relative to the WGS84 "
+                             "ellipoid). This can be a directory that will be recursively scanned for DEMs, which must all "
+                             "have the same spatial reference (think a global dataset of DEM mosaic tiles).")
+    parser.add_argument("--src-footprint",
+                        help="If the --dem option is a directory, this is a path to the PGC Imagery MFP footprint "
+                             "(.shp Shapefile) that represents all source imagery for multi-DEM orthorectification.")
+    parser.add_argument("--demdir-suffix", nargs='+', default=[".tif"],
+                        help="If the --dem option is a directory, scan the directory for raster filenames that match "
+                             "this suffix to use for orthorectification.")
+    parser.add_argument("--image-suffix", nargs='+', default=[".ntf", ".tif"],
+                        help="If the --dem option is a directory, scan the src directory for image filenames that match "
+                             "this suffix to use for orthorectification.")
+    parser.add_argument("--demdir-cache", default=ARGDEF_DEMDIR_CACHE,
+                        help="If the --dem option is a directory, use this folder to create and load a Shapefile footprint "
+                             "and VRT representation needed for multi-DEM orthorectification. If the provided folder path "
+                             "is a relative path, it is relative to the --dem directory.")
+    parser.add_argument("--src-cache", default=ARGDEF_SRC_CACHE,
+                        help="If the --dem option is a directory, use this folder to create and load a spatial-joined Shapefile "
+                             "footprint and corresponding CSV argument list of source imagery needed for multi-DEM orthorectification. "
+                             "If the provided folder path is a relative path, it is relative to the src directory.")
     parser.add_argument("-t", "--outtype", choices=outtypes, default="Byte",
                         help="output data type (default=Byte)")
     parser.add_argument("-r", "--resolution", type=float,
@@ -328,6 +350,103 @@ def buildParentArgumentParser():
     parser.add_argument("--version", action='version', version="imagery_utils v{}".format(VERSION))
 
     return parser, pos_arg_keys
+
+
+def preproc_demdir(args):
+    demdir_src = os.path.abspath(args.dem)
+    if not os.path.isdir(demdir_src):
+        utils.InvalidArgumentError("DEM argument is not an existing directory: {}".format(demdir_src))
+    demdir_name = os.path.basename(demdir_src)
+
+    src_abspath = os.path.abspath(args.src)
+    if not os.path.exists(src_abspath):
+        utils.InvalidArgumentError("src path does not exist: {}".format(src_abspath))
+    src_name, _ = os.path.splitext(os.path.basename(src_abspath))
+
+    src_footprint_shp = os.path.abspath(args.src_footprint)
+    if not os.path.isfile(src_footprint_shp):
+        utils.InvalidArgumentError("--src-footprint is not an existing file: {}".format(src_footprint_shp))
+    src_footprint_name, _ = os.path.splitext(os.path.basename(src_footprint_shp))
+
+    demdir_suffix = args.demdir_suffix
+    demdir_cache = args.demdir_cache
+    if demdir_cache == ARGDEF_DEMDIR_CACHE:
+        demdir_cache = os.path.join(demdir_cache, 'suffix_{}'.format(demdir_suffix), platform.system().lower())
+    # An abspath demdir_cache will win out against abspath demdir_src
+    demdir_cache = os.path.abspath(os.path.join(demdir_src, demdir_cache))
+    if not os.path.isdir(demdir_cache):
+        os.makedirs(demdir_cache)
+
+    srcdir = os.path.dirname(src_abspath) if os.path.isfile(src_abspath) else src_abspath
+    src_suffix = args.src_suffix.split(',')
+    src_cache = args.src_cache
+    if os.path.isfile(src_abspath) and src_cache.startswith('../'):
+        src_cache = src_cache.replace('../', './', 1)
+    if src_cache == ARGDEF_SRC_CACHE:
+        src_cache = os.path.join(src_cache, src_name, platform.system().lower())
+    # An abspath src_cache will win out against abspath src
+    src_cache = os.path.abspath(os.path.join(srcdir, src_cache))
+    if not os.path.isdir(src_cache):
+        os.makedirs(src_cache)
+
+    dem_filelist = os.path.join(demdir_cache, '{}_filelist.txt'.format(demdir_name))
+    dem_index_shp = os.path.join(demdir_cache, '{}_index.shp'.format(demdir_name))
+    dem_vrt = os.path.join(demdir_cache, '{}_merge.vrt'.format(demdir_name))
+
+    src_filelist = os.path.join(src_cache, '{}_filelist.txt'.format(src_name))
+    src_footprint_with_filepaths = os.path.join(src_cache, '{}_with-path.shp'.format(src_footprint_name))
+    src_footprint_join_dem = os.path.join(src_cache, '{}_join_{}.shp'.format(src_footprint_name, demdir_name))
+    src_arglist_csv = os.path.join(src_cache, '{}_join_{}_arglist.csv'.format(src_footprint_name, demdir_name))
+
+    if not os.path.isfile(dem_filelist):
+        logger.info("Searching DEM directory for files matching filename suffix '{}'".format(demdir_suffix))
+        dem_list = list()
+        for rootdir, dnames, fnames in os.walk(demdir_src):
+            for fn in fnames:
+                if fn.endswith(demdir_suffix):
+                    dem_list.append(os.path.join(rootdir, fn))
+        dem_list.sort()
+        with open(dem_filelist, 'w') as txt_f:
+            for dem_fp in dem_list:
+                txt_f.write(dem_fp + '\n')
+        logger.info("Wrote DEM directory filelist: {}".format(dem_filelist))
+
+    if not os.path.isfile(dem_index_shp):
+        logger.info("Creating DEM directory Shapefile footprint using gdaltindex")
+        cmd = "gdaltindex -tileindex dem {} --optfile {}".format(dem_index_shp, dem_filelist)
+        (err, so, se) = taskhandler.exec_cmd(cmd)
+        if err == 1:
+            logger.error("Error in DEM directory Shapefile footprint creation")
+
+    if not os.path.isfile(dem_vrt):
+        logger.info("Creating DEM directory VRT using gdalbuildvrt")
+        cmd = "gdalbuildvrt -input_file_list {} --optfile {}".format(dem_filelist, dem_vrt)
+        (err, so, se) = taskhandler.exec_cmd(cmd)
+        if err == 1:
+            logger.error("Error in DEM directory VRT creation")
+
+    if not os.path.isfile(src_filelist):
+        if os.path.isdir(src_abspath):
+            logger.info("Searching src directory for imagery files matching filename suffix '{}'".format(src_suffix))
+            image_list = list()
+            for rootdir, dnames, fnames in os.walk(src_abspath):
+                for fn in fnames:
+                    if fn.endswith(src_suffix):
+                        image_list.append(os.path.join(rootdir, fn))
+            image_list.sort()
+            with open(src_filelist, 'w') as txt_f:
+                for image_fp in image_list:
+                    txt_f.write(image_fp + '\n')
+        elif src_abspath.endswith('.txt'):
+            shutil.copy(src_abspath, src_filelist)
+        else:
+            with open(src_filelist, 'w') as txt_f:
+                txt_f.write(src_abspath + '\n')
+        logger.info("Wrote src directory filelist: {}".format(src_filelist))
+
+
+
+
 
 
 def process_image(srcfp, dstfp, args, target_extent_geom=None):
