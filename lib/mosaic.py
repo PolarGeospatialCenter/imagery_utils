@@ -139,6 +139,9 @@ class ImageInfo:
         i = feat.GetFieldIndex("CATALOG_ID")
         if i != -1:
             self.catid = feat.GetFieldAsString(i)
+        i = feat.GetFieldIndex("STRIP_ID")
+        if i != -1:
+            self.strip_id = feat.GetFieldAsString(i)
         
         i = feat.GetFieldIndex("TDI")
         if i != -1:
@@ -326,6 +329,7 @@ class ImageInfo:
             logger.debug("No metadata found for %s", self.srcfp)
         
         else:
+            logger.info("metadata found for %s", self.srcfp)
             metad = None
             
             #### if xml format
@@ -377,11 +381,16 @@ class ImageInfo:
                                 else:
                                     val = float(text)
                                     
+                                logger.info("tag: {} ---- val: {}".format(elem, val))
                                 vallist.append(val)
                                 
                             except Exception as e:
-                                logger.error(utils.capture_error_trace())
-                                logger.debug("Error reading metadata values: %s, %s", metapath, e)
+                                try:
+                                    logger.info("Error reading metadata values: %s, %s", metapath, e)
+                                    logger.error(utils.capture_error_trace())
+                                except:
+                                    logger.warning("Couldn't parse error message during metadata read process")
+
                                 
                     if dTags[tag] == 'tdi' and len(taglist) > 1:    
                         #### use pan or green band TDI for exposure calculation
