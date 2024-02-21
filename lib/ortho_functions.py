@@ -829,7 +829,7 @@ def calcStats(args, info):
                                     '</ComplexSource>)'.format(info.warpfile, band, LUT, xsize, ysize))
 
                 vds.GetRasterBand(band).SetMetadataItem("source_0", ComplexSourceXML, "vrt_sources")
-                vds.GetRasterBand(band).SetNoDataValue(0)
+                vds.GetRasterBand(band).SetNoDataValue(65535) # NoData hardcoded here
                 if vds.GetRasterBand(band).GetColorInterpretation() == gdalconst.GCI_AlphaBand:
                     vds.GetRasterBand(band).SetColorInterpretation(gdalconst.GCI_Undefined)
         else:
