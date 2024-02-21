@@ -1601,7 +1601,16 @@ def WarpImage(args, info, gdal_thread_count=1):
                 vds.GetRasterBand(4).SetColorInterpretation(gdalconst.GCI_Undefined)
             vds = None
 
-        nodata_list = ["0"] * info.bands
+        # This sets 0 as the NoData value in all bands in the source image
+        src_nodata_list = ["0"] * info.bands
+
+        dst_nodata_list: list[str]
+        if args.outtype == "Byte":
+            dst_nodata_list = ["255"] * info.bands
+        elif args.outtype == "UInt16":
+            dst_nodata_list = ["65535"] * info.bands
+        elif args.outtype == "Float32":
+            dst_nodata_list = ["-9999.0"] * info.bands
 
         if not args.skip_warp:
             if rc != 1:
@@ -1623,10 +1632,11 @@ def WarpImage(args, info, gdal_thread_count=1):
 
 
                 #### GDALWARP Command
-                cmd = 'gdalwarp {} -srcnodata "{}" -of GTiff -ot Float32 {}{}{}{}-co "TILED=YES" -co "BIGTIFF=YES" ' \
+                cmd = 'gdalwarp {} -srcnodata "{}" -dstnodata "{}" -of GTiff -ot Float32 {}{}{}{}-co "TILED=YES" -co "BIGTIFF=YES" ' \
                       '-t_srs "{}" -r {} -et 0.01 -rpc -to "{}" "{}" "{}"'.format(
                     config_options,
-                    " ".join(nodata_list),
+                    " ".join(src_nodata_list), # Tells gdal to interpret a value of 0 in the source image as NoData
+                    " ".join(dst_nodata_list),
                     info.centerlong,
                     info.extent,
                     info.res,
