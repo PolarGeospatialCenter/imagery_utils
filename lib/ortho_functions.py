@@ -1,5 +1,6 @@
 
 import argparse
+import enum
 import glob
 import logging
 import math
@@ -238,6 +239,26 @@ BiasDict = {  # Spectral Irradiance in W/m2/um
     'IK01_BAND_N': -8.869
 }
 
+class OutputType(enum.Enum):
+    BYTE = "Byte"
+    UINT16 = "UInt16"
+    FLOAT32 = "Float32"
+
+# Defines the relationship between the output type and the NoData value that will be assigned to the destination rasters
+NO_DATA_DICT = {
+    OutputType.BYTE: 0,
+    OutputType.UINT16: 65535,
+    OutputType.FLOAT32: -9999.0,
+}
+
+def get_destination_nodata(output_type: str | OutputType) -> int | float:
+    """Determines the destination NoData value for a given output data type.
+
+    Raises a ValueError if the provided value does not match one of the known OutputType variants."""
+    if type(output_type) == str:
+        output_type = OutputType(output_type)
+
+    return NO_DATA_DICT[output_type]
 
 class ImageInfo:
     pass
@@ -774,6 +795,8 @@ def calcStats(args, info):
         elif args.outtype == "Float32":
             omax = 1.0
 
+    dst_nodata = get_destination_nodata(args.outtype)
+
     #### Stretch
     if info.stretch != "ns":
         CFlist = GetCalibrationFactors(info)
@@ -826,10 +849,11 @@ def calcStats(args, info):
                                     '   <LUT>{2}</LUT>'
                                     '   <SrcRect xOff="0" yOff="0" xSize="{3}" ySize="{4}"/>'
                                     '   <DstRect xOff="0" yOff="0" xSize="{3}" ySize="{4}"/>'
-                                    '</ComplexSource>)'.format(info.warpfile, band, LUT, xsize, ysize))
+                                    '   <NODATA>{5}</NODATA>'
+                                    '</ComplexSource>)'.format(info.warpfile, band, LUT, xsize, ysize, dst_nodata))
 
                 vds.GetRasterBand(band).SetMetadataItem("source_0", ComplexSourceXML, "vrt_sources")
-                vds.GetRasterBand(band).SetNoDataValue(65535) # NoData hardcoded here
+                vds.GetRasterBand(band).SetNoDataValue(dst_nodata)
                 if vds.GetRasterBand(band).GetColorInterpretation() == gdalconst.GCI_AlphaBand:
                     vds.GetRasterBand(band).SetColorInterpretation(gdalconst.GCI_Undefined)
         else:
@@ -1604,13 +1628,9 @@ def WarpImage(args, info, gdal_thread_count=1):
         # This sets 0 as the NoData value in all bands in the source image
         src_nodata_list = ["0"] * info.bands
 
-        dst_nodata_list: list[str]
-        if args.outtype == "Byte":
-            dst_nodata_list = ["255"] * info.bands
-        elif args.outtype == "UInt16":
-            dst_nodata_list = ["65535"] * info.bands
-        elif args.outtype == "Float32":
-            dst_nodata_list = ["-9999.0"] * info.bands
+        # This sets the NoData value in all bands in the destination image based on output data type
+        dst_nodata = get_destination_nodata(args.outtype)
+        dst_nodata_list = [str(dst_nodata)] * info.bands
 
         if not args.skip_warp:
             if rc != 1:
@@ -1635,7 +1655,7 @@ def WarpImage(args, info, gdal_thread_count=1):
                 cmd = 'gdalwarp {} -srcnodata "{}" -dstnodata "{}" -of GTiff -ot Float32 {}{}{}{}-co "TILED=YES" -co "BIGTIFF=YES" ' \
                       '-t_srs "{}" -r {} -et 0.01 -rpc -to "{}" "{}" "{}"'.format(
                     config_options,
-                    " ".join(src_nodata_list), # Tells gdal to interpret a value of 0 in the source image as NoData
+                    " ".join(src_nodata_list),
                     " ".join(dst_nodata_list),
                     info.centerlong,
                     info.extent,
@@ -1655,10 +1675,11 @@ def WarpImage(args, info, gdal_thread_count=1):
 
         else:
             #### GDALWARP Command
-            cmd = 'gdalwarp {} -srcnodata "{}" -of GTiff -ot UInt16 {}{}-co "TILED=YES" -co "BIGTIFF=YES" -t_srs ' \
+            cmd = 'gdalwarp {} -srcnodata "{}" -dstnodata "{}" -of GTiff -ot UInt16 {}{}-co "TILED=YES" -co "BIGTIFF=YES" -t_srs ' \
                   '"{}" -r {} "{}" "{}"'.format(
                 config_options,
-                " ".join(nodata_list),
+                " ".join(src_nodata_list),
+                " ".join(dst_nodata_list),
                 info.res,
                 info.tap,
                 info.spatial_ref.proj4,
