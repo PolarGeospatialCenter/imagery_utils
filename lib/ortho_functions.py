@@ -21,8 +21,14 @@ from lib import VERSION
 logger = logging.getLogger("logger")
 logger.setLevel(logging.DEBUG)
 
-DGbandList = ['BAND_P', 'BAND_C', 'BAND_B', 'BAND_G', 'BAND_Y', 'BAND_R', 'BAND_RE', 'BAND_N', 'BAND_N2', 'BAND_S1',
-              'BAND_S2', 'BAND_S3', 'BAND_S4', 'BAND_S5', 'BAND_S6', 'BAND_S7', 'BAND_S8']
+DGbandList = ['BAND_P', 'BAND_C', 'BAND_B',  # Pan, Visible, NIR, Pansharpened: P*, M*, and S* product codes
+              'BAND_G','BAND_Y', 'BAND_R', 'BAND_RE', 'BAND_N', 'BAND_N2',
+              'BAND_S1', 'BAND_S2', 'BAND_S3', 'BAND_S4', 'BAND_S5',  # SWIR: A* product codes
+              'BAND_S6', 'BAND_S7', 'BAND_S8',
+              ## CAVIS band radiometric correction not yet supported. Need irradiance, gain, and bias info.
+              # 'BAND_DC', 'BAND_CG', 'BAND_W2', 'BAND_CRS', 'BAND_SNO',  # CAVIS: C* product codes
+              # 'BAND_A31', 'BAND_A1', 'BAND_A2',  'BAND_W1', 'BAND_W3', 'BAND_NDVI', 'BAND_A32',
+              ]
 formats = {'GTiff': '.tif', 'JP2OpenJPEG': '.jp2', 'ENVI': '.envi', 'HFA': '.img', 'JPEG': '.jpg'}
 outtypes = ['Byte', 'UInt16', 'Float32']
 stretches = ["ns", "rf", "mr", "rd", "au"]
@@ -138,7 +144,7 @@ EsunDict = {  # Spectral Irradiance in W/m2/um (from Thuillier 2003 - used by DG
 }
 
 
-GainDict = {  # Spectral Irradiance in W/m2/um
+GainDict = {
     'QB02_BAND_P': 0.870,
     'QB02_BAND_B': 1.105,
     'QB02_BAND_G': 1.071,
@@ -188,7 +194,7 @@ GainDict = {  # Spectral Irradiance in W/m2/um
     'IK01_BAND_N': 1.043
 }
 
-BiasDict = {  # Spectral Irradiance in W/m2/um
+BiasDict = {
     'QB02_BAND_P': -1.491,
     'QB02_BAND_B': -2.820,
     'QB02_BAND_G': -3.338,
@@ -334,10 +340,10 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
 
     err = 0
 
-    #### Handle threads (default to 1 if arg not supplied)
+    ## Handle threads (default to 1 if arg not supplied)
     gdal_thread_count = 1 if not hasattr(args, 'threads') else args.threads
 
-    #### Instantiate ImageInfo object
+    ## Instantiate ImageInfo object
     info = ImageInfo()
     info.srcfp = srcfp
     info.srcdir, info.srcfn = os.path.split(srcfp)
@@ -347,7 +353,7 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
     starttime = datetime.today()
     logger.info('Image: %s', info.srcfn)
 
-    #### Get working dir
+    ## Get working dir
     if args.wd is not None:
         wd = args.wd
     else:
@@ -359,7 +365,7 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
             pass
     logger.info("Working Dir: %s", wd)
 
-    #### Derive names
+    ## Derive names
     if args.wd:
         info.localsrc = os.path.join(wd, info.srcfn)
     else:
@@ -376,8 +382,7 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
     else:
         utils.delete_temp_files([info.dstfp, info.rawvrt, info.warpfile, info.vrtfile])
 
-    #### Verify EPSG
-    # epsg argument could also be 'utm' or 'auto', handled in GetImageStats
+    ## Verify EPSG. Epsg argument can also be 'utm' or 'auto', handled in GetImageStats
     if type(args.epsg) is int:
         info.epsg = args.epsg
         try:
@@ -393,16 +398,18 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
         info.epsg = None
         info.spatial_ref = None
 
-    #### Verify that dem and ortho_height are not both specified
+    ## Verify that dem and ortho_height are not both specified
     if args.dem is not None and args.ortho_height is not None:
         logger.error("--dem and --ortho_height options are mutually exclusive.  Please choose only one.")
         err = 1
 
-    #### Check if image is level 2A and tiled, raise error
+    ## Check if image is level 2A and tiled, raise error
     p = re.compile("-(?P<prod>\w{4})?(_(?P<tile>\w+))?-\w+?(?P<ext>\.\w+)")
     m = p.search(info.srcfn)
+    info.prod_code = None
     if m:
         gd = m.groupdict()
+        info.prod_code = gd['prod']
         if gd['prod'][3] == 'M':
             logger.error("Cannot process mosaic product")
             err = 1
@@ -413,7 +420,11 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
             logger.error("Cannot process 2A tiled Geotiffs")
             err = 1
 
-    #### Find metadata file
+    ## Log error if imagery is not optical (e.g. swir/cavis) and --rgb or --bgrn options were used
+    if (args.rgb or args.bgrn) and not info.prod_code.startswith(('P', 'M', 'S')):
+        logger.error("--rgb and --bgrn options are not valid with this image product code: {}".format(info.prod_code))
+
+    ## Find metadata file
     if not err == 1:
         metafile = GetDGMetadataPath(info.srcfp)
         if metafile is None:
@@ -428,7 +439,7 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
         else:
             info.metapath = metafile
 
-    #### Check If Image is IKONOS msi that does not exist, if so, stack to dstdir, else, copy srcfn to dstdir
+    ## Check If Image is IKONOS msi that does not exist, if so, stack to dstdir, else, copy srcfn to dstdir
     if not err == 1:
         if "IK01" in info.srcfn and "msi" in info.srcfn and not os.path.isfile(info.srcfp):
             info.localsrc = os.path.join(wd, info.srcfn)
@@ -469,15 +480,14 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
             logger.warning("Source image does not exist: %s", info.srcfp)
             err = 1
 
-
-    #### Get Image Stats
+    ## Get Image Stats
     if not err == 1:
         info, rc = GetImageStats(args, info, target_extent_geom)
         if rc == 1:
             err = 1
             logger.error("Error in stats calculation")
 
-    #### Check that DEM overlaps image
+    ## Check that DEM overlaps image
     if not err == 1:
         if args.dem and not args.skip_dem_overlap_check:
             overlap = overlap_check(info.geometry_wkt, info.spatial_ref, args.dem)
@@ -485,7 +495,7 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
                 err = 1
 
     if not os.path.isfile(info.dstfp):
-        #### Warp Image
+        ## Warp Image
         if not err == 1 and not os.path.isfile(info.warpfile):
             rc = WarpImage(args, info, gdal_thread_count=gdal_thread_count)
             if rc == 1:
@@ -499,14 +509,14 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
                 err = 1
                 logger.error("Error in image calculation")
 
-    ####  Write Output Metadata
+    ##  Write Output Metadata
     if not err == 1:
         rc = WriteOutputMetadata(args, info)
         if rc == 1:
             err = 1
             logger.error("Error in writing metadata file")
 
-    #### Copy image to final location if working dir is used
+    ## Copy image to final location if working dir is used
     if args.wd is not None:
         if not err == 1:
             logger.info("Copying to destination directory")
@@ -517,7 +527,7 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
         if not args.save_temps:
             utils.delete_temp_files([info.localdst])
 
-    #### Check If Done, Delete Temp Files
+    ## Check If Done, Delete Temp Files
     done = os.path.isfile(info.dstfp)
     if done is False:
         err = 1
@@ -740,37 +750,49 @@ def GetEPSGFromLatLon(lat, lon, mode='auto', utm_nad83=False):
     return epsg_code
 
 
-
 def calcStats(args, info):
 
     logger.info("Calculating image with stats")
     rc = 0
 
-    #### Get Well-known Text String of Projection from EPSG Code
+    ## Get Well-known Text String of Projection from EPSG Code
     p = info.spatial_ref.srs
     prj = p.ExportToWkt()
 
-    imax = 2047.0
+    # TODO make options for SWIR and CAVIS, document SWIR/CAVIS params in guides
+    ## Set input max from product bit depth
+    if info.prod_code.startswith(('P', 'M', 'S')):  # Optical: 11 bit
+        imax = 2047.0
+    elif info.prod_code.startswith('A'):  # SWIR: 14 bit
+        imax = 16383.0
+    # elif info.prod_code.startswith('C'):  # CAVIS: ??
+    #     imax = 16383.0
+    else:
+        logger.error("Product code {} does not match expected pattern".format(info.prod_code))
+        return 1
 
     if info.stretch == 'ns':
         if args.outtype == "Byte":
             omax = 255.0
         elif args.outtype == "UInt16":
-            omax = 2047.0
+            omax = imax
         elif args.outtype == "Float32":
-            omax = 2047.0
+            omax = imax
     elif info.stretch == 'mr':
         if args.outtype == "Byte":
             omax = 255.0
         elif args.outtype == "UInt16":
-            omax = 2047.0
+            omax = imax
         elif args.outtype == "Float32":
             omax = 1.0
     elif info.stretch == 'rf':
         if args.outtype == "Byte":
             omax = 200.0
         elif args.outtype == "UInt16":
-            omax = 2000.0
+            if imax == 2047.0:  # Optical
+                omax = 2000.0
+            elif imax == 16383.0:  # SWIR
+                omax = 16000.0
         elif args.outtype == "Float32":
             omax = 1.0
 
@@ -796,7 +818,7 @@ def calcStats(args, info):
 
             for band in range(1,vds.RasterCount+1):
                 if info.stretch == "ns":
-                    LUT = "0:0,{}:{}".format(imax,omax)
+                    LUT = "0:0,{}:{}".format(imax, omax)
                 else:
                     calfact,offset = CFlist[band-1]
                     if info.stretch == "rf":
@@ -1855,6 +1877,7 @@ def calcEarthSunDist(t):
 
 
 def getDGXmlData(xmlpath, stretch):
+
     calibDict = {}
     abscalfact_dict = {}
     try:
