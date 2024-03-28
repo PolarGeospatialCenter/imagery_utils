@@ -423,11 +423,20 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
     ## Log error if imagery is not optical (e.g. swir/cavis) and --rgb or --bgrn options were used
     if (args.rgb or args.bgrn) and not info.prod_code.startswith(('P', 'M', 'S')):
         logger.error("--rgb and --bgrn options are not valid for this image product code: {}".format(info.prod_code))
+        err = 1
 
     ## Log error if imagery is not optical (e.g. swir/cavis) and the  "mr" stretch is used
     if (args.stretch == 'mr') and not info.prod_code.startswith(('P', 'M', 'S')):
         logger.error(
             "The modified reflectance (mr) stretch is not valid for this image product code: {}".format(info.prod_code))
+        err = 1
+
+    ## Until we have spectral response curves from Maxar that give irradiance and any gain and bias corrections,
+    # we cannot do any radiometric correction on CAVIS
+    if (args.stretch != 'ns') and info.prod_code.startswith('C'):
+        logger.error(
+            'Radiometric correction parameters not yet available for CAVIS bands. Use the "ns" stretch.')
+        err = 1
 
     ## Find metadata file
     if not err == 1:
