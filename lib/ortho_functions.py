@@ -403,6 +403,23 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
         logger.error("--dem and --ortho_height options are mutually exclusive.  Please choose only one.")
         err = 1
 
+    ## Verify that output type and stretch options are compatible
+    if args.stretch == 'rd' and args.outtype == 'Byte':
+        logger.error("Output type Byte is not compatible with absolution radiance (rd stretch)")
+        err = 1
+
+    if args.stretch == 'ns' and args.outtype == 'Byte':
+        logger.error('Output type Byte is not compatible with no stretch (ns stretch)')
+        err = 1
+
+    if args.stretch == 'ns' and args.outtype == 'Float32':
+        logger.error('Output type Float32 is not reasonable with no stretch (ns stretch)')
+        err = 1
+
+    if args.stretch == 'mr' and args.outtype == 'Float32':
+        logger.error('Output type Float32 is not reasonable with modified reflectance (mr stretch)')
+        err = 1
+
     ## Check if image is level 2A and tiled, raise error
     p = re.compile("-(?P<prod>\w{4})?(_(?P<tile>\w+))?-\w+?(?P<ext>\.\w+)")
     m = p.search(info.srcfn)

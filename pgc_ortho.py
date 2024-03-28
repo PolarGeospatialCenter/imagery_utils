@@ -143,7 +143,7 @@ def main():
 
     #### Set up console logging handler
     lso = logging.StreamHandler()
-    lso.setLevel(logging.DEBUG)
+    lso.setLevel(logging.INFO)
     formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s', '%m-%d-%Y %H:%M:%S')
     lso.setFormatter(formatter)
     logger.addHandler(lso)
