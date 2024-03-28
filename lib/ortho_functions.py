@@ -422,7 +422,12 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
 
     ## Log error if imagery is not optical (e.g. swir/cavis) and --rgb or --bgrn options were used
     if (args.rgb or args.bgrn) and not info.prod_code.startswith(('P', 'M', 'S')):
-        logger.error("--rgb and --bgrn options are not valid with this image product code: {}".format(info.prod_code))
+        logger.error("--rgb and --bgrn options are not valid for this image product code: {}".format(info.prod_code))
+
+    ## Log error if imagery is not optical (e.g. swir/cavis) and the  "mr" stretch is used
+    if (args.stretch == 'mr') and not info.prod_code.startswith(('P', 'M', 'S')):
+        logger.error(
+            "The modified reflectance (mr) stretch is not valid for this image product code: {}".format(info.prod_code))
 
     ## Find metadata file
     if not err == 1:
@@ -765,8 +770,8 @@ def calcStats(args, info):
         imax = 2047.0
     elif info.prod_code.startswith('A'):  # SWIR: 14 bit
         imax = 16383.0
-    # elif info.prod_code.startswith('C'):  # CAVIS: ??
-    #     imax = 16383.0
+    elif info.prod_code.startswith('C'):  # CAVIS: 14 bit
+        imax = 16383.0
     else:
         logger.error("Product code {} does not match expected pattern".format(info.prod_code))
         return 1
@@ -791,7 +796,7 @@ def calcStats(args, info):
         elif args.outtype == "UInt16":
             if imax == 2047.0:  # Optical
                 omax = 2000.0
-            elif imax == 16383.0:  # SWIR
+            elif imax == 16383.0:  # SWIR and CAVIS
                 omax = 16000.0
         elif args.outtype == "Float32":
             omax = 1.0
@@ -1141,7 +1146,9 @@ def GetImageStats(args, info, target_extent_geom=None):
 
             info.stretch = args.stretch
             if args.stretch == 'au':
-                if ((maxlat + minlat) / 2) <= -60:
+                if not info.prod_code.startswith(('P', 'M', 'S')):  # CAVIS and SWIR should never use the mr stretch
+                    info.stretch = 'rf'
+                elif ((maxlat + minlat) / 2) <= -60:
                     info.stretch = 'rf'
                 else:
                     info.stretch = 'mr'
