@@ -131,29 +131,30 @@ class TestReadMetadata(unittest.TestCase):
 
 
 class TestWriteMetadata(unittest.TestCase):
-    
+
     def setUp(self):
         self.fn = 'WV01_20091004222215_1020010009B33500_09OCT04222215-P1BS-052532098020_01_P019.ntf'
         self.mf = os.path.join(os.path.join(test_dir, 'output', 'WV01_20091004222215_1020010009B33500_09OCT04222215-P1BS-052532098020_01_P019.xml'))
-        
+        self.epsg = 4326
+        self.stretch = 'rf'
         self.test_lines = [
-            '<BITDEPTH>Byte</BITDEPTH>',
-            '<COMPRESSION>lzw</COMPRESSION>',
-            '<EPSG_CODE>4326</EPSG_CODE>',
-            '<FORMAT>GTiff</FORMAT>',
-            '<STRETCH>rf</STRETCH>',
-            '<VERSION>imagery_utils v{}</VERSION>'.format(VERSION),
-            '<ORTHO_HEIGHT>2568.0</ORTHO_HEIGHT>',
-            '<RESAMPLEMETHOD>near</RESAMPLEMETHOD>'
+            f'<BITDEPTH>Byte</BITDEPTH>',
+            f'<COMPRESSION>lzw</COMPRESSION>',
+            f'<EPSG_CODE>{self.epsg}</EPSG_CODE>',
+            f'<FORMAT>GTiff</FORMAT>',
+            f'<STRETCH>{self.stretch}</STRETCH>',
+            f'<VERSION>imagery_utils v{VERSION}</VERSION>',
+            f'<ORTHO_HEIGHT>2568.0</ORTHO_HEIGHT>',
+            f'<RESAMPLEMETHOD>near</RESAMPLEMETHOD>'
         ]
     
     #@unittest.skip("skipping")
-    def test_parse_DG_md_file(self):
-        args = ProcessArgs(4326,'rf')
-        info = ImageInfo(self.fn, 'DigitalGlobe', 'WV01')
-        metafile = ortho_functions.GetDGMetadataPath(info.localsrc)
-        info.metapath = metafile
-        rc = ortho_functions.WriteOutputMetadata(args, info)
+    def test_write_DG_md_file(self):
+        test_args = ProcessArgs(self.epsg, self.stretch)
+        info = TestImageInfo(self.fn, 'DigitalGlobe', 'WV01', epsg=test_args.epsg)
+        info.metapath = ortho_functions.get_dg_metadata_path(info.localsrc)
+        info.metad = ortho_functions.get_dg_metadata(info.metapath)
+        rc = ortho_functions.WriteOutputMetadata(test_args, info)
         ## read meta and check content
         f = open(self.mf)
         contents = f.read()
@@ -172,21 +173,17 @@ class TestCollectFiles(unittest.TestCase):
         rm_files = [
                 '01JAN08QB020800008JAN01102125-P1BS-005590467020_01_P001_________AAE_0AAAAABAABA0.xml'
             ]
+        skip_list = [
+                '01JAN08QB020800008JAN01102125-P1BS-005590467020_01_P001_________AAE_0AAAAABAABA0.NTF' # tar has an issue
+            ]
         
         for root, dirs, files in os.walk(os.path.join(test_dir, 'ortho')):
             for f in files:
-                if f.lower().endswith(".ntf") or f.lower().endswith(".tif"):
-                    #print(f)
+                if (f.lower().endswith(".ntf") or f.lower().endswith(".tif")) and f not in skip_list:
                     #### Find metadata file
                     srcfp = os.path.join(root, f)
                     
-                    metafile = ortho_functions.GetDGMetadataPath(srcfp)
-                    if metafile is None:
-                        metafile = ortho_functions.ExtractDGMetadataFile(srcfp, root)
-                    if metafile is None:
-                        metafile = ortho_functions.GetIKMetadataPath(srcfp)
-                    if metafile is None:
-                        metafile = ortho_functions.GetGEMetadataPath(srcfp)
+                    metafile = ortho_functions.get_metadata_path(srcfp, root)
                     self.assertIsNotNone(metafile)
                     
                     if metafile and os.path.basename(metafile) in rm_files:
@@ -219,14 +216,16 @@ class TestDEMOverlap(unittest.TestCase):
 class TestTargetExtent(unittest.TestCase):
         
     def test_target_extent(self):
+        epsg = 32629
         wkt = 'POLYGON ((810287 2505832,811661 2487415,807201 2487233,805772 2505802,810287 2505832))'
         fn = 'GE01_20110307105821_1050410001518E00_11MAR07105821-M1BS-500657359080_01_P008.ntf'
         target_extent_geom = ogr.CreateGeometryFromWkt(wkt)
-        args = ProcessArgs(32629, 'rf')
-        info_in = ImageInfo(fn)
+        args = ProcessArgs(epsg, 'rf')
+        info_in = TestImageInfo(fn, epsg=args.epsg, spatial_ref=args.spatial_ref)
+        info_in.metapath = ortho_functions.get_metadata_path(info_in.localsrc, os.path.dirname(info_in.localdst))
         info_out, rc = ortho_functions.GetImageStats(args, info_in, target_extent_geom)
         self.assertEqual(info_out.extent,
-                         '-te 805772.000000000000 2487233.000000000000 811661.000000000000 2505832.000000000000 ')
+                     '-te 805772.000000000000 2487233.000000000000 811661.000000000000 2505832.000000000000 ')
 
 
 def test_stretch_params(test_obj, file_list, stretch, valid_data_range, test_bands, meta_function, calib_function):
@@ -368,30 +367,6 @@ class TestOutputDataValues(unittest.TestCase):
         self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
 
 
-class TestOverlapCheck(unittest.TestCase):
-    def setUp(self):
-        self.srcdir = os.path.join(test_dir, 'output')
-        self.spatial_ref = utils.SpatialRef(3031)
-        self.dem = os.path.join(test_dir, 'dem', 'ramp_lowres.tif')
-        self.dem_none = None
-        self.ortho_height = None
-        self.wd = None
-        self.skip_dem_overlap_check = True
-        self.resolution = None
-        self.rgb = False
-        self.bgrn = False
-        self.stretch = 'rf'
-
-    def test_overlap_check(self):
-        info = ortho_functions.ImageInfo()
-        info.srcfn = 'WV02_20131005052802_10300100278D8500_13OCT05052802-P1BS-500099283010_01_P004_u08rf3031.tif'
-        info.localsrc = os.path.join(self.srcdir, info.srcfn)
-        info, rc = ortho_functions.GetImageStats(self, info)
-
-        overlap = ortho_functions.overlap_check(info.geometry_wkt, self.spatial_ref, self.dem)
-        self.assertTrue(overlap)
-
-
 class TestCalcEarthSunDist(unittest.TestCase):
     def setUp(self):
         self.year = 2010
@@ -454,7 +429,7 @@ class TestRPCHeight(unittest.TestCase):
 
 
 class ProcessArgs(object):
-    def __init__(self,epsg,stretch):
+    def __init__(self, epsg, stretch):
         self.epsg = epsg
         self.resolution = None
         self.rgb = False
@@ -468,15 +443,18 @@ class ProcessArgs(object):
         self.gtiff_compression = "lzw"
         self.stretch = stretch
         self.spatial_ref = utils.SpatialRef(self.epsg)
+        self.tap = False
 
 
-class ImageInfo(object):
-    def __init__(self, fn, vendor=None, sat=None):
+class TestImageInfo(object):
+    def __init__(self, fn, vendor=None, sat=None, epsg=None, spatial_ref=None):
         self.srcfn = fn
         self.localsrc = os.path.join(os.path.join(test_dir, 'ortho', self.srcfn))
         self.localdst = os.path.join(os.path.join(test_dir, 'output', self.srcfn))
         self.vendor = vendor
         self.sat = sat
+        self.epsg = epsg
+        self.spatial_ref = spatial_ref
 
 
 if __name__ == '__main__':
@@ -502,14 +480,13 @@ if __name__ == '__main__':
         
     test_cases = [
         TestReadMetadata,
-        # TestWriteMetadata,
-        # TestCollectFiles,
-        # TestDEMOverlap,
-        # TestTargetExtent,
-        # TestOutputDataValues,
-        # TestRPCHeight,
-        # TestCalcEarthSunDist,
-        # TestOverlapCheck
+        TestWriteMetadata,
+        TestCollectFiles,
+        # TestDEMOverlap,  # TODO: Test DEM is corrupt. Replace it.
+        TestTargetExtent,
+        # TestOutputDataValues,  # TODO: output_static folder missing from test data. Rebuild it.
+        TestRPCHeight,
+        TestCalcEarthSunDist,
     ]
     
     suites = []

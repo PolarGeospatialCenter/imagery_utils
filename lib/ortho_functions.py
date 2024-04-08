@@ -336,7 +336,6 @@ def buildParentArgumentParser():
 
     return parser, pos_arg_keys
 
-
 def process_image(srcfp, dstfp, args, target_extent_geom=None):
 
     err = 0
@@ -462,18 +461,9 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
 
     ## Find metadata file
     if not err == 1:
-        metafile = GetDGMetadataPath(info.srcfp)
-        if metafile is None:
-            metafile = ExtractDGMetadataFile(info.srcfp, wd)
-        if metafile is None:
-            metafile = GetIKMetadataPath(info.srcfp)
-        if metafile is None:
-            metafile = GetGEMetadataPath(info.srcfp)
-        if metafile is None:
-            logger.error("Cannot find metadata for image: %s", info.srcfp)
+        info.metapath = get_metadata_path(info.srcfp)
+        if info.metapath is None:
             err = 1
-        else:
-            info.metapath = metafile
 
     ## Check If Image is IKONOS msi that does not exist, if so, stack to dstdir, else, copy srcfn to dstdir
     if not err == 1:
@@ -1331,7 +1321,7 @@ def GetImageGeometryInfo(src_image, spatial_ref, args, return_type='extent_geom'
         return None
 
 
-def GetDGMetadataPath(srcfp):
+def get_dg_metadata_path(srcfp):
     """
     Returns the filepath of the XML, if it can be found. Returns
     None if no valid filepath could be found.
@@ -1373,44 +1363,7 @@ def GetDGMetadataPath(srcfp):
         return None
 
 
-def ExtractDGMetadataFile(srcfp, wd):
-    """
-    Searches the .tar for a valid XML. If found,
-    extracts the metadata file. Returns
-    None if no valid metadata could be found.
-    """
-
-    metapath = None
-    filename = os.path.basename(srcfp)
-    tarpath = os.path.splitext(srcfp)[0] + '.tar'
-    if os.path.isfile(tarpath):
-        match = re.search(DG_FILE, filename)
-        if match:
-            metaname = match.group('oname')
-
-            try:
-                tar = tarfile.open(tarpath, 'r')
-                tarlist = tar.getnames()
-                for t in tarlist:
-                    if metaname.lower() in t.lower() and os.path.splitext(t)[1].lower() == ".xml":
-                        tf = tar.extractfile(t)
-                        metapath = os.path.join(wd, os.path.splitext(filename)[0] + os.path.splitext(t)[1].lower())
-                        fpfh = open(metapath, "w")
-                        tfstr = tf.read()
-                        fpfh.write(tfstr)
-                        fpfh.close()
-                        tf.close()
-            except Exception:
-                logger.error(utils.capture_error_trace())
-                logger.error("Cannot open Tar file: %s", tarpath)
-
-    if metapath and os.path.isfile(metapath):
-        return metapath
-    else:
-        return None
-
-
-def GetIKMetadataPath(srcfp):
+def get_ik_metadata_path(srcfp):
     """
     Same as GetDGMetadataPath, but for Ikonos.
     """
@@ -1420,6 +1373,13 @@ def GetIKMetadataPath(srcfp):
     # an entire strip, and will have a different filename, which we
     # will look for if we need to.
     metapath = os.path.splitext(srcfp)[0] + '.txt'
+
+    if not os.path.isfile(metapath):
+        for b in ikMsiBands:
+            mp = metapath.replace(b, 'rgb')
+            if os.path.isfile(mp):
+                metapath = mp
+                break
 
     if not os.path.isfile(metapath):
         metapath = os.path.splitext(srcfp)[0] + '_metadata.txt'
@@ -1455,7 +1415,7 @@ def GetIKMetadataPath(srcfp):
         return None
 
 
-def GetGEMetadataPath(srcfp):
+def get_ge_metadata_path(srcfp):
     """
     Same as GetDGMetadataPath, but for GE01.
     """
@@ -1470,6 +1430,55 @@ def GetGEMetadataPath(srcfp):
         return metapath
     else:
         return None
+
+
+def extract_dg_metadata_file(srcfp, wd):
+    """
+    Searches the .tar for a valid XML. If found,
+    extracts the metadata file. Returns
+    None if no valid metadata could be found.
+    """
+
+    metapath = None
+    filename = os.path.basename(srcfp)
+    tarpath = os.path.splitext(srcfp)[0] + '.tar'
+    if os.path.isfile(tarpath):
+        match = re.search(DG_FILE, filename)
+        if match:
+            metaname = match.group('oname')
+
+            try:
+                tar = tarfile.open(tarpath, 'r')
+                tarlist = tar.getnames()
+                print(tarlist)
+                for t in tarlist:
+                    if metaname.lower() in t.lower() and os.path.splitext(t)[1].lower() == ".xml":
+                        tf = tar.extractfile(t)
+                        metapath = os.path.join(wd, os.path.splitext(filename)[0] + os.path.splitext(t)[1].lower())
+                        fpfh = open(metapath, "w")
+                        tfstr = tf.read()
+                        fpfh.write(tfstr)
+                        fpfh.close()
+                        tf.close()
+            except Exception:
+                logger.error(utils.capture_error_trace())
+                logger.error("Cannot open Tar file: %s", tarpath)
+
+    if metapath and os.path.isfile(metapath):
+        return metapath
+    else:
+        return None
+
+
+def get_metadata_path(srcfp, wd):
+    metafile = get_dg_metadata_path(srcfp)
+    if metafile is None:
+        metafile = get_ik_metadata_path(srcfp)
+    if metafile is None:
+        metafile = get_ge_metadata_path(srcfp)
+    if metafile is None:
+        metafile = extract_dg_metadata_file(srcfp, wd)
+    return metafile
 
 
 def WriteOutputMetadata(args, info):
