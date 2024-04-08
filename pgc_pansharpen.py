@@ -126,8 +126,8 @@ class ImagePair(object):
             src_image_name = os.path.basename(src_image).replace("_msi_", "_blu_")
             src_image = os.path.join(self.srcdir, src_image_name)
 
-        return ortho_functions.GetImageGeometryInfo(src_image, spatial_ref, args,
-                                                    return_type='extent_geom')
+        return ortho_functions.get_image_geometry_info(src_image, spatial_ref, args,
+                                                       return_type='extent_geom')
 
     def _check_datetime_dif(self):
         # parse date from pan_srcfn (a copy of mul_srcfp with 'M' replaced with 'P')
@@ -261,7 +261,7 @@ def main():
     if args.epsg is None:
         parser.error("--epsg argument is required")
     elif args.epsg in ('utm', 'auto'):
-        # EPSG code is automatically determined in ortho_functions.GetImageStats
+        # EPSG code is automatically determined in ortho_functions.get_image_stats
         # and ortho_functions.GetImageGeometryInfo functions.
         pass
     else:
@@ -389,8 +389,8 @@ def main():
     for image_pair in pair_list:
 
         if type(args.epsg) is str:
-            img_epsg = ortho_functions.GetImageGeometryInfo(image_pair.mul_srcfp, spatial_ref, args,
-                                                            return_type='epsg_code')
+            img_epsg = ortho_functions.get_image_geometry_info(image_pair.mul_srcfp, spatial_ref, args,
+                                                               return_type='epsg_code')
         else:
             img_epsg = args.epsg
         
@@ -428,8 +428,8 @@ def main():
         if not tasklist_is_text_bundles:
             image_pair = task_item
             if type(args.epsg) is str:
-                img_epsg = ortho_functions.GetImageGeometryInfo(image_pair.mul_srcfp, spatial_ref, args,
-                                                                return_type='epsg_code')
+                img_epsg = ortho_functions.get_image_geometry_info(image_pair.mul_srcfp, spatial_ref, args,
+                                                                   return_type='epsg_code')
             else:
                 img_epsg = args.epsg
             pansh_dstfp = os.path.join(dstdir, "{}_{}{}{}_pansh.tif".format(
@@ -561,8 +561,8 @@ def exec_pansharpen(image_pair, pansh_dstfp, args):
         dem_arg = ""
 
     if type(args.epsg) is str:
-        img_epsg = ortho_functions.GetImageGeometryInfo(image_pair.mul_srcfp, None, args,
-                                                        return_type='epsg_code')
+        img_epsg = ortho_functions.get_image_geometry_info(image_pair.mul_srcfp, None, args,
+                                                           return_type='epsg_code')
     else:
         img_epsg = args.epsg
 

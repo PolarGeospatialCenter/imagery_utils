@@ -115,7 +115,7 @@ def get_bit_depth(outtype):
 
 def get_sensor(srcfn):
 
-    ### Regex signatures to identify file vendor, mode, kind, and create the name_dict
+    ### Regex signatures to identify file vendor and sensor
     RAW_DG = "(?P<ts>\d\d[a-z]{3}\d{8})-(?P<prod>\w{4})?(?P<tile>\w+)?-(?P<oid>\d{12}_\d\d)_(?P<pnum>p\d{3})"
 
     RENAMED_DG = "(?P<snsr>\w\w\d\d)_(?P<ts>\d\d[a-z]{3}\d{9})-(?P<prod>\w{4})?(?P<tile>\w+)?-(?P<catid>[a-z0-9]+)"

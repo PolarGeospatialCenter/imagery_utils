@@ -51,6 +51,8 @@ def main():
                         help="PBS queue to submit jobs to")
     parser.add_argument("--dryrun", action='store_true', default=False,
                         help='print actions without executing')
+    parser.add_argument("-v", "--verbose", action='store_true', default=False,
+                        help='log debug messages')
 
     #### Parse Arguments
     args = parser.parse_args()
@@ -121,7 +123,7 @@ def main():
     elif args.epsg is None:
         parser.error("--epsg argument is required")
     elif args.epsg in ('utm', 'auto'):
-        # EPSG code is automatically determined in ortho_functions.GetImageStats function
+        # EPSG code is automatically determined in ortho_functions.get_image_stats function
         pass
     else:
         try:
@@ -143,7 +145,10 @@ def main():
 
     #### Set up console logging handler
     lso = logging.StreamHandler()
-    lso.setLevel(logging.INFO)
+    if args.verbose:
+        lso.setLevel(logging.DEBUG)
+    else:
+        lso.setLevel(logging.INFO)
     formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s', '%m-%d-%Y %H:%M:%S')
     lso.setFormatter(formatter)
     logger.addHandler(lso)
@@ -298,8 +303,8 @@ def main():
         dstdir = task_args.dst
 
         if type(task_args.epsg) is str:
-            task_args.epsg = ortho_functions.GetImageGeometryInfo(srcfp, spatial_ref, args,
-                                                                  return_type='epsg_code')
+            task_args.epsg = ortho_functions.get_image_geometry_info(srcfp, spatial_ref, args,
+                                                                     return_type='epsg_code')
 
         srcdir, srcfn = os.path.split(srcfp)
         dst_basename = os.path.join(dstdir, "{}_{}{}{}".format(
@@ -358,8 +363,8 @@ def main():
 
         if task_srcfp_list is images_to_process:
             if type(task_args.epsg) is str:
-                task_args.epsg = ortho_functions.GetImageGeometryInfo(srcfp, spatial_ref, args,
-                                                                      return_type='epsg_code')
+                task_args.epsg = ortho_functions.get_image_geometry_info(srcfp, spatial_ref, args,
+                                                                         return_type='epsg_code')
             dstfp = os.path.join(dstdir, "{}_{}{}{}{}".format(
                 os.path.splitext(srcfn)[0],
                 utils.get_bit_depth(task_args.outtype),
