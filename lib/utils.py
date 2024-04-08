@@ -240,16 +240,24 @@ def delete_temp_files(names):
                     logger.warning('Could not remove %s: %s', os.path.basename(f), e)
 
 
-def getGEMetadataAsXml(metafile):
+def get_dg_metadata_as_xml(metafile):
     if os.path.isfile(metafile):
         try:
             metaf = open(metafile, "r")
         except IOError as err:
-            logger.error("Could not open metadata file %s because %s", metafile, err)
-            raise
+            raise InvalidMetadataError(f"Cannot open metadata file: {metafile}: {err}")
     else:
-        logger.error("Metadata file %s not found", metafile)
-        return None
+        raise InvalidMetadataError(f"Metadata file does not exist: {metafile}")
+
+
+def get_ge_metadata_as_xml(metafile):
+    if os.path.isfile(metafile):
+        try:
+            metaf = open(metafile, "r")
+        except IOError as err:
+            raise InvalidMetadataError(f"Cannot open metadata file: {metafile}: {err}")
+    else:
+        raise InvalidMetadataError(f"Metadata file does not exist: {metafile}")
 
     # Patterns to extract tag/value pairs and BEGIN/END group tags
     gepat1 = re.compile(r'(?P<tag>\w+) = "?(?P<data>.*?)"?;', re.I)
@@ -311,27 +319,21 @@ def getGEMetadataAsXml(metafile):
                 mlstr = True
 
     metaf.close()
-    #print(ET.ElementTree(root))
     return ET.ElementTree(root)
 
 
 def getIKMetadataAsXml(metafile):
     """
-    Given the text of an IKONOS metadata file, returns all the key/pair values as a
+    Given IKONOS metadata file, returns all the key/pair values as a
     searchable XML tree
     """
-    if not metafile:
-        return ET.Element("root")  # No metadata provided, return an empty tree
-
-    # If metafile is a file, open it and read from it, otherwise assume a list of strings
-    if os.path.isfile(metafile) and os.path.getsize(metafile) > 0:
+    if os.path.isfile(metafile):
         try:
             metaf = open(metafile, "r")
         except IOError as err:
-            logger.error("Could not open metadata file %s because %s", metafile, err)
-            raise
+            raise InvalidMetadataError(f"Cannot open metadata file: {metafile}: {err}")
     else:
-        metaf = metafile
+        raise InvalidMetadataError(f"Metadata file does not exist: {metafile}")
 
     # Patterns to identify tag/value pairs and group tags
     ikpat1 = re.compile(r"(?P<tag>.+?): (?P<data>.+)?", re.I)

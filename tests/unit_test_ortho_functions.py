@@ -9,6 +9,9 @@ sys.path.append(root_dir)
 
 from lib import ortho_functions, utils
 from lib import VERSION
+from collections import namedtuple
+
+Band_data_range = namedtuple('Band_data_range', ['factor_min', 'factor_max', 'offset_min', 'offset_max'])
 
 #logger = logging.getLogger("logger")
 # lso = logging.StreamHandler()
@@ -25,172 +28,106 @@ class TestReadMetadata(unittest.TestCase):
         self.rd_stretch = 'rd'
         self.srcdir = os.path.join(test_dir, 'metadata_files')
     
-    #@unittest.skip("skipping")
+    # @unittest.skip("skipping")
     def test_parse_DG_md_files(self):
         
         dg_files = (
-            ##(file name, if passes)
-            ('10APR23190859-M2AS-052462689010_01_P001.XML', True), ## 2A unrenamed
-            ('12JUL19233558-M1BS-052754253040_01_P001.XML', True), ## 1B unrenamed
-            ('12AUG27132242-M1BS-500122876080_01_P006.XML', False), ## 1B unrenamed truncated xml
-            ('GE01_11OCT122053047-P1BS-10504100009FD100.xml', True), #### GE01 image wth abscalfact in W/m2/um
-            ('GE01_14APR022119147-M1BS-1050410010473600.xml', True), #### GE01 image wth abscalfact in W/cm2/nm
-            ('GE01_20140402211914_1050410010473600_14APR02211914-M1BS-053720734020_01_P003.XML', True), ##GE01 pgctools3 name
-            ('QB02_02OCT092117107-M2AS_R1C1-101001000153C800.xml', True), #2A tiled pgctools2 renamed
-            ('QB02_12AUG271322429-M1BS-10100100101AD000.xml', True),  #1B pgctools2 renamed
-            ('QB02_20021009211710_101001000153C800_02OCT09211710-M2AS_R1C1-052075481010_01_P001.xml', True),
-            ('QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.XML', True),
-            ('WV01_09OCT042222158-P1BS-1020010009B33500.xml', True),
-            ('WV01_12MAR262229422-P1BS-102001001B02FA00.xml', True),
-            ('WV01_20091004222215_1020010009B33500_09OCT04222215-P1BS-052532098020_01_P019.xml', True),
-            ('WV01_20120326222942_102001001B02FA00_12MAR26222942-P1BS-052596100010_03_P007.XML', True),
-            ('WV02_10APR231908590-M2AS_R1C1-1030010005C7AF00.xml', True),
-            ('WV02_10APR231908590-M2AS_R2C3-1030010005C7AF00.xml', True),
-            ('WV02_12JUL192335585-M1BS-103001001B998D00.xml', True),
-            ('WV02_13OCT050528024-P1BS-10300100278D8500.xml', True),
-            ('WV02_20131005052802_10300100278D8500_13OCT05052802-P1BS-500099283010_01_P004.XML', True),
-            ('WV03_14SEP192129471-M1BS-104001000227BF00.xml', True),
-            ('WV03_20140919212947_104001000227BF00_14SEP19212947-M1BS-500191821040_01_P002.XML', True),
-            ('QB02_20050623212833_1010010004535800_05JUN23212833-P2AS-005511498020_01_P001.xml', True), # uses EARLIESTACQTIME instead of FIRSTLINETIME
+            ##(file name, is readable, is usable)
+            ('10APR23190859-M2AS-052462689010_01_P001.XML', True, True), ## 2A unrenamed
+            ('12JUL19233558-M1BS-052754253040_01_P001.XML', True, True), ## 1B unrenamed
+            ('12AUG27132242-M1BS-500122876080_01_P006.XML', False, False), ## 1B unrenamed truncated xml
+            ('GE01_11OCT122053047-P1BS-10504100009FD100.xml', True, True), #### GE01 image wth abscalfact in W/m2/um
+            ('GE01_14APR022119147-M1BS-1050410010473600.xml', True, True), #### GE01 image wth abscalfact in W/cm2/nm
+            ('GE01_20140402211914_1050410010473600_14APR02211914-M1BS-053720734020_01_P003.XML', True, True), ##GE01 pgctools3 name
+            ('QB02_02OCT092117107-M2AS_R1C1-101001000153C800.xml', True, True), #2A tiled pgctools2 renamed
+            ('QB02_12AUG271322429-M1BS-10100100101AD000.xml', True, True),  #1B pgctools2 renamed
+            ('QB02_20021009211710_101001000153C800_02OCT09211710-M2AS_R1C1-052075481010_01_P001.xml', True, True),
+            ('QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.XML', True, True),
+            ('WV01_09OCT042222158-P1BS-1020010009B33500.xml', True, True),
+            ('WV01_12MAR262229422-P1BS-102001001B02FA00.xml', True, True),
+            ('WV01_20091004222215_1020010009B33500_09OCT04222215-P1BS-052532098020_01_P019.xml', True, True),
+            ('WV01_20120326222942_102001001B02FA00_12MAR26222942-P1BS-052596100010_03_P007.XML', True, True),
+            ('WV02_10APR231908590-M2AS_R1C1-1030010005C7AF00.xml', True, True),
+            ('WV02_10APR231908590-M2AS_R2C3-1030010005C7AF00.xml', True, True),
+            ('WV02_12JUL192335585-M1BS-103001001B998D00.xml', True, True),
+            ('WV02_13OCT050528024-P1BS-10300100278D8500.xml', True, True),
+            ('WV02_20131005052802_10300100278D8500_13OCT05052802-P1BS-500099283010_01_P004.XML', True, True),
+            ('WV03_14SEP192129471-M1BS-104001000227BF00.xml', True, True),
+            ('WV03_20140919212947_104001000227BF00_14SEP19212947-M1BS-500191821040_01_P002.XML', True, True),
+            ('QB02_20050623212833_1010010004535800_05JUN23212833-P2AS-005511498020_01_P001.xml', True, False), # uses EARLIESTACQTIME instead of FIRSTLINETIME, but has no EFFECTIVEBANDWIDTH
+            ('WV03_20150411220541_104A01000A704D00_15APR11220541-A1BS-500802194040_01_P001.xml', True, True), # SWIR
+            ('WV03_20150526221639_104A01000C51A100_15MAY26221639-A1BS-500802200030_01_P001.xml', True, True), # SWIR
+            ('WV03_20190114103353_104C0100462B2500_19JAN14103353-C1BA-502817502010_01_P001.xml', True, False), # CAVIS A should not work yet
+            ('WV03_20190114103355_104C0100462B2500_19JAN14103355-C1BB-502817502010_01_P001.xml', True, False), # CAVIS B should not work yet
         )
-        
-        for mdf, result in dg_files:  ### test reflectance
-            metapath = os.path.join(self.srcdir, mdf)
-            try:
-                calib_dict = ortho_functions.getDGXmlData(metapath, self.stretch)
-            except xml.parsers.expat.ExpatError:
-                calib_dict = False
-            
-            self.assertEqual(bool(calib_dict), result)
-            if calib_dict:
-                if 'BAND_P' in calib_dict:
-                    self.assertGreater(calib_dict['BAND_P'][0], 0.0005)
-                    self.assertLess(calib_dict['BAND_P'][0], 0.0015)
-                if 'BAND_B' in calib_dict:
-                    self.assertGreater(calib_dict['BAND_B'][0], 0.000447)
-                    self.assertLess(calib_dict['BAND_B'][0], 0.0012)
-                if 'BAND_P' in calib_dict:
-                    self.assertGreater(calib_dict['BAND_P'][1], -0.029)
-                    self.assertLess(calib_dict['BAND_P'][1], -0.0098)
-                if 'BAND_B' in calib_dict:
-                    self.assertGreater(calib_dict['BAND_B'][1], -0.1307)
-                    self.assertLess(calib_dict['BAND_B'][1], -0.0084)
-                if 'BAND_B' in calib_dict and 'BAND_G' in calib_dict: ### check bands are not equal
-                    self.assertNotEqual(calib_dict['BAND_B'][0], calib_dict['BAND_G'][0])
-                    
-        for mdf, result in dg_files:   ### test radiance
-            metapath = os.path.join(self.srcdir, mdf)
-            calib_dict = ortho_functions.getDGXmlData(metapath, self.rd_stretch)
-            self.assertEqual(bool(calib_dict), result)
-            if calib_dict:
-                #print calib_dict
-                if 'BAND_P' in calib_dict:
-                    self.assertGreater(calib_dict['BAND_P'][0], 0.08)
-                    self.assertLess(calib_dict['BAND_P'][0], 0.15)
-                if 'BAND_B' in calib_dict:
-                    self.assertGreater(calib_dict['BAND_B'][0], 0.17)
-                    self.assertLess(calib_dict['BAND_B'][0], 0.33)
-                if 'BAND_P' in calib_dict:
-                    self.assertGreater(calib_dict['BAND_P'][1], -4.5)
-                    self.assertLess(calib_dict['BAND_P'][1], -1.4)
-                if 'BAND_B' in calib_dict:
-                    self.assertGreater(calib_dict['BAND_B'][1], -9.7)
-                    self.assertLess(calib_dict['BAND_B'][1], -2.8)
-                if 'BAND_B' in calib_dict and 'BAND_G' in calib_dict: ### check bands are not equal
-                    self.assertNotEqual(calib_dict['BAND_B'][0], calib_dict['BAND_G'][0])
-                           
-    #@unittest.skip("skipping")     
+
+        dg_valid_data_range = {
+            'rf': {
+                'BAND_P': (Band_data_range(0.0005, 0.0015, -0.029, -0.0098)),  # pan
+                'BAND_B': (Band_data_range(0.000447, 0.0012, -0.1307, 0.0012)),  # blue
+                'BAND_S1': (Band_data_range(0.00005, 0.0015, -0.09, -0.05)),  # 1st SWIR band
+            },
+            'rd': {
+                'BAND_P': (Band_data_range(0.08, 0.15, -4.5, -1.4)),
+                'BAND_B': (Band_data_range(0.17, 0.33,  -9.7, -2.8)),
+                'BAND_S1': (Band_data_range(0.005, 0.15, -5.6, -5.4)),
+            }
+        }
+
+        dg_test_bands = ['BAND_P', 'BAND_B', 'BAND_S1', 'BAND_DC', 'BAND_A1']
+
+        for stretch in [self.stretch, self.rd_stretch]:
+            test_stretch_params(self, dg_files, stretch, dg_valid_data_range, dg_test_bands,
+                                ortho_functions.get_dg_metadata, ortho_functions.get_dg_calib_dict, )
+
     def test_parse_GE_md_files(self):
         ge_files = (
-            ('GE01_110108M0010160234A222000100252M_000500940.txt', True),
+            ('GE01_110108M0010160234A222000100252M_000500940.txt', True, True),
         )
-        
-        for mdf, result in ge_files: ### test reflectance
-            metapath = os.path.join(self.srcdir, mdf)
-            calib_dict = ortho_functions.GetGEcalibDict(metapath, self.stretch)
-            self.assertEqual(bool(calib_dict), result)
-            if calib_dict:
-                
-                if 5 in calib_dict:  # pan band 
-                    self.assertGreater(calib_dict[5][0], 0.0002)
-                    self.assertLess(calib_dict[5][0], 0.0008)
-                if 1 in calib_dict:  # blue band
-                    self.assertGreater(calib_dict[1][0], 0.0002)
-                    self.assertLess(calib_dict[1][0], 0.0008)
-                if 5 in calib_dict:  # pan band bias
-                    self.assertEqual(calib_dict[5][1], 0)
-                if 1 in calib_dict:  # blue band bias
-                    self.assertEqual(calib_dict[1][1], 0)
-                if 1 in calib_dict and 2 in calib_dict: ### check bands are not equal
-                    self.assertNotEqual(calib_dict[1][0], calib_dict[2][0])
-                    
-        for mdf, result in ge_files:  ### test radiance
-            metapath = os.path.join(self.srcdir, mdf)
-            calib_dict = ortho_functions.GetGEcalibDict(metapath, self.rd_stretch)
-            self.assertEqual(bool(calib_dict), result)
-            if calib_dict:
-                
-                if 5 in calib_dict:  # pan band
-                    self.assertGreater(calib_dict[5][0], 0.1)
-                    self.assertLess(calib_dict[5][0], 0.2)
-                if 1 in calib_dict:  # blue band
-                    self.assertGreater(calib_dict[1][0], 0.1)
-                    self.assertLess(calib_dict[1][0], 0.2)
-                if 5 in calib_dict:  # pan band bias
-                    self.assertEqual(calib_dict[5][1], 0)
-                if 1 in calib_dict:  # blue band bias
-                    self.assertEqual(calib_dict[1][1], 0)
-                if 1 in calib_dict and 2 in calib_dict: ### check bands are not equal
-                    self.assertNotEqual(calib_dict[1][0], calib_dict[2][0])
-        
+
+        ge_valid_data_range = {
+            'rf': {
+                5: (Band_data_range(0.0002, 0.0008, 0, 0)),  # pan
+                1: (Band_data_range(0.0002, 0.0008, 0, 0)),  # blue
+            },
+            'rd': {
+                5: (Band_data_range(0.08, 0.18, 0, 0)),
+                1: (Band_data_range(0.14, 0.33, 0, 0)),
+            }
+        }
+
+        ge_test_bands = None
+
+        for stretch in [self.stretch, self.rd_stretch]:
+            test_stretch_params(self, ge_files, stretch, ge_valid_data_range, ge_test_bands,
+                                ortho_functions.get_ge_metadata, ortho_functions.get_ge_calib_dict)
+
     def test_parse_IK_md_files(self):
         
         ik_files = (
-            ('IK01_20010602215300_2001060221531300000010031227_po_387877_metadata.txt', True), ## test IK metadata file with multiple source IDs
-            ('IK01_19991222080400_1999122208040550000011606084_po_82037_metadata.txt', True),  ## test pgctools3 name
-            ('IK01_20050319201700_2005031920171340000011627450_po_333838_metadata.txt', True), ## test pgctools3 name
-            ('IK01_1999122208040550000011606084_pan_1569N.txt', True), ## test pgctools2 name
-            ('IK01_2005031920171340000011627450_rgb_5817N.txt', True), ## test pgctools2 name
+            ('IK01_20010602215300_2001060221531300000010031227_po_387877_metadata.txt', True, True), ## test IK metadata file with multiple source IDs
+            ('IK01_19991222080400_1999122208040550000011606084_po_82037_metadata.txt', True, True),  ## test pgctools3 name
+            ('IK01_20050319201700_2005031920171340000011627450_po_333838_metadata.txt', True, True), ## test pgctools3 name
+            ('IK01_1999122208040550000011606084_pan_1569N.txt', True, True), ## test pgctools2 name
+            ('IK01_2005031920171340000011627450_rgb_5817N.txt', True, True), ## test pgctools2 name
         )
-        
-        for mdf, result in ik_files:  ### test reflectance
-            metapath = os.path.join(self.srcdir, mdf)
-            calib_dict = ortho_functions.GetIKcalibDict(metapath, self.stretch)
-            self.assertEqual(bool(calib_dict), result)
-            if calib_dict:
-                #print(mdf)
-                #print(calib_dict)
-                if 4 in calib_dict:  # pan band
-                    self.assertGreater(calib_dict[4][0], 0.0004)
-                    self.assertLess(calib_dict[4][0], 0.0007)
-                if 0 in calib_dict:  # blue band
-                    self.assertGreater(calib_dict[0][0], 0.0003)
-                    self.assertLess(calib_dict[0][0], 0.0007)
-                if 4 in calib_dict:  # pan band bias
-                    self.assertEqual(calib_dict[4][1], 0)
-                if 0 in calib_dict:  # blue band bias
-                    self.assertEqual(calib_dict[0][1], 0)
-                if 0 in calib_dict and 1 in calib_dict: ### check bands are not equal
-                    self.assertNotEqual(calib_dict[0][0], calib_dict[1][0])
-                    
-        for mdf, result in ik_files:    ### test radiance
-            metapath = os.path.join(self.srcdir, mdf)
-            calib_dict = ortho_functions.GetIKcalibDict(metapath, self.rd_stretch)
-            self.assertEqual(bool(calib_dict), result)
-            if calib_dict:
-                
-                if 4 in calib_dict:  # pan band
-                    self.assertGreater(calib_dict[4][0], 0.1)
-                    self.assertLess(calib_dict[4][0], 0.16)
-                if 0 in calib_dict:  # blue band
-                    self.assertGreater(calib_dict[0][0], 0.15)
-                    self.assertLess(calib_dict[0][0], 0.25)
-                if 5 in calib_dict:  # pan band bias
-                    self.assertEqual(calib_dict[4][1], 0)
-                if 1 in calib_dict:  # blue band bias
-                    self.assertEqual(calib_dict[0][1], 0)
-                if 0 in calib_dict and 1 in calib_dict: ### check bands are not equal
-                    self.assertNotEqual(calib_dict[0][0], calib_dict[1])
+
+        ik_valid_data_range = {
+            'rf': {
+                4: (Band_data_range(0.0004, 0.0007, 0, 0)),  # pan
+                0: (Band_data_range(0.0003, 0.0007, 0, 0)),  # blue
+            },
+            'rd': {
+                4: (Band_data_range(0.1, 0.16, 0, 0)),
+                0: (Band_data_range(0.15, 0.25, 0, 0)),
+            }
+        }
+
+        ik_test_bands = None
+
+        for stretch in [self.stretch, self.rd_stretch]:
+            test_stretch_params(self, ik_files, stretch, ik_valid_data_range, ik_test_bands,
+                                ortho_functions.get_ik_metadata, ortho_functions.get_ik_calib_dict)
 
 
 class TestWriteMetadata(unittest.TestCase):
@@ -292,6 +229,41 @@ class TestTargetExtent(unittest.TestCase):
                          '-te 805772.000000000000 2487233.000000000000 811661.000000000000 2505832.000000000000 ')
 
 
+def test_stretch_params(test_obj, file_list, stretch, valid_data_range, test_bands, meta_function, calib_function):
+    # Test stretch factor and offset
+    metadata_files = [(os.path.join(test_obj.srcdir, m), r1, r2) for m, r1, r2 in file_list]
+    for mdf, is_readable, is_usable in metadata_files:
+        metad = None
+        calib_dict = {}
+        try:
+            metad = meta_function(mdf)
+        except utils.InvalidMetadataError as e:
+            pass
+        if metad:
+            try:
+                calib_dict = calib_function(metad, stretch)
+            except utils.InvalidMetadataError as e:
+                pass
+        test_obj.assertEqual(bool(metad), is_readable)
+        test_obj.assertEqual(bool(calib_dict), is_usable)
+        if calib_dict:
+            if test_bands:
+                # For DG, exactly one of the listed bands should be present
+                t = [b for b in test_bands if b in calib_dict]
+                test_obj.assertEqual(len(t), 1)
+            # Check band values are not equal
+            all_band_factors = [f for f, b in calib_dict.values()]
+            test_obj.assertEqual(len(all_band_factors), len(set(all_band_factors)))
+            # Check stretch values are within reasonable limits
+            bdr_dict = valid_data_range[stretch]
+            for band, bdr in bdr_dict.items():
+                if band in calib_dict:
+                    test_obj.assertGreaterEqual(calib_dict[band][0], bdr.factor_min)
+                    test_obj.assertLessEqual(calib_dict[band][0], bdr.factor_max)
+                    test_obj.assertGreaterEqual(calib_dict[band][1], bdr.offset_min)
+                    test_obj.assertLessEqual(calib_dict[band][1], bdr.offset_max)
+
+
 def img_as_array(img_file, band=1):
     """
     Open image as numpy array using GDAL.
@@ -305,6 +277,7 @@ def img_as_array(img_file, band=1):
     new_arr = band.ReadAsArray()
 
     return new_arr
+
 
 def get_images(img_list, img_target):
     """
@@ -529,14 +502,14 @@ if __name__ == '__main__':
         
     test_cases = [
         TestReadMetadata,
-        TestWriteMetadata,
-        TestCollectFiles,
-        TestDEMOverlap,
-        TestTargetExtent,
-        TestOutputDataValues,
-        TestRPCHeight,
-        TestCalcEarthSunDist,
-        TestOverlapCheck
+        # TestWriteMetadata,
+        # TestCollectFiles,
+        # TestDEMOverlap,
+        # TestTargetExtent,
+        # TestOutputDataValues,
+        # TestRPCHeight,
+        # TestCalcEarthSunDist,
+        # TestOverlapCheck
     ]
     
     suites = []

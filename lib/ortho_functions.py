@@ -11,6 +11,7 @@ import tarfile
 from datetime import datetime
 from xml.dom import minidom
 from xml.etree import cElementTree as ET
+from xml.parsers import expat
 
 from osgeo import gdal, gdalconst, ogr, osr
 
@@ -320,7 +321,7 @@ def buildParentArgumentParser():
     parser.add_argument("--pyramid-type", choices=['near', 'cubic'], default='near', help='pyramid resampling strategy')
     parser.add_argument("--ortho-height", type=int,
                         help='constant elevation to use for orthorectification (value should be in meters above '
-                        'the wgs84 ellipoid)')
+                        'the wgs84 ellipsoid)')
     parser.add_argument("--threads", type=thread_type(),
                         help='Number of threads to use for gdalwarp and gdal_pansharpen processes, if applicable '
                              '(default={0}, number on system={1}). Can use any positive integer, or ALL_CPUS. '
@@ -418,6 +419,10 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
 
     if args.stretch == 'mr' and args.outtype == 'Float32':
         logger.error('Output type Float32 is not reasonable with modified reflectance (mr stretch)')
+        err = 1
+
+    if args.stretch == 'mr' and args.outtype == 'UInt16':
+        logger.error('Output type UInt16 is not reasonable with modified reflectance (mr stretch)')
         err = 1
 
     ## Check if image is level 2A and tiled, raise error
@@ -790,7 +795,8 @@ def calcStats(args, info):
     p = info.spatial_ref.srs
     prj = p.ExportToWkt()
 
-    # TODO make options for SWIR and CAVIS, document SWIR/CAVIS params in guides
+    # TODO document SWIR/CAVIS params in guides
+
     ## Set input max from product bit depth
     if info.prod_code.startswith(('P', 'M', 'S')):  # Optical: 11 bit
         imax = 2047.0
@@ -962,13 +968,10 @@ def GetImageStats(args, info, target_extent_geom=None):
     rc = 0
     info.extent = ""
     info.centerlong = ""
-    vendor, sat = utils.get_sensor(info.srcfn)
+    info.vendor, info.sat = utils.get_sensor(info.srcfn)
 
-    if vendor is None:
+    if info.vendor is None:
         rc = 1
-
-    info.sat = sat
-    info.vendor = vendor
 
     if info.vendor == 'GeoEye' and info.sat == 'IK01' and "_msi_" in info.srcfn and not os.path.isfile(info.localsrc):
         src_image_name = info.srcfn.replace("_msi_", "_blu_")
@@ -978,210 +981,228 @@ def GetImageStats(args, info, target_extent_geom=None):
         src_image = info.localsrc
         info.bands = None
 
-    ds = gdal.Open(src_image, gdalconst.GA_ReadOnly)
-    if ds is not None:
-
-        ####  Get extent from GCPs
-        num_gcps = ds.GetGCPCount()
-        if info.bands is None:
-            info.bands = ds.RasterCount
-
-        if num_gcps == 4:
-            gcps = ds.GetGCPs()
-            proj = ds.GetGCPProjection()
-
-            gcp_dict = {}
-
-            id_dict = {"UpperLeft": 1,
-                       "1": 1,
-                       "UpperRight": 2,
-                       "2": 2,
-                       "LowerLeft": 4,
-                       "4": 4,
-                       "LowerRight": 3,
-                       "3": 3}
-
-            for gcp in gcps:
-                gcp_dict[id_dict[gcp.Id]] = [float(gcp.GCPPixel), float(gcp.GCPLine), float(gcp.GCPX), float(gcp.GCPY),
-                                             float(gcp.GCPZ)]
-
-            ulx = gcp_dict[1][2]
-            uly = gcp_dict[1][3]
-            urx = gcp_dict[2][2]
-            ury = gcp_dict[2][3]
-            llx = gcp_dict[4][2]
-            lly = gcp_dict[4][3]
-            lrx = gcp_dict[3][2]
-            lry = gcp_dict[3][3]
-
-            xsize = gcp_dict[1][0] - gcp_dict[2][0]
-            ysize = gcp_dict[1][1] - gcp_dict[4][1]
-
-        else:
-            xsize = ds.RasterXSize
-            ysize = ds.RasterYSize
-            proj = ds.GetProjectionRef()
-            gtf = ds.GetGeoTransform()
-
-            ulx = gtf[0] + 0 * gtf[1] + 0 * gtf[2]
-            uly = gtf[3] + 0 * gtf[4] + 0 * gtf[5]
-            urx = gtf[0] + xsize * gtf[1] + 0 * gtf[2]
-            ury = gtf[3] + xsize * gtf[4] + 0 * gtf[5]
-            llx = gtf[0] + 0 * gtf[1] + ysize * gtf[2]
-            lly = gtf[3] + 0 * gtf[4] + ysize * gtf[5]
-            lrx = gtf[0] + xsize * gtf[1] + ysize * gtf[2]
-            lry = gtf[3] + xsize * gtf[4] + ysize * gtf[5]
-
-        ds = None
-
-        ####  Create geometry objects
-        ul = "POINT ( {0:.12f} {1:.12f} )".format(ulx, uly)
-        ur = "POINT ( {0:.12f} {1:.12f} )".format(urx, ury)
-        ll = "POINT ( {0:.12f} {1:.12f} )".format(llx, lly)
-        lr = "POINT ( {0:.12f} {1:.12f} )".format(lrx, lry)
-        poly_wkt = 'POLYGON (( {0:.12f} {1:.12f}, {2:.12f} {3:.12f}, ' \
-                   '{4:.12f} {5:.12f}, {6:.12f} {7:.12f}, ' \
-                   '{8:.12f} {9:.12f} ))'.format(ulx, uly, urx, ury, lrx, lry, llx, lly, ulx, uly)
-
-        ul_geom = ogr.CreateGeometryFromWkt(ul)
-        ur_geom = ogr.CreateGeometryFromWkt(ur)
-        ll_geom = ogr.CreateGeometryFromWkt(ll)
-        lr_geom = ogr.CreateGeometryFromWkt(lr)
-        extent_geom = ogr.CreateGeometryFromWkt(poly_wkt)
-
-        g_srs = srs_wgs84
-
-        #### Create source srs objects
-        s_srs = utils.osr_srs_preserve_axis_order(osr.SpatialReference(proj))
-        sg_ct = osr.CoordinateTransformation(s_srs, g_srs)
-
-        #### Transform geometries to geographic
-        if not s_srs.IsSame(g_srs):
-            ul_geom.Transform(sg_ct)
-            ur_geom.Transform(sg_ct)
-            ll_geom.Transform(sg_ct)
-            lr_geom.Transform(sg_ct)
-            extent_geom.Transform(sg_ct)
-        logger.info("Geographic extent: %s", str(extent_geom))
-
-        #### Get geographic Envelope
-        minlon, maxlon, minlat, maxlat = extent_geom.GetEnvelope()
-
-        ## Determine output image projection if applicable
-        if type(args.epsg) is str:
-            cent_lat = (minlat + maxlat) / 2
-            cent_lon = (minlon + maxlon) / 2
-            info.epsg = GetEPSGFromLatLon(cent_lat, cent_lon, mode=args.epsg, utm_nad83=args.epsg_utm_nad83)
-            logger.info("Automatically selected output projection EPSG code: %d", info.epsg)
-            try:
-                spatial_ref = utils.SpatialRef(info.epsg)
-            except RuntimeError as e:
-                logger.error(utils.capture_error_trace())
-                logger.error("Invalid EPSG code: %i", info.epsg)
-                rc = 1
-            else:
-                info.spatial_ref = spatial_ref
-
-        #### Create target srs objects
-        t_srs = info.spatial_ref.srs
-        gt_ct = osr.CoordinateTransformation(g_srs, t_srs)
-        tg_ct = osr.CoordinateTransformation(t_srs, g_srs)
-
-        #### Transform geoms to target srs
-        if not g_srs.IsSame(t_srs):
-            ul_geom.Transform(gt_ct)
-            ur_geom.Transform(gt_ct)
-            ll_geom.Transform(gt_ct)
-            lr_geom.Transform(gt_ct)
-            extent_geom.Transform(gt_ct)
-        logger.info("Projected extent: %s", str(extent_geom))
-
-        ## test user provided extent and ues if appropriate
-        if target_extent_geom:
-            if not extent_geom.Intersects(target_extent_geom):
-                rc = 1
-            else:
-                logger.info("Using user-provided extent: %s", str(target_extent_geom))
-                extent_geom = target_extent_geom
-
-        if rc != 1:
-            info.extent_geom = extent_geom
-            info.geometry_wkt = extent_geom.ExportToWkt()
-            #### Get centroid and back project to geographic coords (this is neccesary for images that cross 180)
-            centroid = extent_geom.Centroid()
-            centroid.Transform(tg_ct)
-
-            #### Get projected Envelope
-            minx, maxx, miny, maxy = extent_geom.GetEnvelope()
-
-            #print(lons)
-            logger.info("Centroid: %s", str(centroid))
-
-            if maxlon - minlon > 180:
-
-                if centroid.GetX() < 0:
-                    info.centerlong = '--config CENTER_LONG -180 '
-                else:
-                    info.centerlong = '--config CENTER_LONG 180 '
-
-            info.extent = "-te {0:.12f} {1:.12f} {2:.12f} {3:.12f} ".format(minx, miny, maxx, maxy)
-
-            rasterxsize_m = abs(math.sqrt((ul_geom.GetX() - ur_geom.GetX())**2 + (ul_geom.GetY() - ur_geom.GetY())**2))
-            rasterysize_m = abs(math.sqrt((ul_geom.GetX() - ll_geom.GetX())**2 + (ul_geom.GetY() - ll_geom.GetY())**2))
-
-            resx = abs(math.sqrt((ul_geom.GetX() - ur_geom.GetX())**2 + (ul_geom.GetY() - ur_geom.GetY())**2) / xsize)
-            resy = abs(math.sqrt((ul_geom.GetX() - ll_geom.GetX())**2 + (ul_geom.GetY() - ll_geom.GetY())**2) / ysize)
-
-            ####  Make a string for Pixel Size Specification
-            if args.resolution is not None:
-                info.res = "-tr {} {} ".format(args.resolution, args.resolution)
-            else:
-                info.res = "-tr {0:.12f} {1:.12f} ".format(resx, resy)
-            if args.tap:
-                info.tap = "-tap "
-            else:
-                info.tap = ""
-            logger.info("Original image size: %f x %f, res: %.12f x %.12f", rasterxsize_m, rasterysize_m, resx, resy)
-
-            #### Set RGB bands
-            info.rgb_bands = ""
-
-            if args.rgb is True:
-                if info.bands == 1:
-                    pass
-                elif info.bands == 3:
-                    info.rgb_bands = "-b 3 -b 2 -b 1 "
-                elif info.bands == 4:
-                    info.rgb_bands = "-b 3 -b 2 -b 1 "
-                elif info.bands == 8:
-                    info.rgb_bands = "-b 5 -b 3 -b 2 "
-                else:
-                    logger.error("Cannot get rgb bands from a %i band image", info.bands)
-                    rc = 1
-
-            if args.bgrn is True:
-                if info.bands == 1:
-                    pass
-                elif info.bands == 4:
-                    pass
-                elif info.bands == 8:
-                    info.rgb_bands = "-b 2 -b 3 -b 5 -b 7 "
-                else:
-                    logger.error("Cannot get bgrn bands from a %i band image", info.bands)
-                    rc = 1
-
-            info.stretch = args.stretch
-            if args.stretch == 'au':
-                if not info.prod_code.startswith(('P', 'M', 'S')):  # CAVIS and SWIR should never use the mr stretch
-                    info.stretch = 'rf'
-                elif ((maxlat + minlat) / 2) <= -60:
-                    info.stretch = 'rf'
-                else:
-                    info.stretch = 'mr'
-                logger.info("Automatically selected stretch: %s", info.stretch)
+    # Get image metadata as an Etree dictionary
+    if info.vendor == "DigitalGlobe":
+        func = get_dg_metadata
+    elif info.vendor == "GeoEye" and info.sat == "GE01":
+        func = get_ge_metadata
+    elif info.vendor == "GeoEye" and info.sat == "IK01":
+        func = get_ik_metadata
     else:
-        logger.error("Cannot open dataset: %s", src_image)
+        logger.error(f"Vendor or sensor not recognized: {info.vendor} {info.sat}")
         rc = 1
+
+    try:
+        info.metad = func(info.metapath)
+    except utils.InvalidMetadataError as e:
+        logger.error(e)
+        rc = 1
+
+    if rc != 1:
+        ds = gdal.Open(src_image, gdalconst.GA_ReadOnly)
+        if ds is not None:
+
+            ####  Get extent from GCPs
+            num_gcps = ds.GetGCPCount()
+            if info.bands is None:
+                info.bands = ds.RasterCount
+
+            if num_gcps == 4:
+                gcps = ds.GetGCPs()
+                proj = ds.GetGCPProjection()
+
+                gcp_dict = {}
+
+                id_dict = {"UpperLeft": 1,
+                           "1": 1,
+                           "UpperRight": 2,
+                           "2": 2,
+                           "LowerLeft": 4,
+                           "4": 4,
+                           "LowerRight": 3,
+                           "3": 3}
+
+                for gcp in gcps:
+                    gcp_dict[id_dict[gcp.Id]] = [float(gcp.GCPPixel), float(gcp.GCPLine), float(gcp.GCPX), float(gcp.GCPY),
+                                                 float(gcp.GCPZ)]
+
+                ulx = gcp_dict[1][2]
+                uly = gcp_dict[1][3]
+                urx = gcp_dict[2][2]
+                ury = gcp_dict[2][3]
+                llx = gcp_dict[4][2]
+                lly = gcp_dict[4][3]
+                lrx = gcp_dict[3][2]
+                lry = gcp_dict[3][3]
+
+                xsize = gcp_dict[1][0] - gcp_dict[2][0]
+                ysize = gcp_dict[1][1] - gcp_dict[4][1]
+
+            else:
+                xsize = ds.RasterXSize
+                ysize = ds.RasterYSize
+                proj = ds.GetProjectionRef()
+                gtf = ds.GetGeoTransform()
+
+                ulx = gtf[0] + 0 * gtf[1] + 0 * gtf[2]
+                uly = gtf[3] + 0 * gtf[4] + 0 * gtf[5]
+                urx = gtf[0] + xsize * gtf[1] + 0 * gtf[2]
+                ury = gtf[3] + xsize * gtf[4] + 0 * gtf[5]
+                llx = gtf[0] + 0 * gtf[1] + ysize * gtf[2]
+                lly = gtf[3] + 0 * gtf[4] + ysize * gtf[5]
+                lrx = gtf[0] + xsize * gtf[1] + ysize * gtf[2]
+                lry = gtf[3] + xsize * gtf[4] + ysize * gtf[5]
+
+            ds = None
+
+            ####  Create geometry objects
+            ul = "POINT ( {0:.12f} {1:.12f} )".format(ulx, uly)
+            ur = "POINT ( {0:.12f} {1:.12f} )".format(urx, ury)
+            ll = "POINT ( {0:.12f} {1:.12f} )".format(llx, lly)
+            lr = "POINT ( {0:.12f} {1:.12f} )".format(lrx, lry)
+            poly_wkt = 'POLYGON (( {0:.12f} {1:.12f}, {2:.12f} {3:.12f}, ' \
+                       '{4:.12f} {5:.12f}, {6:.12f} {7:.12f}, ' \
+                       '{8:.12f} {9:.12f} ))'.format(ulx, uly, urx, ury, lrx, lry, llx, lly, ulx, uly)
+
+            ul_geom = ogr.CreateGeometryFromWkt(ul)
+            ur_geom = ogr.CreateGeometryFromWkt(ur)
+            ll_geom = ogr.CreateGeometryFromWkt(ll)
+            lr_geom = ogr.CreateGeometryFromWkt(lr)
+            extent_geom = ogr.CreateGeometryFromWkt(poly_wkt)
+
+            g_srs = srs_wgs84
+
+            #### Create source srs objects
+            s_srs = utils.osr_srs_preserve_axis_order(osr.SpatialReference(proj))
+            sg_ct = osr.CoordinateTransformation(s_srs, g_srs)
+
+            #### Transform geometries to geographic
+            if not s_srs.IsSame(g_srs):
+                ul_geom.Transform(sg_ct)
+                ur_geom.Transform(sg_ct)
+                ll_geom.Transform(sg_ct)
+                lr_geom.Transform(sg_ct)
+                extent_geom.Transform(sg_ct)
+            logger.info("Geographic extent: %s", str(extent_geom))
+
+            #### Get geographic Envelope
+            minlon, maxlon, minlat, maxlat = extent_geom.GetEnvelope()
+
+            ## Determine output image projection if applicable
+            if type(args.epsg) is str:
+                cent_lat = (minlat + maxlat) / 2
+                cent_lon = (minlon + maxlon) / 2
+                info.epsg = GetEPSGFromLatLon(cent_lat, cent_lon, mode=args.epsg, utm_nad83=args.epsg_utm_nad83)
+                logger.info("Automatically selected output projection EPSG code: %d", info.epsg)
+                try:
+                    spatial_ref = utils.SpatialRef(info.epsg)
+                except RuntimeError as e:
+                    logger.error(utils.capture_error_trace())
+                    logger.error("Invalid EPSG code: %i", info.epsg)
+                    rc = 1
+                else:
+                    info.spatial_ref = spatial_ref
+
+            #### Create target srs objects
+            t_srs = info.spatial_ref.srs
+            gt_ct = osr.CoordinateTransformation(g_srs, t_srs)
+            tg_ct = osr.CoordinateTransformation(t_srs, g_srs)
+
+            #### Transform geoms to target srs
+            if not g_srs.IsSame(t_srs):
+                ul_geom.Transform(gt_ct)
+                ur_geom.Transform(gt_ct)
+                ll_geom.Transform(gt_ct)
+                lr_geom.Transform(gt_ct)
+                extent_geom.Transform(gt_ct)
+            logger.info("Projected extent: %s", str(extent_geom))
+
+            ## test user provided extent and ues if appropriate
+            if target_extent_geom:
+                if not extent_geom.Intersects(target_extent_geom):
+                    rc = 1
+                else:
+                    logger.info("Using user-provided extent: %s", str(target_extent_geom))
+                    extent_geom = target_extent_geom
+
+            if rc != 1:
+                info.extent_geom = extent_geom
+                info.geometry_wkt = extent_geom.ExportToWkt()
+                #### Get centroid and back project to geographic coords (this is neccesary for images that cross 180)
+                centroid = extent_geom.Centroid()
+                centroid.Transform(tg_ct)
+
+                #### Get projected Envelope
+                minx, maxx, miny, maxy = extent_geom.GetEnvelope()
+
+                #print(lons)
+                logger.info("Centroid: %s", str(centroid))
+
+                if maxlon - minlon > 180:
+
+                    if centroid.GetX() < 0:
+                        info.centerlong = '--config CENTER_LONG -180 '
+                    else:
+                        info.centerlong = '--config CENTER_LONG 180 '
+
+                info.extent = "-te {0:.12f} {1:.12f} {2:.12f} {3:.12f} ".format(minx, miny, maxx, maxy)
+
+                rasterxsize_m = abs(math.sqrt((ul_geom.GetX() - ur_geom.GetX())**2 + (ul_geom.GetY() - ur_geom.GetY())**2))
+                rasterysize_m = abs(math.sqrt((ul_geom.GetX() - ll_geom.GetX())**2 + (ul_geom.GetY() - ll_geom.GetY())**2))
+
+                resx = abs(math.sqrt((ul_geom.GetX() - ur_geom.GetX())**2 + (ul_geom.GetY() - ur_geom.GetY())**2) / xsize)
+                resy = abs(math.sqrt((ul_geom.GetX() - ll_geom.GetX())**2 + (ul_geom.GetY() - ll_geom.GetY())**2) / ysize)
+
+                ####  Make a string for Pixel Size Specification
+                if args.resolution is not None:
+                    info.res = "-tr {} {} ".format(args.resolution, args.resolution)
+                else:
+                    info.res = "-tr {0:.12f} {1:.12f} ".format(resx, resy)
+                if args.tap:
+                    info.tap = "-tap "
+                else:
+                    info.tap = ""
+                logger.info("Original image size: %f x %f, res: %.12f x %.12f", rasterxsize_m, rasterysize_m, resx, resy)
+
+                #### Set RGB bands
+                info.rgb_bands = ""
+
+                if args.rgb is True:
+                    if info.bands == 1:
+                        pass
+                    elif info.bands == 3:
+                        info.rgb_bands = "-b 3 -b 2 -b 1 "
+                    elif info.bands == 4:
+                        info.rgb_bands = "-b 3 -b 2 -b 1 "
+                    elif info.bands == 8:
+                        info.rgb_bands = "-b 5 -b 3 -b 2 "
+                    else:
+                        logger.error("Cannot get rgb bands from a %i band image", info.bands)
+                        rc = 1
+
+                if args.bgrn is True:
+                    if info.bands == 1:
+                        pass
+                    elif info.bands == 4:
+                        pass
+                    elif info.bands == 8:
+                        info.rgb_bands = "-b 2 -b 3 -b 5 -b 7 "
+                    else:
+                        logger.error("Cannot get bgrn bands from a %i band image", info.bands)
+                        rc = 1
+
+                info.stretch = args.stretch
+                if args.stretch == 'au':
+                    if not info.prod_code.startswith(('P', 'M', 'S')):  # CAVIS and SWIR should never use the mr stretch
+                        info.stretch = 'rf'
+                    elif ((maxlat + minlat) / 2) <= -60:
+                        info.stretch = 'rf'
+                    else:
+                        info.stretch = 'mr'
+                    logger.info("Automatically selected stretch: %s", info.stretch)
+        else:
+            logger.error("Cannot open dataset: %s", src_image)
+            rc = 1
 
     return info, rc
 
@@ -1458,34 +1479,23 @@ def WriteOutputMetadata(args, info):
 
     til = None
 
-    ####  Get xml/pvl metadata
-    ####  If DG
+    #  If DG
     if info.vendor == 'DigitalGlobe':
-        metapath = info.metapath
+        imd = info.metad.find("IMD")
+        til = info.metad.find("TIL")
 
-        try:
-            metad = ET.parse(metapath)
-        except ET.ParseError:
-            logger.error("Invalid xml formatting in metadata file: %s", metapath)
-            return 1
-        else:
-            imd = metad.find("IMD")
-            til = metad.find("TIL")
-
-    ####  If GE
+    #  If GE
     elif info.vendor == 'GeoEye' and info.sat == "GE01":
-
-        metad = utils.getGEMetadataAsXml(info.metapath)
         imd = ET.Element("IMD")
         include_tags = ["sensorInfo", "inputImageInfo", "correctionParams", "bandSpecificInformation"]
 
-        elem = metad.find("productInfo")
+        elem = info.metad.find("productInfo")
         if elem is not None:
             rpc = elem.find("rationalFunctions")
             elem.remove(rpc)
             imd.append(elem)
 
-        elem = metad.find('productOrderInfo')
+        elem = info.metad.find('productOrderInfo')
         elem.remove(elem.find('numberOfAOICoordinates'))
         for child in elem.findall('aoiGeoCoordinate'):
             elem.remove(child)
@@ -1494,19 +1504,16 @@ def WriteOutputMetadata(args, info):
         imd.append(elem)
 
         for tag in include_tags:
-            elems = metad.findall(tag)
+            elems = info.metad.findall(tag)
             imd.extend(elems)
-
 
     elif info.sat in ['IK01']:
         match = PGC_IK_FILE.search(info.srcfn)
         if match:
             component = match.group('cmp')
-
-            metad = utils.getIKMetadataAsXml(info.metapath)
             imd = ET.Element("IMD")
 
-            elem = metad.find('Source_Image_Metadata')
+            elem = info.metad.find('Source_Image_Metadata')
             elem.remove(elem.find('Number_of_Source_Images'))
             for child in elem.findall("Source_Image_ID"):
                 prod_id_elem = child.find("Product_Image_ID")
@@ -1514,14 +1521,14 @@ def WriteOutputMetadata(args, info):
                     elem.remove(child)
             imd.append(elem)
 
-            elem = metad.find('Product_Component_Metadata')
+            elem = info.metad.find('Product_Component_Metadata')
             elem.remove(elem.find('Number_of_Components'))
             for child in elem.findall("Component_ID"):
                 if not child.attrib['id'] == component:
                     elem.remove(child)
             imd.append(elem)
 
-            elem = metad.find('Product_Order_Metadata')
+            elem = info.metad.find('Product_Order_Metadata')
             elem.remove(elem.find('Product_Order_Area_Geographic_Coordinates'))
             elem.remove(elem.find('Product_Order_Area_Map_Coordinates_in_Map_Units'))
             imd.append(elem)
@@ -1750,25 +1757,30 @@ def GetCalibrationFactors(info):
 
     calibDict = {}
     CFlist = []
+    bandList = []
 
     if info.vendor == "DigitalGlobe":
-
-        xmlpath = info.metapath
-        calibDict = getDGXmlData(xmlpath, info.stretch)
+        try:
+            calibDict = get_dg_calib_dict(info.metad, info.stretch)
+        except utils.InvalidMetadataError as e:
+            logger.error(e)
         bandList = DGbandList
 
     elif info.vendor == "GeoEye" and info.sat == "GE01":
-
-        metapath = info.metapath
-        calibDict = GetGEcalibDict(metapath, info.stretch)
+        try:
+            calibDict = get_ge_calib_dict(info.metad, info.stretch)
+        except utils.InvalidMetadataError as e:
+            logger.error(e)
         if info.bands == 1:
             bandList = [5]
         elif info.bands == 4:
             bandList = range(1, 5, 1)
 
     elif info.vendor == "GeoEye" and info.sat == "IK01":
-        metapath = info.metapath
-        calibDict = GetIKcalibDict(metapath, info.stretch)
+        try:
+            calibDict = get_ik_calib_dict(info.metad, info.stretch)
+        except utils.InvalidMetadataError as e:
+            logger.error(e)
         if info.bands == 1:
             bandList = [4]
         elif info.bands == 4:
@@ -1777,9 +1789,8 @@ def GetCalibrationFactors(info):
             bandList = range(0, 3, 1)
 
     else:
-        logger.warning("Vendor or sensor not recognized: %s, %s", info.vendor, info.sat)
+        logger.error(f"Vendor or sensor not recognized: {info.vendor} {info.sat}")
 
-    #logger.info("Calibration factors: %s", calibDict)
     if len(calibDict) > 0:
 
         for band in bandList:
@@ -1909,119 +1920,117 @@ def calcEarthSunDist(t):
     return d
 
 
-def getDGXmlData(xmlpath, stretch):
+def get_dg_calib_dict(metad, stretch):
 
     calibDict = {}
     abscalfact_dict = {}
-    try:
-        xmldoc = minidom.parse(xmlpath)
-    except Exception:
-        logger.error(utils.capture_error_trace())
-        logger.error("Cannot parse metadata file: %s", xmlpath)
-        return None
+    nodeIMD = metad.find('IMD')
+    if nodeIMD is None:
+        raise utils.InvalidMetadataError(f"Metadata file is missing the IMD xml section")
     else:
+        nodeIMAGE = nodeIMD.find('IMAGE')
+        nodeMPP = nodeIMD.find('MAP_PROJECTED_PRODUCT')
 
-        if len(xmldoc.getElementsByTagName('IMD')) >= 1:
+        sat = nodeIMAGE.find('SATID').text
+        elem = nodeIMAGE.find('FIRSTLINETIME')
+        if elem is None:
+            if nodeMPP is not None:
+                elem = nodeMPP.find('EARLIESTACQTIME')
+        if elem is not None:
+            t = elem.text
+        else:
+            raise utils.InvalidMetadataError(f"Metadata file is missing the FIRSTLINETIME and EARLIESTACQTIME xml tags")
 
-            nodeIMD = xmldoc.getElementsByTagName('IMD')[0]
+        elem = nodeIMAGE.find('MEANSUNEL')
+        if elem is None:
+            elem = nodeIMAGE.find('SUNEL')
+        if elem is not None:
+            sunEl = float(elem.text)
+        else:
+            raise utils.InvalidMetadataError(f"Metadata file is missing the MEANSUNEL and SUNEL xml tags")
 
-            # get acquisition IMAGE tags
-            nodeIMAGE = nodeIMD.getElementsByTagName('IMAGE')
+        sun_angle = 90.0 - sunEl
+        des = calcEarthSunDist(datetime.strptime(t, "%Y-%m-%dT%H:%M:%S.%fZ"))
 
-            sat = nodeIMAGE[0].getElementsByTagName('SATID')[0].firstChild.data
+        # get BAND tags
+        for band in DGbandList:
+            nodeBAND = nodeIMD.find(band)
+            if nodeBAND is not None:
+                elem = nodeBAND.find('ABSCALFACTOR')
+                if elem is not None:
+                    abscal = float(elem.text)
+                else:
+                    raise utils.InvalidMetadataError(
+                        f"Metadata file is missing the ABSCALFACTOR xml tag")
 
-            tTag = nodeIMAGE[0].getElementsByTagName('FIRSTLINETIME')
-            if len(tTag) == 0:
-                tTag = nodeIMAGE[0].getElementsByTagName('EARLIESTACQTIME')
-            if len(tTag) == 0:
-                raise utils.InvalidMetadataError(f"Metadata file {xmlpath} is missing the FIRSTLINETIME and EARLIESTACQTIME xml tags")
-            t = tTag[0].firstChild.data
+                elem = nodeBAND.find('EFFECTIVEBANDWIDTH')
+                if elem is not None:
+                    effbandw = float(elem.text)
+                else:
+                    raise utils.InvalidMetadataError(
+                        f"Metadata file is missing the EFFECTIVEBANDWIDTH xml tag")
 
-            if len(nodeIMAGE[0].getElementsByTagName('MEANSUNEL')) >= 1:
-                sunEl = float(nodeIMAGE[0].getElementsByTagName('MEANSUNEL')[0].firstChild.data)
-            elif len(nodeIMAGE[0].getElementsByTagName('SUNEL')) >= 1:
-                sunEl = float(nodeIMAGE[0].getElementsByTagName('SUNEL')[0].firstChild.data)
-            else:
+                abscalfact_dict[band] = (abscal, effbandw)
+
+        #### Determine if unit shift factor should be applied
+
+        ## 1) If BAND_B abscalfact < 0.004, then units are in W/cm2/nm and should be multiplied
+        ##  by 10 in order to get units of W/m2/um
+        ## 1) If BAND_P abscalfact < 0.01, then units are in W/cm2/nm and should be multiplied
+        ##  by 10 in order to get units of W/m2/um
+
+        units_factor = 1
+        if sat == 'GE01':
+            if 'BAND_B' in abscalfact_dict:
+                if abscalfact_dict['BAND_B'][0] < 0.004:
+                    units_factor = 10
+            if 'BAND_P' in abscalfact_dict:
+                if abscalfact_dict['BAND_P'][0] < 0.01:
+                    units_factor = 10
+
+        for band in abscalfact_dict:
+            satband = sat + '_' + band
+            if satband not in EsunDict:
+                logger.warning("Cannot find sensor and band in Esun lookup table: %s.  Try using --stretch "
+                               "ns.", satband)
                 return None
+            else:
+                Esun = EsunDict[satband]
+                gain = GainDict[satband]
+                bias = BiasDict[satband]
 
-            sunAngle = 90.0 - sunEl
-            des = calcEarthSunDist(datetime.strptime(t, "%Y-%m-%dT%H:%M:%S.%fZ"))
+            abscal, effbandw = abscalfact_dict[band]
 
-            # get BAND tags
-            for band in DGbandList:
-                nodeBAND = nodeIMD.getElementsByTagName(band)
-                #print(nodeBAND)
-                if not len(nodeBAND) == 0:
+            rad_fact = units_factor * gain * abscal / effbandw
+            refl_fact = units_factor * (gain * abscal * des ** 2 * math.pi) / \
+                        (Esun * math.cos(math.radians(sun_angle)) * effbandw)
+            refl_offset = units_factor * (bias * des ** 2 * math.pi) / (Esun * math.cos(math.radians(sun_angle)))
 
-                    temp = nodeBAND[0].getElementsByTagName('ABSCALFACTOR')
-                    if not len(temp) == 0:
-                        abscal = float(temp[0].firstChild.data)
+            logger.debug("%s: \n\tabsCalFactor %f\n\teffectiveBandwidth %f\n\tEarth-Sun distance %f"
+                        "\n\tEsun %f\n\tSun angle %f\n\tSun elev %f\n\tGain %f\n\tBias %f"
+                        "\n\tUnits factor %f\n\tReflectance correction %f\n\tReflectance offset %f"
+                        "\n\tRadiance correction %f\n\tRadiance offset %f", satband, abscal, effbandw,
+                        des, Esun, sun_angle, sunEl, gain, bias, units_factor, refl_fact, refl_offset,
+                        rad_fact, bias)
 
-                    else:
-                        return None
-
-                    temp = nodeBAND[0].getElementsByTagName('EFFECTIVEBANDWIDTH')
-                    if not len(temp) == 0:
-                        effbandw = float(temp[0].firstChild.data)
-                    else:
-                        return None
-
-                    abscalfact_dict[band] = (abscal, effbandw)
-
-            #### Determine if unit shift factor should be applied
-
-            ## 1) If BAND_B abscalfact < 0.004, then units are in W/cm2/nm and should be multiplied
-            ##  by 10 in order to get units of W/m2/um
-            ## 1) If BAND_P abscalfact < 0.01, then units are in W/cm2/nm and should be multiplied
-            ##  by 10 in order to get units of W/m2/um
-
-            units_factor = 1
-            if sat == 'GE01':
-                if 'BAND_B' in abscalfact_dict:
-                    if abscalfact_dict['BAND_B'][0] < 0.004:
-                        units_factor = 10
-                if 'BAND_P' in abscalfact_dict:
-                    if abscalfact_dict['BAND_P'][0] < 0.01:
-                        units_factor = 10
-
-            for band in abscalfact_dict:
-                satband = sat + '_' + band
-                if satband not in EsunDict:
-                    logger.warning("Cannot find sensor and band in Esun lookup table: %s.  Try using --stretch "
-                                   "ns.", satband)
-                    return None
-                else:
-                    Esun = EsunDict[satband]
-                    gain = GainDict[satband]
-                    bias = BiasDict[satband]
-
-                abscal, effbandw = abscalfact_dict[band]
-
-                rad_fact = units_factor * gain * abscal / effbandw
-                refl_fact = units_factor * (gain * abscal * des ** 2 * math.pi) / \
-                            (Esun * math.cos(math.radians(sunAngle)) * effbandw)
-                refl_offset = units_factor * (bias * des ** 2 * math.pi) / (Esun * math.cos(math.radians(sunAngle)))
-
-                logger.debug("%s: \n\tabsCalFactor %f\n\teffectiveBandwidth %f\n\tEarth-Sun distance %f"
-                            "\n\tEsun %f\n\tSun angle %f\n\tSun elev %f\n\tGain %f\n\tBias %f"
-                            "\n\tUnits factor %f\n\tReflectance correction %f\n\tReflectance offset %f"
-                            "\n\tRadiance correction %f\n\tRadiance offset %f", satband, abscal, effbandw,
-                            des, Esun, sunAngle, sunEl, gain, bias, units_factor, refl_fact, refl_offset,
-                            rad_fact, bias)
-
-                if stretch == "rd":
-                    calibDict[band] = (rad_fact, bias)
-                else:
-                    calibDict[band] = (refl_fact, refl_offset)
+            if stretch == "rd":
+                calibDict[band] = (rad_fact, bias)
+            else:
+                calibDict[band] = (refl_fact, refl_offset)
 
     # return correction factor and offset
     return calibDict
 
 
-def GetIKcalibDict(metafile, stretch):
-    fp_mode = "renamed"
-    metadict = getIKMetadata(fp_mode, metafile)
-    #print(metadict)
+def get_dg_metadata(metapath):
+    try:
+        metad = ET.parse(metapath)
+    except ET.ParseError as e:
+        raise utils.InvalidMetadataError(f"Cannot parse metadata file: {metapath}: {e}")
+    return metad
+
+
+def get_ik_calib_dict(metad, stretch):
 
     calibDict = {}
     EsunDict = [1930.9, 1854.8, 1556.5, 1156.9, 1375.8] # B,G,R,N,Pan(TDI13)
@@ -2029,12 +2038,11 @@ def GetIKcalibDict(metafile, stretch):
     calCoefs1 = [633, 649, 840, 746, 161] # B,G,R,N,Pan(TDI13) - Pre 2/22/01
     calCoefs2 = [728, 727, 949, 843, 161] # B,G,R,N,Pan(TDI13) = Post 2/22/01
 
-
     for band in range(0, 5, 1):
-        sunElStr = metadict["Sun_Angle_Elevation"]
+        sunElStr = metad["Sun_Angle_Elevation"]
         sunAngle = float(sunElStr.strip(" degrees"))
         theta = 90.0 - sunAngle
-        datestr = metadict["Acquisition_Date_Time"] # 2011-12-09 18:43 GMT
+        datestr = metad["Acquisition_Date_Time"] # 2011-12-09 18:43 GMT
         d = datetime.strptime(datestr, "%Y-%m-%d %H:%M GMT")
         des = calcEarthSunDist(d)
 
@@ -2064,7 +2072,7 @@ def GetIKcalibDict(metafile, stretch):
     return calibDict
 
 
-def getIKMetadata(fp_mode, metafile):
+def get_ik_metadata(metafile):
     ik2fp = [
         ("File_Format", "OUTPUT_FMT"),
         ("Product_Order_Number", "ORDER_ID"),
@@ -2079,13 +2087,8 @@ def getIKMetadata(fp_mode, metafile):
     ]
 
     metad = utils.getIKMetadataAsXml(metafile)
-    if metad is not None:
-        metadict = {}
-        search_keys = dict(ik2fp)
-
-    else:
-        logger.error("Unable to parse metadata from %s", metafile)
-        return None
+    metadict = {}
+    search_keys = dict(ik2fp)
 
     # metad_map = dict((c, p) for p in metad.iter() for c in p)  # Child/parent mapping
     # attribs = ["Source_Image_ID", "Component_ID"]  # nodes we need the attributes of
@@ -2097,36 +2100,31 @@ def getIKMetadata(fp_mode, metafile):
     # which in turn links to a Source_Image_ID; we accomplish this by examining all the
     # Component_File_Name nodes for an image file name match, on a hit, the parent node of
     # the CFN node will be the Component_ID node we are interested in
+    siid_node = None
 
-    if fp_mode == "renamed":
+    # In renamed mode, we find the Source Image ID (from the file name) and then find
+    # the matching Component ID
 
-        # In renamed mode, we find the Source Image ID (from the file name) and then find
-        # the matching Component ID
+    # For new style(pgctools3) filename, we use a regex to get the source image ID.
+    # If we can't match the filename to the new style name regex, we assume
+    # that we have old style names, and we can get the source image ID directly from
+    # the filename, as shown below.
+    match = re.search(PGC_IK_FILE, metafile.lower())
+    if match:
+        siid = match.group('catid')
+    else:
+        siid = os.path.basename(metafile.lower())[5:33]
+    siid_nodes = metad.findall(r".//Source_Image_ID")
+    if siid_nodes is None:
+        raise utils.InvalidMetadataError(f"Could not find any Source Image ID fields in metadata: {metafile}")
 
-        # For new style(pgctools3) filename, we use a regex to get the source image ID.
-        # If we can't match the filename to the new style name regex, we assume
-        # that we have old style names, and we can get the source image ID directly from
-        # the filename, as shown below.
-        match = re.search(PGC_IK_FILE, metafile.lower())
-        if match:
-            siid = match.group('catid')
-        else:
-            siid = os.path.basename(metafile.lower())[5:33]
-        siid_nodes = metad.findall(r".//Source_Image_ID")
-        if siid_nodes is None:
-            logger.error("Could not find any Source Image ID fields in metadata %s", metafile)
-            return None
+    for node in siid_nodes:
+        if node.attrib["id"] == siid:
+            siid_node = node
+            break
 
-        siid_node = None
-        for node in siid_nodes:
-            if node.attrib["id"] == siid:
-                siid_node = node
-                break
-
-        if siid_node is None:
-            logger.error("Could not locate SIID: %s in metadata %s", siid, metafile)
-            return None
-
+    if siid_node is None:
+        raise utils.InvalidMetadataError(f"Could not locate SIID: {siid} in metadata {metafile}")
 
     # Now assemble the dict
     for node in siid_node.iter():
@@ -2139,20 +2137,17 @@ def getIKMetadata(fp_mode, metafile):
     return metadict
 
 
-def GetGEcalibDict(metafile, stretch):
-    fp_mode = "renamed"
-    metadict = getGEMetadata(fp_mode, metafile)
-    #print(metadict)
+def get_ge_calib_dict(metad, stretch):
 
     calibDict = {}
     EsunDict = [196.0, 185.3, 150.5, 103.9, 161.7]
 
-    for band in metadict["gain"].keys():
-        sunAngle = float(metadict["firstLineSunElevationAngle"])
+    for band in metad["gain"].keys():
+        sunAngle = float(metad["firstLineSunElevationAngle"])
         theta = 90.0 - sunAngle
-        datestr = metadict["originalFirstLineAcquisitionDateTime"] # 2009-11-01T01:49:33.685421Z
+        datestr = metad["originalFirstLineAcquisitionDateTime"] # 2009-11-01T01:49:33.685421Z
         des = calcEarthSunDist(datetime.strptime(datestr, "%Y-%m-%dT%H:%M:%S.%fZ"))
-        gain = float(metadict["gain"][band])
+        gain = float(metad["gain"][band])
         Esun = EsunDict[band - 1]
 
         logger.debug("Band {}, Sun elev: {}, Earth-Sun distance: {}, Gain: {}, Esun: {}".format(band, theta, des, gain, Esun))
@@ -2168,35 +2163,32 @@ def GetGEcalibDict(metafile, stretch):
     return calibDict
 
 
-def getGEMetadata(fp_mode, metafile):
+def get_ge_metadata(metafile):
     metadict = {}
-    metad = utils.getGEMetadataAsXml(metafile)
-    if metad is not None:
+    metad = utils.get_ge_metadata_as_xml(metafile)
 
-        search_keys = ["originalFirstLineAcquisitionDateTime", "firstLineSunElevationAngle"]
-        for key in search_keys:
-            node = metad.find(".//{}".format(key))
-            if node is not None:
-                metadict[key] = node.text
+    search_keys = ["originalFirstLineAcquisitionDateTime", "firstLineSunElevationAngle"]
+    for key in search_keys:
+        node = metad.find(".//{}".format(key))
+        if node is not None:
+            metadict[key] = node.text
 
-        band_keys = ["gain", "offset"]
-        for key in band_keys:
-            nodes = metad.findall(".//bandSpecificInformation")
+    band_keys = ["gain", "offset"]
+    for key in band_keys:
+        nodes = metad.findall(".//bandSpecificInformation")
 
-            vals = {}
-            for node in nodes:
-                try:
-                    band = int(node.attrib["bandNumber"])
-                except Exception:
-                    logger.error(utils.capture_error_trace())
-                    logger.error("Unable to retrieve band number in GE metadata")
-                else:
-                    node = node.find(".//{}".format(key))
-                    if node is not None:
-                        vals[band] = node.text
-            metadict[key] = vals
-    else:
-        logger.error("Unable to get metadata from %s", metafile)
+        vals = {}
+        for node in nodes:
+            try:
+                band = int(node.attrib["bandNumber"])
+            except Exception:
+                logger.error(utils.capture_error_trace())
+                logger.error("Unable to retrieve band number in GE metadata")
+            else:
+                node = node.find(".//{}".format(key))
+                if node is not None:
+                    vals[band] = node.text
+        metadict[key] = vals
 
     return metadict
 
