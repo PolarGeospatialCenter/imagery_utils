@@ -25,7 +25,6 @@ logger.setLevel(logging.DEBUG)
 DGbandList = ['BAND_P', 'BAND_C', 'BAND_B', 'BAND_G', 'BAND_Y', 'BAND_R', 'BAND_RE', 'BAND_N', 'BAND_N2', 'BAND_S1',
               'BAND_S2', 'BAND_S3', 'BAND_S4', 'BAND_S5', 'BAND_S6', 'BAND_S7', 'BAND_S8']
 formats = {'GTiff': '.tif', 'JP2OpenJPEG': '.jp2', 'ENVI': '.envi', 'HFA': '.img', 'JPEG': '.jpg'}
-outtypes = ['Byte', 'UInt16', 'Float32']
 stretches = ["ns", "rf", "mr", "rd", "au"]
 resamples = ["near", "bilinear", "cubic", "cubicspline", "lanczos"]
 gtiff_compressions = ["jpeg95", "lzw"]
@@ -306,8 +305,8 @@ def buildParentArgumentParser():
     parser.add_argument("-d", "--dem",
                         help="the DEM to use for orthorectification (elevation values should be relative to the wgs84 "
                              "ellipoid")
-    parser.add_argument("-t", "--outtype", choices=outtypes, default="Byte",
-                        help="output data type (default=Byte)")
+    parser.add_argument("-t", "--outtype", choices=[output_type.value for output_type in OutputType], default=OutputType.BYTE.value,
+                        help=f"output data type (default={OutputType.BYTE.value})")
     parser.add_argument("-r", "--resolution", type=float,
                         help="output pixel resolution in units of the projection")
     parser.add_argument("-c", "--stretch", choices=stretches, default="rf",
