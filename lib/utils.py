@@ -241,16 +241,25 @@ def delete_temp_files(names):
 
 
 def get_dg_metadata_as_xml(metafile):
+    """
+    Given DigitalGlobe metadata file, returns all the key/pair values as a
+    searchable XML tree
+    """
     if os.path.isfile(metafile):
         try:
-            metaf = open(metafile, "r")
-        except IOError as err:
-            raise InvalidMetadataError(f"Cannot open metadata file: {metafile}: {err}")
+            metad = ET.parse(metafile)
+        except ET.ParseError as e:
+            raise InvalidMetadataError(f"Cannot parse metadata file: {metafile}: {e}")
+        return metad
     else:
         raise InvalidMetadataError(f"Metadata file does not exist: {metafile}")
 
 
 def get_ge_metadata_as_xml(metafile):
+    """
+    Given Geoeye-style metadata file, returns all the key/pair values as a
+    searchable XML tree
+    """
     if os.path.isfile(metafile):
         try:
             metaf = open(metafile, "r")
@@ -322,7 +331,7 @@ def get_ge_metadata_as_xml(metafile):
     return ET.ElementTree(root)
 
 
-def getIKMetadataAsXml(metafile):
+def get_ik_metadata_as_xml(metafile):
     """
     Given IKONOS metadata file, returns all the key/pair values as a
     searchable XML tree

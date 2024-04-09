@@ -305,7 +305,9 @@ def main():
         if type(task_args.epsg) is str:
             task_args.epsg = ortho_functions.get_image_geometry_info(srcfp, spatial_ref, args,
                                                                      return_type='epsg_code')
-
+        ## If image cannot be opened, skip it
+        if task_args.epsg is None:
+            continue
         srcdir, srcfn = os.path.split(srcfp)
         dst_basename = os.path.join(dstdir, "{}_{}{}{}".format(
             os.path.splitext(srcfn)[0],
@@ -365,6 +367,9 @@ def main():
             if type(task_args.epsg) is str:
                 task_args.epsg = ortho_functions.get_image_geometry_info(srcfp, spatial_ref, args,
                                                                          return_type='epsg_code')
+            ## If image cannot be opened, skip it
+            if task_args.epsg is None:
+                continue
             dstfp = os.path.join(dstdir, "{}_{}{}{}{}".format(
                 os.path.splitext(srcfn)[0],
                 utils.get_bit_depth(task_args.outtype),

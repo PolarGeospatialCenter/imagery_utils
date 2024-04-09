@@ -306,14 +306,14 @@ class ImageInfo:
             raise RuntimeError(f"Cannot find metadata file")
 
         if self.vendor == "DigitalGlobe":
-            func = get_dg_metadata
+            func = utils.get_dg_metadata_as_xml
         elif self.vendor == "GeoEye" and self.sat == "GE01":
-            func = get_ge_metadata
+            func = utils.get_ge_metadata_as_xml
         elif self.vendor == "GeoEye" and self.sat == "IK01":
-            func = get_ik_metadata
+            func = utils.get_ik_metadata_as_xml
         else:
             raise RuntimeError(f"Vendor or sensor not recognized: {self.vendor} {self.sat}")
-        self.metad = func(self.metapath)
+        self.metad_etree = func(self.metapath)
 
         # Initialize attribs set by get_image_stats
         self.extent = ''
@@ -327,21 +327,17 @@ class ImageInfo:
 
     def get_image_stats(self, args, target_extent_geom=None):
         rc = 0
-
         ds = gdal.Open(self.src_image, gdalconst.GA_ReadOnly)
         if ds is not None:
-
-            ####  Get extent from GCPs
-            num_gcps = ds.GetGCPCount()
             if self.bands is None:
                 self.bands = ds.RasterCount
 
+            ##  Get extent from GCPs
+            num_gcps = ds.GetGCPCount()
             if num_gcps == 4:
                 gcps = ds.GetGCPs()
                 proj = ds.GetGCPProjection()
-
                 gcp_dict = {}
-
                 id_dict = {"UpperLeft": 1,
                            "1": 1,
                            "UpperRight": 2,
@@ -353,9 +349,7 @@ class ImageInfo:
 
                 for gcp in gcps:
                     gcp_dict[id_dict[gcp.Id]] = [float(gcp.GCPPixel), float(gcp.GCPLine), float(gcp.GCPX),
-                                                 float(gcp.GCPY),
-                                                 float(gcp.GCPZ)]
-
+                                                 float(gcp.GCPY), float(gcp.GCPZ)]
                 ulx = gcp_dict[1][2]
                 uly = gcp_dict[1][3]
                 urx = gcp_dict[2][2]
@@ -364,7 +358,6 @@ class ImageInfo:
                 lly = gcp_dict[4][3]
                 lrx = gcp_dict[3][2]
                 lry = gcp_dict[3][3]
-
                 xsize = gcp_dict[1][0] - gcp_dict[2][0]
                 ysize = gcp_dict[1][1] - gcp_dict[4][1]
 
@@ -373,7 +366,6 @@ class ImageInfo:
                 ysize = ds.RasterYSize
                 proj = ds.GetProjectionRef()
                 gtf = ds.GetGeoTransform()
-
                 ulx = gtf[0] + 0 * gtf[1] + 0 * gtf[2]
                 uly = gtf[3] + 0 * gtf[4] + 0 * gtf[5]
                 urx = gtf[0] + xsize * gtf[1] + 0 * gtf[2]
@@ -382,7 +374,6 @@ class ImageInfo:
                 lly = gtf[3] + 0 * gtf[4] + ysize * gtf[5]
                 lrx = gtf[0] + xsize * gtf[1] + ysize * gtf[2]
                 lry = gtf[3] + xsize * gtf[4] + ysize * gtf[5]
-
             ds = None
 
             ####  Create geometry objects
@@ -399,7 +390,6 @@ class ImageInfo:
             ll_geom = ogr.CreateGeometryFromWkt(ll)
             lr_geom = ogr.CreateGeometryFromWkt(lr)
             extent_geom = ogr.CreateGeometryFromWkt(poly_wkt)
-
             g_srs = srs_wgs84
 
             #### Create source srs objects
@@ -532,11 +522,12 @@ class ImageInfo:
                     else:
                         self.stretch = 'mr'
                     logger.info("Automatically selected stretch: %s", self.stretch)
-            else:
-                logger.error("Cannot open dataset: %s", self.src_image)
-                rc = 1
+        else:
+            logger.error("Cannot open dataset: %s", self.src_image)
+            rc = 1
 
         return rc
+
 
 def thread_type():
     def posintorall(arg_input):
@@ -1492,26 +1483,26 @@ def WriteOutputMetadata(args, info):
 
     ####  Ortho metadata name
     omd = os.path.splitext(info.localdst)[0] + ".xml"
-
     til = None
+    imd = None
 
     #  If DG
     if info.vendor == 'DigitalGlobe':
-        imd = info.metad.find("IMD")
-        til = info.metad.find("TIL")
+        imd = info.metad_etree.find("IMD")
+        til = info.metad_etree.find("TIL")
 
     #  If GE
     elif info.vendor == 'GeoEye' and info.sat == "GE01":
         imd = ET.Element("IMD")
         include_tags = ["sensorInfo", "inputImageInfo", "correctionParams", "bandSpecificInformation"]
 
-        elem = info.metad.find("productInfo")
+        elem = info.metad_etree.find("productInfo")
         if elem is not None:
             rpc = elem.find("rationalFunctions")
             elem.remove(rpc)
             imd.append(elem)
 
-        elem = info.metad.find('productOrderInfo')
+        elem = info.metad_etree.find('productOrderInfo')
         elem.remove(elem.find('numberOfAOICoordinates'))
         for child in elem.findall('aoiGeoCoordinate'):
             elem.remove(child)
@@ -1520,7 +1511,7 @@ def WriteOutputMetadata(args, info):
         imd.append(elem)
 
         for tag in include_tags:
-            elems = info.metad.findall(tag)
+            elems = info.metad_etree.findall(tag)
             imd.extend(elems)
 
     elif info.sat in ['IK01']:
@@ -1529,7 +1520,7 @@ def WriteOutputMetadata(args, info):
             component = match.group('cmp')
             imd = ET.Element("IMD")
 
-            elem = info.metad.find('Source_Image_Metadata')
+            elem = info.metad_etree.find('Source_Image_Metadata')
             elem.remove(elem.find('Number_of_Source_Images'))
             for child in elem.findall("Source_Image_ID"):
                 prod_id_elem = child.find("Product_Image_ID")
@@ -1537,14 +1528,14 @@ def WriteOutputMetadata(args, info):
                     elem.remove(child)
             imd.append(elem)
 
-            elem = info.metad.find('Product_Component_Metadata')
+            elem = info.metad_etree.find('Product_Component_Metadata')
             elem.remove(elem.find('Number_of_Components'))
             for child in elem.findall("Component_ID"):
                 if not child.attrib['id'] == component:
                     elem.remove(child)
             imd.append(elem)
 
-            elem = info.metad.find('Product_Order_Metadata')
+            elem = info.metad_etree.find('Product_Order_Metadata')
             elem.remove(elem.find('Product_Order_Area_Geographic_Coordinates'))
             elem.remove(elem.find('Product_Order_Area_Map_Coordinates_in_Map_Units'))
             imd.append(elem)
@@ -1563,7 +1554,7 @@ def WriteOutputMetadata(args, info):
             h = get_rpc_height(info)
             dMD["ORTHO_HEIGHT"] = str(h)
     dMD["RESAMPLEMETHOD"] = args.resample
-    dMD["STRETCH"] = args.stretch
+    dMD["STRETCH"] = info.stretch
     dMD["BITDEPTH"] = args.outtype
     dMD["FORMAT"] = args.format
     dMD["COMPRESSION"] = args.gtiff_compression
@@ -1577,9 +1568,7 @@ def WriteOutputMetadata(args, info):
         child.text = dMD[tag]
 
     ####  Write output
-
     root = ET.Element("IMD")
-
     root.append(pgcmd)
 
     ref = ET.SubElement(root, "SOURCE_IMD")
@@ -1593,7 +1582,6 @@ def WriteOutputMetadata(args, info):
     if til is not None:
         ref.append(til)
 
-    #ET.ElementTree(root).write(omd,xml_declaration=True)
     xmlstring = prettify(root)
     fh = open(omd, 'w')
     fh.write(xmlstring)
@@ -1777,14 +1765,14 @@ def get_calibration_factors(info):
 
     if info.vendor == "DigitalGlobe":
         try:
-            calibDict = get_dg_calib_dict(info.metad, info.stretch)
+            calibDict = get_dg_calib_dict(info.metad_etree, info.stretch)
         except utils.InvalidMetadataError as e:
             logger.error(e)
         bandList = DGbandList
 
     elif info.vendor == "GeoEye" and info.sat == "GE01":
         try:
-            calibDict = get_ge_calib_dict(info.metad, info.stretch)
+            calibDict = get_ge_calib_dict(info.metad_etree, info.stretch)
         except utils.InvalidMetadataError as e:
             logger.error(e)
         if info.bands == 1:
@@ -1794,7 +1782,7 @@ def get_calibration_factors(info):
 
     elif info.vendor == "GeoEye" and info.sat == "IK01":
         try:
-            calibDict = get_ik_calib_dict(info.metad, info.stretch)
+            calibDict = get_ik_calib_dict(info.meta_etree, info.metapath, info.stretch)
         except utils.InvalidMetadataError as e:
             logger.error(e)
         if info.bands == 1:
@@ -1936,11 +1924,11 @@ def calc_earth_sun_dist(t):
     return d
 
 
-def get_dg_calib_dict(metad, stretch):
+def get_dg_calib_dict(metad_etree, stretch):
 
     calibDict = {}
     abscalfact_dict = {}
-    nodeIMD = metad.find('IMD')
+    nodeIMD = metad_etree.find('IMD')
     if nodeIMD is None:
         raise utils.InvalidMetadataError(f"Metadata file is missing the IMD xml section")
     else:
@@ -2038,15 +2026,7 @@ def get_dg_calib_dict(metad, stretch):
     return calibDict
 
 
-def get_dg_metadata(metapath):
-    try:
-        metad = ET.parse(metapath)
-    except ET.ParseError as e:
-        raise utils.InvalidMetadataError(f"Cannot parse metadata file: {metapath}: {e}")
-    return metad
-
-
-def get_ik_calib_dict(metad, stretch):
+def get_ik_calib_dict(metad_etree, metafile, stretch):
 
     calibDict = {}
     EsunDict = [1930.9, 1854.8, 1556.5, 1156.9, 1375.8] # B,G,R,N,Pan(TDI13)
@@ -2054,11 +2034,12 @@ def get_ik_calib_dict(metad, stretch):
     calCoefs1 = [633, 649, 840, 746, 161] # B,G,R,N,Pan(TDI13) - Pre 2/22/01
     calCoefs2 = [728, 727, 949, 843, 161] # B,G,R,N,Pan(TDI13) = Post 2/22/01
 
+    metadict = get_ik_metadata(metad_etree, metafile)
     for band in range(0, 5, 1):
-        sunElStr = metad["Sun_Angle_Elevation"]
+        sunElStr = metadict["Sun_Angle_Elevation"]
         sunAngle = float(sunElStr.strip(" degrees"))
         theta = 90.0 - sunAngle
-        datestr = metad["Acquisition_Date_Time"] # 2011-12-09 18:43 GMT
+        datestr = metadict["Acquisition_Date_Time"] # 2011-12-09 18:43 GMT
         d = datetime.strptime(datestr, "%Y-%m-%d %H:%M GMT")
         des = calc_earth_sun_dist(d)
 
@@ -2088,7 +2069,7 @@ def get_ik_calib_dict(metad, stretch):
     return calibDict
 
 
-def get_ik_metadata(metafile):
+def get_ik_metadata(metad_etree, metafile):
     ik2fp = [
         ("File_Format", "OUTPUT_FMT"),
         ("Product_Order_Number", "ORDER_ID"),
@@ -2102,26 +2083,14 @@ def get_ik_metadata(metafile):
         ("Sun_Angle_Elevation", "SUN_ELEV"),
     ]
 
-    metad = utils.getIKMetadataAsXml(metafile)
     metadict = {}
     search_keys = dict(ik2fp)
-
-    # metad_map = dict((c, p) for p in metad.iter() for c in p)  # Child/parent mapping
-    # attribs = ["Source_Image_ID", "Component_ID"]  # nodes we need the attributes of
-
-    # We must identify the exact Source_Image_ID and Component_ID for this image
-    # before loading the dictionary
-
-    # In raw mode we match the image file name to a Component_ID, this yields a Product_Image_ID,
-    # which in turn links to a Source_Image_ID; we accomplish this by examining all the
-    # Component_File_Name nodes for an image file name match, on a hit, the parent node of
-    # the CFN node will be the Component_ID node we are interested in
     siid_node = None
 
     # In renamed mode, we find the Source Image ID (from the file name) and then find
     # the matching Component ID
 
-    # For new style(pgctools3) filename, we use a regex to get the source image ID.
+    # We use a regex to get the source image ID.
     # If we can't match the filename to the new style name regex, we assume
     # that we have old style names, and we can get the source image ID directly from
     # the filename, as shown below.
@@ -2130,7 +2099,7 @@ def get_ik_metadata(metafile):
         siid = match.group('catid')
     else:
         siid = os.path.basename(metafile.lower())[5:33]
-    siid_nodes = metad.findall(r".//Source_Image_ID")
+    siid_nodes = metad_etree.findall(r".//Source_Image_ID")
     if siid_nodes is None:
         raise utils.InvalidMetadataError(f"Could not find any Source Image ID fields in metadata: {metafile}")
 
@@ -2153,17 +2122,18 @@ def get_ik_metadata(metafile):
     return metadict
 
 
-def get_ge_calib_dict(metad, stretch):
+def get_ge_calib_dict(metad_etree, stretch):
 
     calibDict = {}
     EsunDict = [196.0, 185.3, 150.5, 103.9, 161.7]
 
-    for band in metad["gain"].keys():
-        sunAngle = float(metad["firstLineSunElevationAngle"])
+    metadict = get_ge_metadata(metad_etree)
+    for band in metadict["gain"].keys():
+        sunAngle = float(metadict["firstLineSunElevationAngle"])
         theta = 90.0 - sunAngle
-        datestr = metad["originalFirstLineAcquisitionDateTime"] # 2009-11-01T01:49:33.685421Z
+        datestr = metadict["originalFirstLineAcquisitionDateTime"] # 2009-11-01T01:49:33.685421Z
         des = calc_earth_sun_dist(datetime.strptime(datestr, "%Y-%m-%dT%H:%M:%S.%fZ"))
-        gain = float(metad["gain"][band])
+        gain = float(metadict["gain"][band])
         Esun = EsunDict[band - 1]
 
         logger.debug("Band {}, Sun elev: {}, Earth-Sun distance: {}, Gain: {}, Esun: {}".format(band, theta, des, gain, Esun))
@@ -2179,19 +2149,17 @@ def get_ge_calib_dict(metad, stretch):
     return calibDict
 
 
-def get_ge_metadata(metafile):
+def get_ge_metadata(metad_etree):
     metadict = {}
-    metad = utils.get_ge_metadata_as_xml(metafile)
-
     search_keys = ["originalFirstLineAcquisitionDateTime", "firstLineSunElevationAngle"]
     for key in search_keys:
-        node = metad.find(".//{}".format(key))
+        node = metad_etree.find(".//{}".format(key))
         if node is not None:
             metadict[key] = node.text
 
     band_keys = ["gain", "offset"]
     for key in band_keys:
-        nodes = metad.findall(".//bandSpecificInformation")
+        nodes = metad_etree.findall(".//bandSpecificInformation")
 
         vals = {}
         for node in nodes:

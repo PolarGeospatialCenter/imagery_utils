@@ -22,10 +22,10 @@ class TestOrthoFunc(unittest.TestCase):
         self.dstdir = os.path.join(script_dir, 'testdata', 'output')
 
         if platform.system() == 'Windows':
-            self.gimpdem = r'V:\pgc\data\elev\dem\gimp\GIMPv2\gimpdem_v2_30m.tif'
+            self.gimpdem = r'V:\pgc\data\elev\dem\gimp\GIMPv1\gimpdem_v1_30m.tif'
             self.rampdem = r'V:\pgc\data\elev\dem\ramp\RAMPv2_wgs84_200m.tif'
         else:
-            self.gimpdem = '/mnt/pgc/data/elev/dem/gimp/GIMPv2/gimpdem_v2_30m.tif'
+            self.gimpdem = '/mnt/pgc/data/elev/dem/gimp/GIMPv1/gimpdem_v1_30m.tif'
             self.rampdem = '/mnt/pgc/data/elev/dem/ramp/RAMPv2_wgs84_200m.tif'
 
         # if os.path.isdir(self.dstdir):

@@ -78,7 +78,7 @@ class TestReadMetadata(unittest.TestCase):
 
         for stretch in [self.stretch, self.rd_stretch]:
             test_stretch_params(self, dg_files, stretch, dg_valid_data_range, dg_test_bands,
-                                ortho_functions.get_dg_metadata, ortho_functions.get_dg_calib_dict, )
+                                utils.get_dg_metadata_as_xml, ortho_functions.get_dg_calib_dict, )
 
     def test_parse_GE_md_files(self):
         ge_files = (
@@ -100,7 +100,7 @@ class TestReadMetadata(unittest.TestCase):
 
         for stretch in [self.stretch, self.rd_stretch]:
             test_stretch_params(self, ge_files, stretch, ge_valid_data_range, ge_test_bands,
-                                ortho_functions.get_ge_metadata, ortho_functions.get_ge_calib_dict)
+                                utils.get_ge_metadata_as_xml, ortho_functions.get_ge_calib_dict)
 
     def test_parse_IK_md_files(self):
         
@@ -127,16 +127,24 @@ class TestReadMetadata(unittest.TestCase):
 
         for stretch in [self.stretch, self.rd_stretch]:
             test_stretch_params(self, ik_files, stretch, ik_valid_data_range, ik_test_bands,
-                                ortho_functions.get_ik_metadata, ortho_functions.get_ik_calib_dict)
+                                utils.get_ik_metadata_as_xml, ortho_functions.get_ik_calib_dict)
 
 
 class TestWriteMetadata(unittest.TestCase):
 
     def setUp(self):
-        self.fn = 'WV01_20091004222215_1020010009B33500_09OCT04222215-P1BS-052532098020_01_P019.ntf'
-        self.mf = os.path.join(os.path.join(test_dir, 'output', 'WV01_20091004222215_1020010009B33500_09OCT04222215-P1BS-052532098020_01_P019.xml'))
         self.epsg = 4326
         self.stretch = 'rf'
+        self.srcfn = 'WV03_20140919212947_104001000227BF00_14SEP19212947-M1BS-500191821040_01_P002.NTF'
+        self.srcfp = os.path.join(test_dir, 'ortho', self.srcfn)
+        self.dstdir = os.path.join(test_dir, 'output')
+        self.dstfp = os.path.join(self.dstdir, '{}_u08{}{}.tif'.format(
+            os.path.splitext(self.srcfn)[0],
+            self.stretch,
+            self.epsg))
+        self.mf = f'{os.path.splitext(self.dstfp)[0]}.xml'
+
+
         self.test_lines = [
             f'<BITDEPTH>Byte</BITDEPTH>',
             f'<COMPRESSION>lzw</COMPRESSION>',
@@ -144,16 +152,13 @@ class TestWriteMetadata(unittest.TestCase):
             f'<FORMAT>GTiff</FORMAT>',
             f'<STRETCH>{self.stretch}</STRETCH>',
             f'<VERSION>imagery_utils v{VERSION}</VERSION>',
-            f'<ORTHO_HEIGHT>2568.0</ORTHO_HEIGHT>',
             f'<RESAMPLEMETHOD>near</RESAMPLEMETHOD>'
         ]
     
     #@unittest.skip("skipping")
     def test_write_DG_md_file(self):
         test_args = ProcessArgs(self.epsg, self.stretch)
-        info = TestImageInfo(self.fn, 'DigitalGlobe', 'WV01', epsg=test_args.epsg)
-        info.metapath = ortho_functions.get_dg_metadata_path(info.localsrc)
-        info.metad = ortho_functions.get_dg_metadata(info.metapath)
+        info = ortho_functions.ImageInfo(self.srcfp, self.dstfp, self.dstdir, test_args)
         rc = ortho_functions.WriteOutputMetadata(test_args, info)
         ## read meta and check content
         f = open(self.mf)
@@ -163,7 +168,8 @@ class TestWriteMetadata(unittest.TestCase):
             self.assertTrue(test_line in contents)
     
     def tearDown(self):
-        os.remove(self.mf)
+        if os.path.isfile(self.mf):
+            os.remove(self.mf)
         
 
 class TestCollectFiles(unittest.TestCase):
@@ -217,14 +223,20 @@ class TestTargetExtent(unittest.TestCase):
         
     def test_target_extent(self):
         epsg = 32629
+        stretch = 'rf'
         wkt = 'POLYGON ((810287 2505832,811661 2487415,807201 2487233,805772 2505802,810287 2505832))'
         fn = 'GE01_20110307105821_1050410001518E00_11MAR07105821-M1BS-500657359080_01_P008.ntf'
+        srcfp = os.path.join(test_dir, 'ortho', fn)
+        dstdir = os.path.join(test_dir, 'output')
+        dstfp = os.path.join(dstdir, '{}_u08{}{}.tif'.format(
+            os.path.splitext(fn)[0],
+            stretch,
+            epsg))
         target_extent_geom = ogr.CreateGeometryFromWkt(wkt)
-        args = ProcessArgs(epsg, 'rf')
-        info_in = TestImageInfo(fn, epsg=args.epsg, spatial_ref=args.spatial_ref)
-        info_in.metapath = ortho_functions.get_metadata_path(info_in.localsrc, os.path.dirname(info_in.localdst))
-        info_out, rc = ortho_functions.GetImageStats(args, info_in, target_extent_geom)
-        self.assertEqual(info_out.extent,
+        test_args = ProcessArgs(epsg, stretch)
+        info = ortho_functions.ImageInfo(srcfp, dstfp, dstdir, test_args)
+        rc = info.get_image_stats(test_args, target_extent_geom)
+        self.assertEqual(info.extent,
                      '-te 805772.000000000000 2487233.000000000000 811661.000000000000 2505832.000000000000 ')
 
 
@@ -240,7 +252,10 @@ def test_stretch_params(test_obj, file_list, stretch, valid_data_range, test_ban
             pass
         if metad:
             try:
-                calib_dict = calib_function(metad, stretch)
+                if calib_function == ortho_functions.get_ik_calib_dict:
+                    calib_dict = calib_function(metad, mdf, stretch)
+                else:
+                    calib_dict = calib_function(metad, stretch)
             except utils.InvalidMetadataError as e:
                 pass
         test_obj.assertEqual(bool(metad), is_readable)
@@ -293,6 +308,7 @@ def get_images(img_list, img_target):
         raise Exception("Multiple results found for target {0}; there should only be one".format(img_target))
 
     return img_target_path[0]
+
 
 class TestOutputDataValues(unittest.TestCase):
 
@@ -377,59 +393,40 @@ class TestCalcEarthSunDist(unittest.TestCase):
         self.second = 10
 
     def test_calc_esd(self):
-        esd = ortho_functions.calcEarthSunDist(self)
+        esd = ortho_functions.calc_earth_sun_dist(self)
         self.assertEqual(esd, 0.9957508611980816)
 
 
 class TestRPCHeight(unittest.TestCase):
     def setUp(self):
+        self.epsg = 4326
+        self.stretch = 'rf'
         self.srcdir = os.path.join(test_dir, 'ortho')
+        self.dstdir = os.path.join(test_dir, 'output')
+        self.test_args = ProcessArgs(self.epsg, self.stretch)
+        self.srcfns = [
+            ('WV01_20091004222215_1020010009B33500_09OCT04222215-P1BS-052532098020_01_P019.ntf', 2568.0),
+            ('WV02_20120719233558_103001001B998D00_12JUL19233558-M1BS-052754253040_01_P001.TIF', 75.0),
+            ('WV03_20140919212947_104001000227BF00_14SEP19212947-M1BS-500191821040_01_P002.NTF', 149.0),
+            ('GE01_20110307105821_1050410001518E00_11MAR07105821-P1BS-500657359080_01_P008.ntf', 334.0),
+            ('IK01_20050319201700_2005031920171340000011627450_po_333838_blu_0000000.ntf', 520.0),
+            ('QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.NTF', 45.0)
+        ]
 
-    def test_rpc_height_wv01(self):
-        info = ortho_functions.ImageInfo()
-        info.localsrc = os.path.join(self.srcdir,
-                                     'WV01_20091004222215_1020010009B33500_09OCT04222215-P1BS-052532098020_01_P019.ntf')
-        h = ortho_functions.get_rpc_height(info)
-        self.assertEqual(h, 2568.0)
-
-    def test_rpc_height_wv02(self):
-        info = ortho_functions.ImageInfo()
-        info.localsrc = os.path.join(self.srcdir,
-                                     'WV02_20120719233558_103001001B998D00_12JUL19233558-M1BS-052754253040_01_P001.TIF')
-        h = ortho_functions.get_rpc_height(info)
-        self.assertEqual(h, 75.0)
-
-    def test_rpc_height_wv03(self):
-        info = ortho_functions.ImageInfo()
-        info.localsrc = os.path.join(self.srcdir,
-                                     'WV03_20140919212947_104001000227BF00_14SEP19212947-M1BS-500191821040_01_P002.NTF')
-        h = ortho_functions.get_rpc_height(info)
-        self.assertEqual(h, 149.0)
-
-    def test_rpc_height_ge01(self):
-        info = ortho_functions.ImageInfo()
-        info.localsrc = os.path.join(self.srcdir,
-                                     'GE01_20110307105821_1050410001518E00_11MAR07105821-P1BS-500657359080_01_P008.ntf')
-        h = ortho_functions.get_rpc_height(info)
-        self.assertEqual(h, 334.0)
-
-    def test_rpc_height_ik01(self):
-        info = ortho_functions.ImageInfo()
-        info.localsrc = os.path.join(self.srcdir,
-                                     'IK01_20050319201700_2005031920171340000011627450_po_333838_blu_0000000.ntf')
-        h = ortho_functions.get_rpc_height(info)
-        self.assertEqual(h, 520.0)
-
-    def test_rpc_height_qb02(self):
-        info = ortho_functions.ImageInfo()
-        info.localsrc = os.path.join(self.srcdir,
-                                     'QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.NTF')
-        h = ortho_functions.get_rpc_height(info)
-        self.assertEqual(h, 45.0)
+    def test_rpc_height(self):
+        for srcfn, test_h in self.srcfns:
+            srcfp = os.path.join(self.srcdir, srcfn)
+            dstfp = os.path.join(self.dstdir, '{}_u08{}{}.tif'.format(
+                os.path.splitext(srcfn)[0],
+                self.stretch,
+                self.epsg))
+            info = ortho_functions.ImageInfo(srcfp, dstfp, self.dstdir, self.test_args)
+            h = ortho_functions.get_rpc_height(info)
+            self.assertEqual(h, test_h)
 
 
 class ProcessArgs(object):
-    def __init__(self, epsg, stretch):
+    def __init__(self, epsg=4326, stretch='rf'):
         self.epsg = epsg
         self.resolution = None
         self.rgb = False
@@ -442,19 +439,8 @@ class ProcessArgs(object):
         self.format = "GTiff"
         self.gtiff_compression = "lzw"
         self.stretch = stretch
-        self.spatial_ref = utils.SpatialRef(self.epsg)
         self.tap = False
-
-
-class TestImageInfo(object):
-    def __init__(self, fn, vendor=None, sat=None, epsg=None, spatial_ref=None):
-        self.srcfn = fn
-        self.localsrc = os.path.join(os.path.join(test_dir, 'ortho', self.srcfn))
-        self.localdst = os.path.join(os.path.join(test_dir, 'output', self.srcfn))
-        self.vendor = vendor
-        self.sat = sat
-        self.epsg = epsg
-        self.spatial_ref = spatial_ref
+        self.wd = None
 
 
 if __name__ == '__main__':
@@ -484,7 +470,7 @@ if __name__ == '__main__':
         TestCollectFiles,
         # TestDEMOverlap,  # TODO: Test DEM is corrupt. Replace it.
         TestTargetExtent,
-        # TestOutputDataValues,  # TODO: output_static folder missing from test data. Rebuild it.
+        # TestOutputDataValues,  # TODO: output_static folder missing from test data
         TestRPCHeight,
         TestCalcEarthSunDist,
     ]

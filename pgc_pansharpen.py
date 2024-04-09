@@ -262,7 +262,7 @@ def main():
         parser.error("--epsg argument is required")
     elif args.epsg in ('utm', 'auto'):
         # EPSG code is automatically determined in ortho_functions.get_image_stats
-        # and ortho_functions.GetImageGeometryInfo functions.
+        # and ortho_functions.get_image_geometry_info functions.
         pass
     else:
         try:
@@ -391,6 +391,9 @@ def main():
         if type(args.epsg) is str:
             img_epsg = ortho_functions.get_image_geometry_info(image_pair.mul_srcfp, spatial_ref, args,
                                                                return_type='epsg_code')
+            ## If image cannot be opened, skip it
+            if img_epsg is None:
+                continue
         else:
             img_epsg = args.epsg
         
@@ -430,6 +433,9 @@ def main():
             if type(args.epsg) is str:
                 img_epsg = ortho_functions.get_image_geometry_info(image_pair.mul_srcfp, spatial_ref, args,
                                                                    return_type='epsg_code')
+                ## If image cannot be opened, skip it
+                if img_epsg is None:
+                    continue
             else:
                 img_epsg = args.epsg
             pansh_dstfp = os.path.join(dstdir, "{}_{}{}{}_pansh.tif".format(
