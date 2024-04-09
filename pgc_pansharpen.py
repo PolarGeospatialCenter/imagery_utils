@@ -167,7 +167,7 @@ class ImagePair(object):
 def main():
 
     #### Set Up Arguments
-    parent_parser, pos_arg_keys = ortho_functions.buildParentArgumentParser()
+    parent_parser, pos_arg_keys = ortho_functions.build_parent_argument_parser()
     parser = argparse.ArgumentParser(
         parents=[parent_parser],
         description="Run/Submit batch pansharpening in parallel"

@@ -159,7 +159,7 @@ class TestWriteMetadata(unittest.TestCase):
     def test_write_DG_md_file(self):
         test_args = ProcessArgs(self.epsg, self.stretch)
         info = ortho_functions.ImageInfo(self.srcfp, self.dstfp, self.dstdir, test_args)
-        rc = ortho_functions.WriteOutputMetadata(test_args, info)
+        rc = ortho_functions.write_output_metadata(test_args, info)
         ## read meta and check content
         f = open(self.mf)
         contents = f.read()

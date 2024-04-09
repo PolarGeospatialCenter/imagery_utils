@@ -256,14 +256,6 @@ NO_DATA_DICT = {
     OutputType.FLOAT32: -9999.0,
 }
 
-def get_destination_nodata(output_type: str | OutputType) -> int | float:
-    """Determines the destination NoData value for a given output data type.
-
-    Raises a ValueError if the provided value does not match one of the known OutputType variants."""
-    if type(output_type) == str:
-        output_type = OutputType(output_type)
-
-    return NO_DATA_DICT[output_type]
 
 class ImageInfo:
     def __init__(self, srcfp, dstfp, wd, args):
@@ -558,6 +550,16 @@ class ImageInfo:
         return rc
 
 
+def get_destination_nodata(output_type: str | OutputType) -> int | float:
+    """Determines the destination NoData value for a given output data type.
+
+    Raises a ValueError if the provided value does not match one of the known OutputType variants."""
+    if type(output_type) == str:
+        output_type = OutputType(output_type)
+
+    return NO_DATA_DICT[output_type]
+
+
 def thread_type():
     def posintorall(arg_input):
         try:
@@ -575,7 +577,7 @@ def thread_type():
     return posintorall
 
 
-def buildParentArgumentParser():
+def build_parent_argument_parser():
 
     #### Set Up Arguments
     parser = argparse.ArgumentParser(add_help=False)
@@ -799,21 +801,21 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
         if not os.path.isfile(info.dstfp):
             ## Warp Image
             if not err == 1 and not os.path.isfile(info.warpfile):
-                rc = WarpImage(args, info, gdal_thread_count=gdal_thread_count)
+                rc = warp_image(args, info, gdal_thread_count=gdal_thread_count)
                 if rc == 1:
                     err = 1
                     logger.error("Error in image warping")
 
             #### Calculate Output File
             if not err == 1 and os.path.isfile(info.warpfile):
-                rc = calcStats(args, info)
+                rc = calc_stats(args, info)
                 if rc == 1:
                     err = 1
                     logger.error("Error in image calculation")
 
         ##  Write Output Metadata
         if not err == 1:
-            rc = WriteOutputMetadata(args, info)
+            rc = write_output_metadata(args, info)
             if rc == 1:
                 err = 1
                 logger.error("Error in writing metadata file")
@@ -1049,7 +1051,7 @@ def get_epsg_from_lat_lon(lat, lon, mode='auto', utm_nad83=False):
     return epsg_code
 
 
-def calcStats(args, info):
+def calc_stats(args, info):
 
     logger.info("Calculating image with stats")
     rc = 0
@@ -1512,7 +1514,7 @@ def get_metadata_path(srcfp, wd):
     return metafile
 
 
-def WriteOutputMetadata(args, info):
+def write_output_metadata(args, info):
 
     ####  Ortho metadata name
     omd = os.path.splitext(info.localdst)[0] + ".xml"
@@ -1637,7 +1639,7 @@ def prettify(root):
     return reparsed.toprettyxml(indent="\t")
 
 
-def WarpImage(args, info, gdal_thread_count=1):
+def warp_image(args, info, gdal_thread_count=1):
 
     rc = 0
 

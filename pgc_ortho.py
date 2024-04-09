@@ -25,7 +25,7 @@ def main():
     ret_code = 0
 
     #### Set Up Arguments
-    parent_parser, pos_arg_keys = ortho_functions.buildParentArgumentParser()
+    parent_parser, pos_arg_keys = ortho_functions.build_parent_argument_parser()
     parser = argparse.ArgumentParser(
         parents=[parent_parser],
         description="Run/submit batch image ortho and conversion tasks"
