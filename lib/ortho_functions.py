@@ -1,5 +1,6 @@
 
 import argparse
+import enum
 import glob
 import logging
 import math
@@ -32,7 +33,6 @@ DGbandList = ['BAND_P', 'BAND_C', 'BAND_B',  # Pan, Visible, NIR, Pansharpened: 
               # 'BAND_A31', 'BAND_A1', 'BAND_A2',  'BAND_W1', 'BAND_W3', 'BAND_NDVI', 'BAND_A32',
               ]
 formats = {'GTiff': '.tif', 'JP2OpenJPEG': '.jp2', 'ENVI': '.envi', 'HFA': '.img', 'JPEG': '.jpg'}
-outtypes = ['Byte', 'UInt16', 'Float32']
 stretches = ["ns", "rf", "mr", "rd", "au"]
 resamples = ["near", "bilinear", "cubic", "cubicspline", "lanczos"]
 gtiff_compressions = ["jpeg95", "lzw"]
@@ -244,6 +244,26 @@ BiasDict = {
     'IK01_BAND_N': -8.869
 }
 
+class OutputType(enum.Enum):
+    BYTE = "Byte"
+    UINT16 = "UInt16"
+    FLOAT32 = "Float32"
+
+# Defines the relationship between the output type and the NoData value that will be assigned to the destination rasters
+NO_DATA_DICT = {
+    OutputType.BYTE: 0,
+    OutputType.UINT16: 65535,
+    OutputType.FLOAT32: -9999.0,
+}
+
+def get_destination_nodata(output_type: str | OutputType) -> int | float:
+    """Determines the destination NoData value for a given output data type.
+
+    Raises a ValueError if the provided value does not match one of the known OutputType variants."""
+    if type(output_type) == str:
+        output_type = OutputType(output_type)
+
+    return NO_DATA_DICT[output_type]
 
 class ImageInfo:
     def __init__(self, srcfp, dstfp, wd, args):
@@ -579,8 +599,8 @@ def buildParentArgumentParser():
     parser.add_argument("-d", "--dem",
                         help="the DEM to use for orthorectification (elevation values should be relative to the wgs84 "
                              "ellipoid")
-    parser.add_argument("-t", "--outtype", choices=outtypes, default="Byte",
-                        help="output data type (default=Byte)")
+    parser.add_argument("-t", "--outtype", choices=[output_type.value for output_type in OutputType], default=OutputType.BYTE.value,
+                        help=f"output data type (default={OutputType.BYTE.value})")
     parser.add_argument("-r", "--resolution", type=float,
                         help="output pixel resolution in units of the projection")
     parser.add_argument("-c", "--stretch", choices=stretches, default="rf",
@@ -1077,6 +1097,8 @@ def calcStats(args, info):
         elif args.outtype == "Float32":
             omax = 1.0
 
+    dst_nodata = get_destination_nodata(args.outtype)
+
     #### Stretch
     if info.stretch != "ns":
         CFlist = get_calibration_factors(info)
@@ -1130,10 +1152,11 @@ def calcStats(args, info):
                                     '   <LUT>{2}</LUT>'
                                     '   <SrcRect xOff="0" yOff="0" xSize="{3}" ySize="{4}"/>'
                                     '   <DstRect xOff="0" yOff="0" xSize="{3}" ySize="{4}"/>'
-                                    '</ComplexSource>)'.format(info.warpfile, band, LUT, xsize, ysize))
+                                    '   <NODATA>{5}</NODATA>'
+                                    '</ComplexSource>)'.format(info.warpfile, band, LUT, xsize, ysize, dst_nodata))
 
                 vds.GetRasterBand(band).SetMetadataItem("source_0", ComplexSourceXML, "vrt_sources")
-                vds.GetRasterBand(band).SetNoDataValue(0)
+                vds.GetRasterBand(band).SetNoDataValue(dst_nodata)
                 if vds.GetRasterBand(band).GetColorInterpretation() == gdalconst.GCI_AlphaBand:
                     vds.GetRasterBand(band).SetColorInterpretation(gdalconst.GCI_Undefined)
         else:
@@ -1677,7 +1700,12 @@ def WarpImage(args, info, gdal_thread_count=1):
                 vds.GetRasterBand(4).SetColorInterpretation(gdalconst.GCI_Undefined)
             vds = None
 
-        nodata_list = ["0"] * info.bands
+        # This sets 0 as the NoData value in all bands in the source image
+        src_nodata_list = ["0"] * info.bands
+
+        # This sets the NoData value in all bands in the destination image based on output data type
+        dst_nodata = get_destination_nodata(args.outtype)
+        dst_nodata_list = [str(dst_nodata)] * info.bands
 
         if not args.skip_warp:
             if rc != 1:
@@ -1698,10 +1726,11 @@ def WarpImage(args, info, gdal_thread_count=1):
                     ds = None
 
                 #### GDALWARP Command
-                cmd = 'gdalwarp {} -srcnodata "{}" -of GTiff -ot Float32 {}{}{}{}-co "TILED=YES" -co "BIGTIFF=YES" ' \
+                cmd = 'gdalwarp {} -srcnodata "{}" -dstnodata "{}" -of GTiff -ot Float32 {}{}{}{}-co "TILED=YES" -co "BIGTIFF=YES" ' \
                       '-t_srs "{}" -r {} -et 0.01 -rpc -to "{}" "{}" "{}"'.format(
                         config_options,
-                        " ".join(nodata_list),
+                        " ".join(src_nodata_list),
+                        " ".join(dst_nodata_list),
                         info.centerlong,
                         info.extent,
                         info.res,
@@ -1719,10 +1748,11 @@ def WarpImage(args, info, gdal_thread_count=1):
 
         else:
             #### GDALWARP Command
-            cmd = 'gdalwarp {} -srcnodata "{}" -of GTiff -ot UInt16 {}{}-co "TILED=YES" -co "BIGTIFF=YES" -t_srs ' \
+            cmd = 'gdalwarp {} -srcnodata "{}" -dstnodata "{}" -of GTiff -ot UInt16 {}{}-co "TILED=YES" -co "BIGTIFF=YES" -t_srs ' \
                   '"{}" -r {} "{}" "{}"'.format(
                     config_options,
-                    " ".join(nodata_list),
+                    " ".join(src_nodata_list),
+                    " ".join(dst_nodata_list),
                     info.res,
                     info.tap,
                     info.spatial_ref.proj4,
