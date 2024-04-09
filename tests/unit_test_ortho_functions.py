@@ -144,7 +144,6 @@ class TestWriteMetadata(unittest.TestCase):
             self.epsg))
         self.mf = f'{os.path.splitext(self.dstfp)[0]}.xml'
 
-
         self.test_lines = [
             f'<BITDEPTH>Byte</BITDEPTH>',
             f'<COMPRESSION>lzw</COMPRESSION>',
@@ -154,6 +153,9 @@ class TestWriteMetadata(unittest.TestCase):
             f'<VERSION>imagery_utils v{VERSION}</VERSION>',
             f'<RESAMPLEMETHOD>near</RESAMPLEMETHOD>'
         ]
+        if not os.path.isdir(self.dstdir):
+            os.makedirs(self.dstdir)
+
     
     #@unittest.skip("skipping")
     def test_write_DG_md_file(self):
