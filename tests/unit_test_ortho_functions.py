@@ -244,6 +244,7 @@ def test_stretch_params(test_obj, file_list, stretch, valid_data_range, test_ban
     # Test stretch factor and offset
     metadata_files = [(os.path.join(test_obj.srcdir, m), r1, r2) for m, r1, r2 in file_list]
     for mdf, is_readable, is_usable in metadata_files:
+        # print(f'{mdf}: {is_readable} {is_usable}')
         metad = None
         calib_dict = {}
         try:
