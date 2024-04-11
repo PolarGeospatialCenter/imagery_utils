@@ -497,21 +497,6 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
             err = 1
             logger.error("Error in stats calculation")
 
-
-    # Check if DEM is None or 'auto'
-    if (args.dem is None or args.dem in ('None', 'auto')) and not args.skip_dem_overlap_check:
-        # Loop over each dem in  the standard_dems_list text file
-        with open('doc/standard_dems_list.txt', 'r') as dems:
-            for path in dems:
-                overlap = overlap_check(info.geometry_wkt, info.spatial_ref, path.strip())
-                if overlap is True:
-                    args.dem = path.strip()
-                    break
-                #if overlap is False:
-                #   #Ocean or Sea Ice: No DEM input (it should default to a mean sea level ortho process that doesn't require a DEM)
-                #   print("Ocean or Sea Ice: No DEM input (it should default to a mean sea level ortho process that doesn't require a DEM)")
-                #   err = 1
-
     #### Check that DEM overlaps image
     if not err == 1:
         if args.dem and not args.skip_dem_overlap_check:
@@ -1803,7 +1788,7 @@ def overlap_check(geometry_wkt, spatial_ref, demPath):
             dem_geometry_wkt = 'POLYGON (( {} {}, {} {}, {} {}, {} {}, {} {} ))'.format(minx, miny, minx, maxy, maxx,
                                                                                         maxy, maxx, miny, minx, miny)
             demGeometry = ogr.CreateGeometryFromWkt(dem_geometry_wkt)
-
+            logger.info("DEM extent: %s", str(demGeometry))
             demSpatialReference = utils.osr_srs_preserve_axis_order(osr.SpatialReference(demProjection))
 
             coordinateTransformer = osr.CoordinateTransformation(imageSpatialReference, demSpatialReference)
@@ -1818,10 +1803,8 @@ def overlap_check(geometry_wkt, spatial_ref, demPath):
             dem = None
             overlap = imageGeometry.Within(demGeometry)
 
-            if overlap is True:
-                logger.info("DEM overlap is True: %s ", os.path.basename(demPath))
-                logger.info("DEM extent: %s", str(demGeometry))
-
+            if overlap is False:
+                logger.error("Image is not contained within DEM extent")
 
         else:
             logger.error("DEM has no spatial reference information: %s", demPath)
