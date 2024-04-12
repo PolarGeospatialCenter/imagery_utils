@@ -17,6 +17,7 @@ from osgeo import gdal, gdalconst, ogr, osr
 
 from lib import taskhandler, utils
 from lib import VERSION
+from lib.utils import Vendor, ImageType, OutputType
 
 gdal.UseExceptions()
 
@@ -53,45 +54,6 @@ srs_wgs84.ImportFromEPSG(4326)
 formatVRT = "VRT"
 VRTdriver = gdal.GetDriverByName(formatVRT)
 ikMsiBands = ['blu', 'grn', 'red', 'nir']
-satList = ['WV01', 'QB02', 'WV02', 'GE01', 'IK01']
-
-PGC_DG_FILE = re.compile(r"""
-                         (?P<pgcpfx>                        # PGC prefix
-                            (?P<sensor>[a-z]{2}\d{2})_      # Sensor code
-                            (?P<tstamp>\d{14})_             # Acquisition time (yyyymmddHHMMSS)
-                            (?P<catid>[a-f0-9]{16})         # Catalog ID
-                         )_
-                         (?P<oname>                         # Original DG name
-                            (?P<ts>\d{2}[a-z]{3}\d{8})-     # Acquisition time (yymmmddHHMMSS)
-                            (?P<prod>[a-z0-9]{4})_?         # DG product code
-                            (?P<tile>R\d+C\d+)?-            # Tile code (mosaics, optional)
-                            (?P<oid>                        # DG Order ID
-                                (?P<onum>\d{12}_\d{2})_     # DG Order number
-                                (?P<pnum>P\d{3})            # Part number
-                            )
-                            )
-                         ?(?P<tail>[a-z0-9_-]+(?=\.))?      # Descriptor (optional)
-                         (?P<ext>\.[a-z0-9][a-z0-9.]*)      # File name extension
-                         """, re.I | re.X)
-
-DG_FILE = re.compile(r"""
-                        (?P<oname>\d{2}[a-z]{3}\d{8}-[a-z0-9_]{4,9}-\d{12}_\d{2}_P\d{3})
-                        """, re.I | re.X)
-
-PGC_IK_FILE = re.compile(r"""
-                         (?P<pgcpfx>                        # PGC prefix
-                            (?P<sensor>[a-z]{2}\d{2})_      # Sensor code
-                            (?P<tstamp>\d{14})_             # Acquisition time (yyyymmddHHMMSS)
-                            (?P<catid>\d{28})               # Catalog ID
-                         )_
-                         (?P<oname>
-                            po_(?P<po>\d{5,7})_             # PO number
-                            (?P<band>[a-z]+(?=_))?_?        # Band description
-                            (?P<cmp>\d{7}(?=[_.]))?         # Component number
-                            (?P<tail>[a-z0-9_-]+(?=\.))?    # Descriptor (optional)
-                         )
-                         (?P<ext>\.[a-z0-9][a-z0-9.]*)      # File name extension
-                         """, re.I | re.X)
 
 EsunDict = {  # Spectral Irradiance in W/m2/um (from Thuillier 2003 - used by DG calibration team as of 2016v2)
     'QB02_BAND_P': 1370.92,
@@ -142,7 +104,6 @@ EsunDict = {  # Spectral Irradiance in W/m2/um (from Thuillier 2003 - used by DG
     'IK01_BAND_R': 1517.76,
     'IK01_BAND_N': 1145.8
 }
-
 
 GainDict = {
     'QB02_BAND_P': 0.870,
@@ -244,10 +205,6 @@ BiasDict = {
     'IK01_BAND_N': -8.869
 }
 
-class OutputType(enum.Enum):
-    BYTE = "Byte"
-    UINT16 = "UInt16"
-    FLOAT32 = "Float32"
 
 # Defines the relationship between the output type and the NoData value that will be assigned to the destination rasters
 NO_DATA_DICT = {
@@ -255,6 +212,32 @@ NO_DATA_DICT = {
     OutputType.UINT16: 65535,
     OutputType.FLOAT32: -9999.0,
 }
+
+IMAGE_TYPE_DICT = {
+    'M': ImageType.MULTI,
+    'P': ImageType.PAN,
+    'S': ImageType.PANSH,
+    'C': ImageType.CAVIS,
+    'A': ImageType.SWIR,
+    'BLU': ImageType.MULTI,
+    'GRN': ImageType.MULTI,
+    'RED': ImageType.MULTI,
+    'NIR': ImageType.MULTI,
+    'BGRN': ImageType.MULTI,
+    'MSI': ImageType.MULTI,
+    'PAN': ImageType.PAN
+}
+
+VISIBLE_IMAGE_TYPES = [
+    ImageType.MULTI,
+    ImageType.PAN,
+    ImageType.PANSH
+]
+
+SWIR_CAVIS_IMAGE_TYPES = [
+    ImageType.SWIR,
+    ImageType.CAVIS
+]
 
 
 class ImageInfo:
@@ -275,16 +258,6 @@ class ImageInfo:
         self.warpfile = os.path.splitext(self.localdst)[0] + "_warp.tif"
         self.vrtfile = os.path.splitext(self.localdst)[0] + "_vrt.vrt"
 
-        ## Get product code, tile, extension, if possible
-        self.prod_code = None
-        self.tile = None
-        p = re.compile("-(?P<prod>\w{4})?(_(?P<tile>\w+))?-\w+?(?P<ext>\.\w+)")
-        m = p.search(self.srcfn)
-        if m:
-            gd = m.groupdict()
-            self.prod_code = gd['prod']
-            self.tile = gd['tile']
-
         ## Verify EPSG. Epsg argument can also be 'utm' or 'auto', handled in get_image_stats
         if type(args.epsg) is int:
             self.epsg = args.epsg
@@ -300,11 +273,11 @@ class ImageInfo:
             self.spatial_ref = None
 
         ## Get vendor info and text-based metadata
-        self.vendor, self.sat = utils.get_sensor(self.srcfn)
+        self.vendor, self.sat, self.prod_code, self.band_name, self.tile, self.regex = utils.get_sensor(self.srcfn)
         if self.vendor is None:
             raise RuntimeError("Vendor not recognized")
 
-        if (self.vendor == 'GeoEye' and self.sat == 'IK01' and "_msi_" in self.srcfn
+        if (self.vendor == Vendor.GE and self.sat == 'IK01' and "_msi_" in self.srcfn
                 and not os.path.isfile(self.localsrc)):
             src_image_name = self.srcfn.replace("_msi_", "_blu_")
             self.src_image = os.path.join(self.srcdir, src_image_name)
@@ -313,20 +286,34 @@ class ImageInfo:
             self.src_image = self.localsrc
             self.bands = None
 
-        # Get image metadata as an Etree dictionary
-        self.metapath = get_metadata_path(self.srcfp, wd)
-        if self.metapath is None:
-            raise RuntimeError(f"Cannot find metadata file")
+        # Get image metadata as an Etree dictionary and set image type
+        self.image_type = None
 
-        if self.vendor == "DigitalGlobe":
-            func = utils.get_dg_metadata_as_xml
-        elif self.vendor == "GeoEye" and self.sat == "GE01":
-            func = utils.get_ge_metadata_as_xml
-        elif self.vendor == "GeoEye" and self.sat == "IK01":
-            func = utils.get_ik_metadata_as_xml
+        if self.vendor == Vendor.DG:
+            _mp = get_dg_metadata_path(self.srcfp, self.regex)
+            if _mp is None:
+                _mp = extract_dg_metadata_file(self.srcfp, self.regex, wd)
+            _func = utils.get_dg_metadata_as_xml
+            self.image_type = IMAGE_TYPE_DICT[self.prod_code[0]]
+
+        elif self.vendor == Vendor.GE and self.sat == "GE01":
+            _mp = get_ge_metadata_path(self.srcfp)
+            _func = utils.get_ge_metadata_as_xml
+            self.image_type = IMAGE_TYPE_DICT[self.band_name]
+
+        elif self.vendor == Vendor.GE and self.sat == "IK01":
+            _mp = get_ik_metadata_path(self.srcfp, self.regex)
+            _func = utils.get_ik_metadata_as_xml
+            self.image_type = IMAGE_TYPE_DICT[self.band_name]
+
         else:
             raise RuntimeError(f"Vendor or sensor not recognized: {self.vendor} {self.sat}")
-        self.metad_etree = func(self.metapath)
+
+        if _mp:
+            self.metapath = _mp
+            self.metad_etree = _func(self.metapath)
+        else:
+            raise RuntimeError(f"Cannot find metadata file")
 
         # Initialize attribs set by get_image_stats
         self.extent = ''
@@ -477,7 +464,6 @@ class ImageInfo:
                     #### Get projected Envelope
                     minx, maxx, miny, maxy = extent_geom.GetEnvelope()
 
-                    # print(lons)
                     logger.info("Centroid: %s", str(centroid))
 
                     if maxlon - minlon > 180:
@@ -600,7 +586,7 @@ def build_parent_argument_parser():
                         help="Use NAD83 datum instead of WGS84 for '--epsg auto/utm' UTM zone projection EPSG codes")
     parser.add_argument("-d", "--dem",
                         help="the DEM to use for orthorectification (elevation values should be relative to the wgs84 "
-                             "ellipoid")
+                             "ellipsoid")
     parser.add_argument("-t", "--outtype", choices=[output_type.value for output_type in OutputType], default=OutputType.BYTE.value,
                         help=f"output data type (default={OutputType.BYTE.value})")
     parser.add_argument("-r", "--resolution", type=float,
@@ -688,32 +674,32 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
             err = 1
 
         ## Verify that output type and stretch options are compatible
-        if args.stretch == 'rd' and args.outtype == 'Byte':
+        if args.stretch == 'rd' and args.outtype == OutputType.BYTE.value:
             logger.error("Output type Byte is not compatible with absolution radiance (rd stretch)")
             err = 1
 
-        if args.stretch == 'ns' and args.outtype == 'Byte':
+        if args.stretch == 'ns' and args.outtype == OutputType.BYTE.value:
             logger.error('Output type Byte is not compatible with no stretch (ns stretch)')
             err = 1
 
-        if args.stretch == 'ns' and args.outtype == 'Float32':
+        if args.stretch == 'ns' and args.outtype == OutputType.FLOAT32.value:
             logger.error('Output type Float32 is not reasonable with no stretch (ns stretch)')
             err = 1
 
-        if args.stretch == 'mr' and args.outtype == 'Float32':
+        if args.stretch == 'mr' and args.outtype == OutputType.FLOAT32.value:
             logger.error('Output type Float32 is not reasonable with modified reflectance (mr stretch)')
             err = 1
 
-        if args.stretch == 'mr' and args.outtype == 'UInt16':
+        if args.stretch == 'mr' and args.outtype == OutputType.UINT16.value:
             logger.error('Output type UInt16 is not reasonable with modified reflectance (mr stretch)')
             err = 1
 
-        if args.gtiff_compression == 'jpeg95' and args.outtype == 'UInt16':
+        if args.gtiff_compression == 'jpeg95' and args.outtype == OutputType.UINT16.value:
             logger.error('Output type UInt16 is not compatible with jpeg compression')
             err = 1
 
         ## Check if image is type and stretch are appropriate
-        if info.prod_code is not None:
+        if info.prod_code:
             if info.prod_code[3] == 'M':
                 logger.error("Cannot process mosaic product")
                 err = 1
@@ -724,20 +710,25 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
                 logger.error("Cannot process 2A tiled Geotiffs")
                 err = 1
 
-            ## Log error if imagery is not optical (e.g. swir/cavis) and --rgb or --bgrn options were used
-            if (args.rgb or args.bgrn) and not info.prod_code.startswith(('P', 'M', 'S')):
-                logger.error(f"--rgb and --bgrn options are not valid for this image product code: {info.prod_code}")
+            ## Log error if imagery is not optical (e.g. swir/cavis) and --bgrn options were used
+
+            if args.bgrn and info.image_type not in VISIBLE_IMAGE_TYPES:
+                logger.error(f"--bgrn option is not valid for this image type: {info.image_type.value}")
                 err = 1
 
+            ## Inform the user that --rgb uses bands 5,4,2 for SWIR and CAVIS
+            if args.rgb and info.image_type in SWIR_CAVIS_IMAGE_TYPES:
+                logger.info(f"--rgb option uses bands 5, 4, and 2 for this image type: {info.image_type.value}")
+
             ## Log error if imagery is not optical (e.g. swir/cavis) and the  "mr" stretch is used
-            if (args.stretch == 'mr') and not info.prod_code.startswith(('P', 'M', 'S')):
+            if (args.stretch == 'mr') and info.image_type in SWIR_CAVIS_IMAGE_TYPES:
                 logger.error(
-                    f"The modified reflectance (mr) stretch is not valid for this image product code: {info.prod_code}")
+                    f"The modified reflectance (mr) stretch is not valid for this image type: {info.image_type.value}")
                 err = 1
 
             ## Until we have spectral response curves from Maxar that give irradiance and any gain and bias corrections,
             # we cannot do any radiometric correction on CAVIS
-            if (args.stretch != 'ns') and info.prod_code.startswith('C'):
+            if (args.stretch != 'ns') and info.image_type == ImageType.CAVIS:
                 logger.error(
                     'Radiometric correction parameters not yet available for CAVIS bands. Use the "ns" stretch.')
                 err = 1
@@ -1060,43 +1051,38 @@ def calc_stats(args, info):
     p = info.spatial_ref.srs
     prj = p.ExportToWkt()
 
-    ## Set input max from product bit depth
-    if info.prod_code is None:
-        imax = 2047  # IKONOS and old-style Geoeye: 11 bit
+    ## Set input max from image type
+    if info.image_type in VISIBLE_IMAGE_TYPES:  # Optical: 11 bit
+        imax = 2047.0
+    elif info.image_type in SWIR_CAVIS_IMAGE_TYPES:  # SWIR and CAVIS: 14 bit
+        imax = 16383.0
     else:
-        if info.prod_code.startswith(('P', 'M', 'S')):  # Optical: 11 bit
-            imax = 2047.0
-        elif info.prod_code.startswith('A'):  # SWIR: 14 bit
-            imax = 16383.0
-        elif info.prod_code.startswith('C'):  # CAVIS: 14 bit
-            imax = 16383.0
-        else:
-            logger.error(f"Product code {info.prod_code} does not match expected pattern")
-            return 1
+        logger.error(f"Image type {info.image_type} not supported")
+        return 1
 
     if info.stretch == 'ns':
-        if args.outtype == "Byte":
+        if args.outtype == OutputType.BYTE.value:
             omax = 255.0
-        elif args.outtype == "UInt16":
+        elif args.outtype == OutputType.UINT16.value:
             omax = imax
-        elif args.outtype == "Float32":
+        elif args.outtype == OutputType.FLOAT32.value:
             omax = imax
     elif info.stretch == 'mr':
-        if args.outtype == "Byte":
+        if args.outtype == OutputType.BYTE.value:
             omax = 255.0
-        elif args.outtype == "UInt16":
+        elif args.outtype == OutputType.UINT16.value:
             omax = imax
-        elif args.outtype == "Float32":
+        elif args.outtype == OutputType.FLOAT32.value:
             omax = 1.0
     elif info.stretch == 'rf':
-        if args.outtype == "Byte":
+        if args.outtype == OutputType.BYTE.value:
             omax = 200.0
-        elif args.outtype == "UInt16":
+        elif args.outtype == OutputType.UINT16.value:
             if imax == 2047.0:  # Optical
                 omax = 2000.0
             elif imax == 16383.0:  # SWIR and CAVIS
                 omax = 16000.0
-        elif args.outtype == "Float32":
+        elif args.outtype == OutputType.FLOAT32.value:
             omax = 1.0
 
     dst_nodata = get_destination_nodata(args.outtype)
@@ -1354,49 +1340,33 @@ def get_image_geometry_info(src_image, spatial_ref, args, return_type='extent_ge
     return extent_geom
 
 
-def get_dg_metadata_path(srcfp):
+def get_dg_metadata_path(srcfp, regex):
     """
     Returns the filepath of the XML, if it can be found. Returns
     None if no valid filepath could be found.
     """
-
-    filename = os.path.basename(srcfp)
-
-    if os.path.isfile(os.path.splitext(srcfp)[0] + '.xml'):
-        metapath = os.path.splitext(srcfp)[0] + '.xml'
-    elif os.path.isfile(os.path.splitext(srcfp)[0] + '.XML'):
-        metapath = os.path.splitext(srcfp)[0] + '.XML'
-    else:
+    filebasename = os.path.splitext(os.path.basename(srcfp))[0]
+    srcdir = os.path.dirname(srcfp)
+    metapath = os.path.join(srcdir, filebasename) + '.xml'
+    if not os.path.isfile(metapath):
+        metapath = os.path.join(srcdir, filebasename) + '.XML'
+    if not os.path.isfile(metapath):
         # Tiled DG images may have a metadata file at the strip level
+        match = re.match(regex, filebasename.lower())
         metapath = None
-        match = re.match(PGC_DG_FILE, filename)
         if match:
-            try:
-                # Build the expected strip-level metadata filepath using
-                # parts of the source image filepath
-                metapath = os.path.dirname(srcfp)
-                metapath = os.path.join(metapath, match.group('pgcpfx'))
-                metapath += "_{}".format(match.group('ts'))
-                metapath += "-{}".format(match.group('prod'))
-                metapath += "-{}".format(match.group('oid'))
+            if match.group('tile'):
+                tile_removed = filebasename[:match.start('tile') - 1] + filebasename[match.end('tile'):]
+                metapath = os.path.join(srcdir, tile_removed) + '.xml'
+                if not os.path.isfile(metapath):
+                    os.path.join(srcdir, tile_removed) + ".XML"
+                if not os.path.isfile(metapath):
+                    metapath = None
 
-                if os.path.isfile(metapath + '.xml'):
-                    metapath += ".xml"
-                elif os.path.isfile(metapath + ".XML"):
-                    metapath += ".XML"
-            # If any of the groups we use to build the metapath aren't there,
-            # a name error will be thrown, which means we won't be able to find
-            # the metapath.
-            except NameError:
-                metapath = None
-
-    if metapath and os.path.isfile(metapath):
-        return metapath
-    else:
-        return None
+    return metapath
 
 
-def get_ik_metadata_path(srcfp):
+def get_ik_metadata_path(srcfp, regex):
     """
     Same as GetDGMetadataPath, but for Ikonos.
     """
@@ -1425,27 +1395,18 @@ def get_ik_metadata_path(srcfp):
                 break
 
     if not os.path.isfile(metapath):
-        source_filename = os.path.basename(srcfp)
-        match = re.match(PGC_IK_FILE, source_filename)
+        filebasename = os.path.splitext(os.path.basename(srcfp))[0]
+        srcdir = os.path.dirname(srcfp)
+        match = re.match(regex, filebasename.lower())
+        metapath = None
         if match:
-            try:
-                # Build the expected strip-level metadata filepath using
-                # parts of the source image filepath
-                metapath = os.path.dirname(srcfp)
-                metapath = os.path.join(metapath, match.group('pgcpfx'))
-                metapath += "_po_{}".format(match.group('po'))
+            if match.group('po'):
+                tile_removed = filebasename[:match.end('po')]
+                metapath = os.path.join(srcdir, tile_removed) + '_metadata.txt'
+                if not os.path.isfile(metapath):
+                    metapath = None
 
-                if os.path.isfile(metapath + '_metadata.txt'):
-                    metapath += "_metadata.txt"
-            # If any of the groups we use to build the metapath aren't there,
-            # a name error will be thrown, which means we won't be able to find
-            # the metapath.
-            except NameError:
-                metapath = None
-    if metapath and os.path.isfile(metapath):
-        return metapath
-    else:
-        return None
+    return metapath
 
 
 def get_ge_metadata_path(srcfp):
@@ -1465,7 +1426,7 @@ def get_ge_metadata_path(srcfp):
         return None
 
 
-def extract_dg_metadata_file(srcfp, wd):
+def extract_dg_metadata_file(srcfp, regex, wd):
     """
     Searches the .tar for a valid XML. If found,
     extracts the metadata file. Returns
@@ -1476,14 +1437,13 @@ def extract_dg_metadata_file(srcfp, wd):
     filename = os.path.basename(srcfp)
     tarpath = os.path.splitext(srcfp)[0] + '.tar'
     if os.path.isfile(tarpath):
-        match = re.search(DG_FILE, filename)
+        match = re.search(regex, filename)
         if match:
             metaname = match.group('oname')
 
             try:
                 tar = tarfile.open(tarpath, 'r')
                 tarlist = tar.getnames()
-                print(tarlist)
                 for t in tarlist:
                     if metaname.lower() in t.lower() and os.path.splitext(t)[1].lower() == ".xml":
                         tf = tar.extractfile(t)
@@ -1503,17 +1463,6 @@ def extract_dg_metadata_file(srcfp, wd):
         return None
 
 
-def get_metadata_path(srcfp, wd):
-    metafile = get_dg_metadata_path(srcfp)
-    if metafile is None:
-        metafile = get_ik_metadata_path(srcfp)
-    if metafile is None:
-        metafile = get_ge_metadata_path(srcfp)
-    if metafile is None:
-        metafile = extract_dg_metadata_file(srcfp, wd)
-    return metafile
-
-
 def write_output_metadata(args, info):
 
     ####  Ortho metadata name
@@ -1522,12 +1471,12 @@ def write_output_metadata(args, info):
     imd = None
 
     #  If DG
-    if info.vendor == 'DigitalGlobe':
+    if info.vendor == Vendor.DG:
         imd = info.metad_etree.find("IMD")
         til = info.metad_etree.find("TIL")
 
     #  If GE
-    elif info.vendor == 'GeoEye' and info.sat == "GE01":
+    elif info.vendor == Vendor.GE and info.sat == "GE01":
         imd = ET.Element("IMD")
         include_tags = ["sensorInfo", "inputImageInfo", "correctionParams", "bandSpecificInformation"]
 
@@ -1550,7 +1499,7 @@ def write_output_metadata(args, info):
             imd.extend(elems)
 
     elif info.sat in ['IK01']:
-        match = PGC_IK_FILE.search(info.srcfn)
+        match = re.search(info.regex, info.srcfn)
         if match:
             component = match.group('cmp')
             imd = ET.Element("IMD")
@@ -1610,7 +1559,7 @@ def write_output_metadata(args, info):
     child = ET.SubElement(ref, "SOURCE_IMAGE")
     child.text = os.path.basename(info.localsrc)
     child = ET.SubElement(ref, "VENDOR")
-    child.text = info.vendor
+    child.text = info.vendor.value
 
     if imd is not None:
         ref.append(imd)
@@ -1664,10 +1613,10 @@ def warp_image(args, info, gdal_thread_count=1):
 
             #### If Image is TIF, extract RPB
             if os.path.splitext(info.localsrc)[1].lower() == ".tif":
-                if info.vendor == "DigitalGlobe":
+                if info.vendor == Vendor.DG:
                     rpb_p = os.path.splitext(info.localsrc)[0] + ".RPB"
 
-                elif info.vendor == "GeoEye" and info.sat == "GE01":
+                elif info.vendor == Vendor.GE and info.sat == "GE01":
                     rpb_p = os.path.splitext(info.localsrc)[0] + "_rpc.txt"
 
                 elif info.sat in ['IK01']:
@@ -1802,14 +1751,14 @@ def get_calibration_factors(info):
     CFlist = []
     bandList = []
 
-    if info.vendor == "DigitalGlobe":
+    if info.vendor == Vendor.DG:
         try:
             calibDict = get_dg_calib_dict(info.metad_etree, info.stretch)
         except utils.InvalidMetadataError as e:
             logger.error(e)
         bandList = DGbandList
 
-    elif info.vendor == "GeoEye" and info.sat == "GE01":
+    elif info.vendor == Vendor.GE and info.sat == "GE01":
         try:
             calibDict = get_ge_calib_dict(info.metad_etree, info.stretch)
         except utils.InvalidMetadataError as e:
@@ -1819,9 +1768,9 @@ def get_calibration_factors(info):
         elif info.bands == 4:
             bandList = range(1, 5, 1)
 
-    elif info.vendor == "GeoEye" and info.sat == "IK01":
+    elif info.vendor == Vendor.GE and info.sat == "IK01":
         try:
-            calibDict = get_ik_calib_dict(info.metad_etree, info.metapath, info.stretch)
+            calibDict = get_ik_calib_dict(info.metad_etree, info.metapath, info.regex, info.stretch)
         except utils.InvalidMetadataError as e:
             logger.error(e)
         if info.bands == 1:
@@ -2060,7 +2009,7 @@ def get_dg_calib_dict(metad_etree, stretch):
     return calibDict
 
 
-def get_ik_calib_dict(metad_etree, metafile, stretch):
+def get_ik_calib_dict(metad_etree, metafile, regex, stretch):
 
     calibDict = {}
     EsunDict = [1930.9, 1854.8, 1556.5, 1156.9, 1375.8]  # B,G,R,N,Pan(TDI13)
@@ -2068,7 +2017,7 @@ def get_ik_calib_dict(metad_etree, metafile, stretch):
     calCoefs1 = [633, 649, 840, 746, 161]  # B,G,R,N,Pan(TDI13) - Pre 2/22/01
     calCoefs2 = [728, 727, 949, 843, 161]  # B,G,R,N,Pan(TDI13) = Post 2/22/01
 
-    metadict = get_ik_metadata(metad_etree, metafile)
+    metadict = get_ik_metadata(metad_etree, metafile, regex)
     for band in range(0, 5, 1):
         sunElStr = metadict["Sun_Angle_Elevation"]
         sunAngle = float(sunElStr.strip(" degrees"))
@@ -2101,7 +2050,7 @@ def get_ik_calib_dict(metad_etree, metafile, stretch):
     return calibDict
 
 
-def get_ik_metadata(metad_etree, metafile):
+def get_ik_metadata(metad_etree, metafile, regex):
     ik2fp = [
         ("File_Format", "OUTPUT_FMT"),
         ("Product_Order_Number", "ORDER_ID"),
@@ -2119,18 +2068,12 @@ def get_ik_metadata(metad_etree, metafile):
     search_keys = dict(ik2fp)
     siid_node = None
 
-    # In renamed mode, we find the Source Image ID (from the file name) and then find
-    # the matching Component ID
-
-    # We use a regex to get the source image ID.
-    # If we can't match the filename to the new style name regex, we assume
-    # that we have old style names, and we can get the source image ID directly from
-    # the filename, as shown below.
-    match = re.search(PGC_IK_FILE, metafile.lower())
+    match = re.search(regex, os.path.basename(metafile.lower()))
     if match:
         siid = match.group('catid')
     else:
-        siid = os.path.basename(metafile.lower())[5:33]
+        raise RuntimeError(f"Could not match IKONOS image name: {metafile}")
+
     siid_nodes = metad_etree.findall(r".//Source_Image_ID")
     if siid_nodes is None:
         raise utils.InvalidMetadataError(f"Could not find any Source Image ID fields in metadata: {metafile}")

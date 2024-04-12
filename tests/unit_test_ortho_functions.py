@@ -1,6 +1,5 @@
 import unittest, os, sys, glob, argparse
 from osgeo import gdal, ogr
-import xml
 import numpy as np
 
 script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
@@ -130,6 +129,47 @@ class TestReadMetadata(unittest.TestCase):
                                 utils.get_ik_metadata_as_xml, ortho_functions.get_ik_calib_dict)
 
 
+def test_stretch_params(test_obj, file_list, stretch, valid_data_range, test_bands, meta_function, calib_function):
+    # Test stretch factor and offset
+    metadata_files = [(os.path.join(test_obj.srcdir, m), r1, r2) for m, r1, r2 in file_list]
+    for mdf, is_readable, is_usable in metadata_files:
+        # print(f'{mdf}: {is_readable} {is_usable}')
+        metad = None
+        calib_dict = {}
+        img_name = os.path.basename(mdf).replace('metadata.txt', 'blu_0000000.ntf')
+        _, _, _, _, _, regex = utils.get_sensor(img_name)
+        try:
+            metad = meta_function(mdf)
+        except utils.InvalidMetadataError as e:
+            pass
+        if metad:
+            try:
+                if calib_function == ortho_functions.get_ik_calib_dict:
+                    calib_dict = calib_function(metad, mdf, regex, stretch)
+                else:
+                    calib_dict = calib_function(metad, stretch)
+            except utils.InvalidMetadataError as e:
+                pass
+        test_obj.assertEqual(bool(metad), is_readable)
+        test_obj.assertEqual(bool(calib_dict), is_usable)
+        if calib_dict:
+            if test_bands:
+                # For DG, exactly one of the listed bands should be present
+                t = [b for b in test_bands if b in calib_dict]
+                test_obj.assertEqual(len(t), 1)
+            # Check band values are not equal
+            all_band_factors = [f for f, b in calib_dict.values()]
+            test_obj.assertEqual(len(all_band_factors), len(set(all_band_factors)))
+            # Check stretch values are within reasonable limits
+            bdr_dict = valid_data_range[stretch]
+            for band, bdr in bdr_dict.items():
+                if band in calib_dict:
+                    test_obj.assertGreaterEqual(calib_dict[band][0], bdr.factor_min)
+                    test_obj.assertLessEqual(calib_dict[band][0], bdr.factor_max)
+                    test_obj.assertGreaterEqual(calib_dict[band][1], bdr.offset_min)
+                    test_obj.assertLessEqual(calib_dict[band][1], bdr.offset_max)
+
+
 class TestWriteMetadata(unittest.TestCase):
 
     def setUp(self):
@@ -172,30 +212,37 @@ class TestWriteMetadata(unittest.TestCase):
     def tearDown(self):
         if os.path.isfile(self.mf):
             os.remove(self.mf)
-        
+
 
 class TestCollectFiles(unittest.TestCase):
-    
+
     def test_gather_metadata_file(self):
-        
+
         rm_files = [
                 '01JAN08QB020800008JAN01102125-P1BS-005590467020_01_P001_________AAE_0AAAAABAABA0.xml'
             ]
         skip_list = [
                 '01JAN08QB020800008JAN01102125-P1BS-005590467020_01_P001_________AAE_0AAAAABAABA0.ntf' # tar has an issue
             ]
-        
+
         for root, dirs, files in os.walk(os.path.join(test_dir, 'ortho')):
             for f in files:
                 if (f.lower().endswith(".ntf") or f.lower().endswith(".tif")) and f not in skip_list:
                     #### Find metadata file
+                    stretch = 'rf'
+                    epsg = 4326
                     srcfp = os.path.join(root, f)
-                    
-                    metafile = ortho_functions.get_metadata_path(srcfp, root)
-                    self.assertIsNotNone(metafile)
-                    
-                    if metafile and os.path.basename(metafile) in rm_files:
-                        os.remove(metafile)
+                    dstdir = os.path.join(test_dir, 'output')
+                    dstfp = os.path.join(dstdir, '{}_u08{}{}.tif'.format(
+                        os.path.splitext(f)[0],
+                        stretch,
+                        epsg))
+                    test_args = ProcessArgs(epsg, stretch)
+                    info = ortho_functions.ImageInfo(srcfp, dstfp, dstdir, test_args)
+                    self.assertIsNotNone(info.metapath)
+
+                    if info.metapath and os.path.basename(info.metapath) in rm_files:
+                        os.remove(info.metapath)
 
 
 class TestDEMOverlap(unittest.TestCase):
@@ -240,45 +287,6 @@ class TestTargetExtent(unittest.TestCase):
         rc = info.get_image_stats(test_args, target_extent_geom)
         self.assertEqual(info.extent,
                      '-te 805772.000000000000 2487233.000000000000 811661.000000000000 2505832.000000000000 ')
-
-
-def test_stretch_params(test_obj, file_list, stretch, valid_data_range, test_bands, meta_function, calib_function):
-    # Test stretch factor and offset
-    metadata_files = [(os.path.join(test_obj.srcdir, m), r1, r2) for m, r1, r2 in file_list]
-    for mdf, is_readable, is_usable in metadata_files:
-        # print(f'{mdf}: {is_readable} {is_usable}')
-        metad = None
-        calib_dict = {}
-        try:
-            metad = meta_function(mdf)
-        except utils.InvalidMetadataError as e:
-            pass
-        if metad:
-            try:
-                if calib_function == ortho_functions.get_ik_calib_dict:
-                    calib_dict = calib_function(metad, mdf, stretch)
-                else:
-                    calib_dict = calib_function(metad, stretch)
-            except utils.InvalidMetadataError as e:
-                pass
-        test_obj.assertEqual(bool(metad), is_readable)
-        test_obj.assertEqual(bool(calib_dict), is_usable)
-        if calib_dict:
-            if test_bands:
-                # For DG, exactly one of the listed bands should be present
-                t = [b for b in test_bands if b in calib_dict]
-                test_obj.assertEqual(len(t), 1)
-            # Check band values are not equal
-            all_band_factors = [f for f, b in calib_dict.values()]
-            test_obj.assertEqual(len(all_band_factors), len(set(all_band_factors)))
-            # Check stretch values are within reasonable limits
-            bdr_dict = valid_data_range[stretch]
-            for band, bdr in bdr_dict.items():
-                if band in calib_dict:
-                    test_obj.assertGreaterEqual(calib_dict[band][0], bdr.factor_min)
-                    test_obj.assertLessEqual(calib_dict[band][0], bdr.factor_max)
-                    test_obj.assertGreaterEqual(calib_dict[band][1], bdr.offset_min)
-                    test_obj.assertLessEqual(calib_dict[band][1], bdr.offset_max)
 
 
 def img_as_array(img_file, band=1):

@@ -80,8 +80,23 @@ class TestOrthoFunc(unittest.TestCase):
             # outtype: Byte
             # gtiff compression: jpeg95
             # dem: Y:/private/elevation/dem/GIMP/GIMPv2/gimpdem_v2_30m.tif
-            r"""python "{}" -r 10 --epsg 3413 --stretch mr --resample cubic --format GTiff --outtype Byte --gtiff-compression jpeg95 --dem {} {}/QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.ntf {}"""
-            .format(self.scriptpath, self.gimpdem, self.srcdir, self.dstdir),
+            r"""python "{}" -r 10 --epsg 3413 --stretch mr --resample cubic --format GTiff --outtype Byte --gtiff-compression jpeg95 --dem {} {}/QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.ntf {}""".format(self.scriptpath, self.gimpdem, self.srcdir, self.dstdir),
+
+            # epsg: 3413
+            # stretch: rf
+            # --rgb with Geoeye image
+            # format: GTiff
+            # outtype: Byte
+            # gtiff compression: jpeg95
+            r"""python "{}" -r 10 --epsg 3413 --stretch mr --rgb --format GTiff --outtype Byte --gtiff-compression jpeg95 {}/GE01_20110108171314_1016023_5V110108M0010160234A222000100252M_000500940.ntf {}""".format(self.scriptpath,  self.srcdir, self.dstdir),
+
+            # epsg: 3413
+            # stretch: rf
+            # --rgb with SWIR image
+            # format: GTiff
+            # outtype: Byte
+            r"""python "{}" -r 10 --epsg 3413 --stretch rf --rgb --format GTiff --outtype Byte --gtiff-compression jpeg95 {}/WV03_20150712212305_104A01000E7C1F00_15JUL12212305-A1BS-500802261010_01_P001.ntf {}""".format(
+                self.scriptpath, self.srcdir, self.dstdir),
            
             # epsg: 3413
             # stretch: rf
