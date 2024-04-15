@@ -47,7 +47,6 @@ except AttributeError:
     import multiprocessing
     ARGDEF_CPUS_AVAIL = multiprocessing.cpu_count()
 
-
 srs_wgs84 = utils.osr_srs_preserve_axis_order(osr.SpatialReference())
 srs_wgs84.ImportFromEPSG(4326)
 
@@ -205,7 +204,6 @@ BiasDict = {
     'IK01_BAND_N': -8.869
 }
 
-
 # Defines the relationship between the output type and the NoData value that will be assigned to the destination rasters
 NO_DATA_DICT = {
     OutputType.BYTE: 0,
@@ -241,22 +239,15 @@ SWIR_CAVIS_IMAGE_TYPES = [
 
 
 class ImageInfo:
-    def __init__(self, srcfp, dstfp, wd, args):
+    def __init__(self, srcfp, dstdir, wd, args):
         self.srcfp = srcfp
         self.srcdir, self.srcfn = os.path.split(srcfp)
-        self.dstfp = dstfp
-        self.dstdir, self.dstfn = os.path.split(dstfp)
-        self.ext = os.path.splitext(self.srcfn)[1].lower()
-
+        self.dstdir = dstdir
+        self.ext = os.path.splitext(self.srcfp)[1].lower()
         if args.wd:
             self.localsrc = os.path.join(wd, self.srcfn)
         else:
             self.localsrc = self.srcfp
-
-        self.localdst = os.path.join(wd, self.dstfn)
-        self.rawvrt = os.path.splitext(self.localdst)[0] + "_raw.vrt"
-        self.warpfile = os.path.splitext(self.localdst)[0] + "_warp.tif"
-        self.vrtfile = os.path.splitext(self.localdst)[0] + "_vrt.vrt"
 
         ## Verify EPSG. Epsg argument can also be 'utm' or 'auto', handled in get_image_stats
         if type(args.epsg) is int:
@@ -318,6 +309,13 @@ class ImageInfo:
         # Initialize attribs set by get_image_stats
         self.extent = ''
         self.extent_geom = None
+        self.image_geom = None
+        self.minlat = None
+        self.minlon = None
+        self.maxlat = None
+        self.maxlon = None
+        self.cent_lat = None
+        self.cent_lon = None
         self.centerlong = ''
         self.geometry_wkt = None
         self.res = ''
@@ -325,155 +323,154 @@ class ImageInfo:
         self.rgb_bands = ''
         self.stretch = args.stretch  # this is updated in get_image_stats if == "au"
 
-    def get_image_stats(self, args, target_extent_geom=None):
-        rc = 0
-        try:
-            ds = gdal.Open(self.src_image, gdalconst.GA_ReadOnly)
-        except RuntimeError:
-            logger.error("Cannot open dataset: %s", self.src_image)
-            rc = 1
+        # If items needed for the output name are not set, we have to open the image
+        if self.stretch == 'au' or self.epsg is None:
+            _err = self.get_image_stats(args)
+            if _err != 0:
+                raise RuntimeError(f"Error in stats calculation")
+
+        self.dstfn = "{}_{}{}{}{}".format(
+            os.path.splitext(self.srcfn)[0],
+            utils.get_bit_depth(args.outtype),
+            self.stretch,
+            self.epsg,
+            formats[args.format]
+        )
+        self.dstfp = os.path.join(self.dstdir, self.dstfn)
+        if args.wd is not None:
+            wd = args.wd
         else:
-            if self.bands is None:
-                self.bands = ds.RasterCount
+            wd = self.dstdir
+        self.localdst = os.path.join(wd, self.dstfn)
+        self.rawvrt = os.path.splitext(self.localdst)[0] + "_raw.vrt"
+        self.warpfile = os.path.splitext(self.localdst)[0] + "_warp.tif"
+        self.vrtfile = os.path.splitext(self.localdst)[0] + "_vrt.vrt"
 
-            ##  Get extent from GCPs
-            num_gcps = ds.GetGCPCount()
-            if num_gcps == 4:
-                gcps = ds.GetGCPs()
-                proj = ds.GetGCPProjection()
-                gcp_dict = {}
-                id_dict = {"UpperLeft": 1,
-                           "1": 1,
-                           "UpperRight": 2,
-                           "2": 2,
-                           "LowerLeft": 4,
-                           "4": 4,
-                           "LowerRight": 3,
-                           "3": 3}
-
-                for gcp in gcps:
-                    gcp_dict[id_dict[gcp.Id]] = [float(gcp.GCPPixel), float(gcp.GCPLine), float(gcp.GCPX),
-                                                 float(gcp.GCPY), float(gcp.GCPZ)]
-                ulx = gcp_dict[1][2]
-                uly = gcp_dict[1][3]
-                urx = gcp_dict[2][2]
-                ury = gcp_dict[2][3]
-                llx = gcp_dict[4][2]
-                lly = gcp_dict[4][3]
-                lrx = gcp_dict[3][2]
-                lry = gcp_dict[3][3]
-                xsize = gcp_dict[1][0] - gcp_dict[2][0]
-                ysize = gcp_dict[1][1] - gcp_dict[4][1]
-
-            else:
-                xsize = ds.RasterXSize
-                ysize = ds.RasterYSize
-                proj = ds.GetProjectionRef()
-                gtf = ds.GetGeoTransform()
-                ulx = gtf[0] + 0 * gtf[1] + 0 * gtf[2]
-                uly = gtf[3] + 0 * gtf[4] + 0 * gtf[5]
-                urx = gtf[0] + xsize * gtf[1] + 0 * gtf[2]
-                ury = gtf[3] + xsize * gtf[4] + 0 * gtf[5]
-                llx = gtf[0] + 0 * gtf[1] + ysize * gtf[2]
-                lly = gtf[3] + 0 * gtf[4] + ysize * gtf[5]
-                lrx = gtf[0] + xsize * gtf[1] + ysize * gtf[2]
-                lry = gtf[3] + xsize * gtf[4] + ysize * gtf[5]
-            ds = None
-
-            ####  Create geometry objects
-            ul = "POINT ( {0:.12f} {1:.12f} )".format(ulx, uly)
-            ur = "POINT ( {0:.12f} {1:.12f} )".format(urx, ury)
-            ll = "POINT ( {0:.12f} {1:.12f} )".format(llx, lly)
-            lr = "POINT ( {0:.12f} {1:.12f} )".format(lrx, lry)
-            poly_wkt = 'POLYGON (( {0:.12f} {1:.12f}, {2:.12f} {3:.12f}, ' \
-                       '{4:.12f} {5:.12f}, {6:.12f} {7:.12f}, ' \
-                       '{8:.12f} {9:.12f} ))'.format(ulx, uly, urx, ury, lrx, lry, llx, lly, ulx, uly)
-
-            ul_geom = ogr.CreateGeometryFromWkt(ul)
-            ur_geom = ogr.CreateGeometryFromWkt(ur)
-            ll_geom = ogr.CreateGeometryFromWkt(ll)
-            lr_geom = ogr.CreateGeometryFromWkt(lr)
-            extent_geom = ogr.CreateGeometryFromWkt(poly_wkt)
-            g_srs = srs_wgs84
-
-            #### Create source srs objects
-            s_srs = utils.osr_srs_preserve_axis_order(osr.SpatialReference(proj))
+    def get_image_stats(self, args):
+        rc = 0
+        # If image_geom is already set, this method was already run, skip running it again
+        if not self.image_geom:
             try:
-                sg_ct = osr.CoordinateTransformation(s_srs, g_srs)
-            except RuntimeError as e:
-                logger.error(f"Source image coordinate system error: {self.src_image} - {e}")
+                ds = gdal.Open(self.src_image, gdalconst.GA_ReadOnly)
+            except RuntimeError:
+                logger.error("Cannot open dataset: %s", self.src_image)
                 rc = 1
             else:
-                #### Transform geometries to geographic
-                if not s_srs.IsSame(g_srs):
-                    ul_geom.Transform(sg_ct)
-                    ur_geom.Transform(sg_ct)
-                    ll_geom.Transform(sg_ct)
-                    lr_geom.Transform(sg_ct)
-                    extent_geom.Transform(sg_ct)
-                logger.info("Geographic extent: %s", str(extent_geom))
+                if self.bands is None:
+                    self.bands = ds.RasterCount
 
-                #### Get geographic Envelope
-                minlon, maxlon, minlat, maxlat = extent_geom.GetEnvelope()
+                ##  Get extent from GCPs
+                num_gcps = ds.GetGCPCount()
+                if num_gcps == 4:
+                    gcps = ds.GetGCPs()
+                    proj = ds.GetGCPProjection()
+                    gcp_dict = {}
+                    id_dict = {"UpperLeft": 1,
+                               "1": 1,
+                               "UpperRight": 2,
+                               "2": 2,
+                               "LowerLeft": 4,
+                               "4": 4,
+                               "LowerRight": 3,
+                               "3": 3}
 
-                ## Determine output image projection if applicable
-                if type(args.epsg) is str:
-                    cent_lat = (minlat + maxlat) / 2
-                    cent_lon = (minlon + maxlon) / 2
-                    self.epsg = get_epsg_from_lat_lon(cent_lat, cent_lon, mode=args.epsg, utm_nad83=args.epsg_utm_nad83)
-                    logger.info("Automatically selected output projection EPSG code: %d", self.epsg)
-                    try:
-                        spatial_ref = utils.SpatialRef(self.epsg)
-                    except RuntimeError:
-                        logger.error(utils.capture_error_trace())
-                        logger.error("Invalid EPSG code: %i", self.epsg)
-                        rc = 1
-                    else:
-                        self.spatial_ref = spatial_ref
+                    for gcp in gcps:
+                        gcp_dict[id_dict[gcp.Id]] = [float(gcp.GCPPixel), float(gcp.GCPLine), float(gcp.GCPX),
+                                                     float(gcp.GCPY), float(gcp.GCPZ)]
+                    ulx = gcp_dict[1][2]
+                    uly = gcp_dict[1][3]
+                    urx = gcp_dict[2][2]
+                    ury = gcp_dict[2][3]
+                    llx = gcp_dict[4][2]
+                    lly = gcp_dict[4][3]
+                    lrx = gcp_dict[3][2]
+                    lry = gcp_dict[3][3]
+                    xsize = gcp_dict[1][0] - gcp_dict[2][0]
+                    ysize = gcp_dict[1][1] - gcp_dict[4][1]
 
-                #### Create target srs objects
-                t_srs = self.spatial_ref.srs
-                gt_ct = osr.CoordinateTransformation(g_srs, t_srs)
-                tg_ct = osr.CoordinateTransformation(t_srs, g_srs)
+                else:
+                    xsize = ds.RasterXSize
+                    ysize = ds.RasterYSize
+                    proj = ds.GetProjectionRef()
+                    gtf = ds.GetGeoTransform()
+                    ulx = gtf[0] + 0 * gtf[1] + 0 * gtf[2]
+                    uly = gtf[3] + 0 * gtf[4] + 0 * gtf[5]
+                    urx = gtf[0] + xsize * gtf[1] + 0 * gtf[2]
+                    ury = gtf[3] + xsize * gtf[4] + 0 * gtf[5]
+                    llx = gtf[0] + 0 * gtf[1] + ysize * gtf[2]
+                    lly = gtf[3] + 0 * gtf[4] + ysize * gtf[5]
+                    lrx = gtf[0] + xsize * gtf[1] + ysize * gtf[2]
+                    lry = gtf[3] + xsize * gtf[4] + ysize * gtf[5]
+                ds = None
 
-                #### Transform geoms to target srs
-                if not g_srs.IsSame(t_srs):
-                    ul_geom.Transform(gt_ct)
-                    ur_geom.Transform(gt_ct)
-                    ll_geom.Transform(gt_ct)
-                    lr_geom.Transform(gt_ct)
-                    extent_geom.Transform(gt_ct)
-                logger.info("Projected extent: %s", str(extent_geom))
+                ####  Create geometry objects
+                ul_geom = ogr.Geometry(ogr.wkbPoint)
+                ul_geom.AddPoint(ulx, uly)
+                ur_geom = ogr.Geometry(ogr.wkbPoint)
+                ur_geom.AddPoint(urx, ury)
+                lr_geom = ogr.Geometry(ogr.wkbPoint)
+                lr_geom.AddPoint(lrx, lry)
+                ll_geom = ogr.Geometry(ogr.wkbPoint)
+                ll_geom.AddPoint(llx, lly)
 
-                ## test user provided extent and ues if appropriate
-                if target_extent_geom:
-                    if not extent_geom.Intersects(target_extent_geom):
-                        rc = 1
-                    else:
-                        logger.info("Using user-provided extent: %s", str(target_extent_geom))
-                        extent_geom = target_extent_geom
+                ring = ogr.Geometry(ogr.wkbLinearRing)
+                ring.AddPoint(ulx, uly)
+                ring.AddPoint(urx, ury)
+                ring.AddPoint(lrx, lry)
+                ring.AddPoint(llx, lly)
+                ring.AddPoint(ulx, uly)
+                image_geom = ogr.Geometry(ogr.wkbPolygon)
+                image_geom.AddGeometry(ring)
+                g_srs = srs_wgs84
 
-                if rc != 1:
-                    self.extent_geom = extent_geom
-                    self.geometry_wkt = extent_geom.ExportToWkt()
-                    ## Get centroid and back project to geographic coords
-                    # (this is neccesary for images that cross 180)
-                    centroid = extent_geom.Centroid()
-                    centroid.Transform(tg_ct)
+                #### Create source srs objects
+                s_srs = utils.osr_srs_preserve_axis_order(osr.SpatialReference(proj))
+                try:
+                    sg_ct = osr.CoordinateTransformation(s_srs, g_srs)
+                except RuntimeError as e:
+                    logger.error(f"Source image coordinate system error: {self.src_image} - {e}")
+                    rc = 1
+                else:
+                    #### Transform geometries to geographic
+                    if not s_srs.IsSame(g_srs):
+                        ul_geom.Transform(sg_ct)
+                        ur_geom.Transform(sg_ct)
+                        ll_geom.Transform(sg_ct)
+                        lr_geom.Transform(sg_ct)
+                        image_geom.Transform(sg_ct)
+                    logger.info("Geographic extent: %s", str(image_geom))
 
-                    #### Get projected Envelope
-                    minx, maxx, miny, maxy = extent_geom.GetEnvelope()
+                    #### Get geographic Envelope
+                    self.minlon, self.maxlon, self.minlat, self.maxlat = image_geom.GetEnvelope()
 
-                    logger.info("Centroid: %s", str(centroid))
-
-                    if maxlon - minlon > 180:
-
-                        if centroid.GetX() < 0:
-                            self.centerlong = '--config CENTER_LONG -180 '
+                    ## Determine output image projection if applicable
+                    if type(args.epsg) is str:
+                        self.cent_lat = (self.minlat + self.maxlat) / 2
+                        self.cent_lon = (self.minlon + self.maxlon) / 2
+                        self.epsg = get_epsg_from_lat_lon(self.cent_lat, self.cent_lon, mode=args.epsg, utm_nad83=args.epsg_utm_nad83)
+                        logger.info("Automatically selected output projection EPSG code: %d", self.epsg)
+                        try:
+                            spatial_ref = utils.SpatialRef(self.epsg)
+                        except RuntimeError:
+                            logger.error(utils.capture_error_trace())
+                            logger.error("Invalid EPSG code: %i", self.epsg)
+                            rc = 1
                         else:
-                            self.centerlong = '--config CENTER_LONG 180 '
+                            self.spatial_ref = spatial_ref
 
-                    self.extent = "-te {0:.12f} {1:.12f} {2:.12f} {3:.12f} ".format(minx, miny, maxx, maxy)
+                    #### Create target srs objects
+                    t_srs = self.spatial_ref.srs
+                    gt_ct = osr.CoordinateTransformation(g_srs, t_srs)
+
+                    #### Transform geoms to target srs
+                    if not g_srs.IsSame(t_srs):
+                        ul_geom.Transform(gt_ct)
+                        ur_geom.Transform(gt_ct)
+                        ll_geom.Transform(gt_ct)
+                        lr_geom.Transform(gt_ct)
+                        image_geom.Transform(gt_ct)
+                    logger.info("Projected extent: %s", str(image_geom))
+                    self.image_geom = image_geom
 
                     rasterxsize_m = abs(
                         math.sqrt((ul_geom.GetX() - ur_geom.GetX()) ** 2 + (ul_geom.GetY() - ur_geom.GetY()) ** 2))
@@ -502,11 +499,9 @@ class ImageInfo:
                     if args.rgb is True:
                         if self.bands == 1:
                             pass
-                        elif self.bands == 3:
+                        elif self.bands in (3, 4):
                             self.rgb_bands = "-b 3 -b 2 -b 1 "
-                        elif self.bands == 4:
-                            self.rgb_bands = "-b 3 -b 2 -b 1 "
-                        elif self.bands == 8:
+                        elif self.bands in (6, 8):
                             self.rgb_bands = "-b 5 -b 3 -b 2 "
                         else:
                             logger.error("Cannot get rgb bands from a %i band image", self.bands)
@@ -524,15 +519,55 @@ class ImageInfo:
                             rc = 1
 
                     if self.stretch == 'au':
-                        if self.vendor == 'DigitalGlobe' and not self.prod_code.startswith(
-                                ('P', 'M', 'S')):  # CAVIS and SWIR should never use the mr stretch
+                        # SWIR should never use the mr stretch
+                        if self.vendor == Vendor.DG and self.image_type == ImageType.SWIR:
                             self.stretch = 'rf'
-                        elif ((maxlat + minlat) / 2) <= -60:
+                        # CAVIS can't yet be radiometrically corrected
+                        elif self.vendor == Vendor.DG and self.image_type == ImageType.CAVIS:
+                            self.stretch = 'ns'
+                        # Antarctic visible imagery should be rf
+                        elif ((self.maxlat + self.minlat) / 2) <= -60:
                             self.stretch = 'rf'
+                        # Non-antarctic visible imagery should be mr
                         else:
                             self.stretch = 'mr'
                         logger.info("Automatically selected stretch: %s", self.stretch)
 
+        return rc
+
+    def set_extent_geom(self, target_extent_geom=None):
+        rc = 0
+        if target_extent_geom:
+            if not self.image_geom.Intersects(target_extent_geom):
+                logger.error("User-provided extent does not overlap image")
+                rc = 1
+            else:
+                logger.info("Using user-provided extent: %s", str(target_extent_geom))
+                self.extent_geom = target_extent_geom
+        else:
+            self.extent_geom = self.image_geom.Clone()
+
+        if rc != 1:
+            self.geometry_wkt = self.extent_geom.ExportToWkt()
+            ## Get centroid and back project to geographic coords
+            # (this is neccesary for images that cross 180)
+            centroid = self.extent_geom.Centroid()
+            tg_ct = osr.CoordinateTransformation(self.spatial_ref.srs, srs_wgs84)
+            centroid.Transform(tg_ct)
+
+            #### Get projected Envelope
+
+            logger.info("Centroid: %s", str(centroid))
+
+            if self.maxlon - self.minlon > 180:
+
+                if centroid.GetX() < 0:
+                    self.centerlong = '--config CENTER_LONG -180 '
+                else:
+                    self.centerlong = '--config CENTER_LONG 180 '
+
+            minx, maxx, miny, maxy = self.extent_geom.GetEnvelope()
+            self.extent = "-te {0:.12f} {1:.12f} {2:.12f} {3:.12f} ".format(minx, miny, maxx, maxy)
         return rc
 
 
@@ -654,7 +689,7 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
 
     ##  Initialize ImageInfo object with filename-based and argument-based attributes
     try:
-        info = ImageInfo(srcfp, dstfp, wd, args)
+        info = ImageInfo(srcfp, os.path.dirname(dstfp), wd, args)
     except Exception as e:
         logger.error(e)
         err = 1
@@ -776,8 +811,10 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
 
         ## Open raster to get further processing info
         if not err == 1:
-
-            rc = info.get_image_stats(args, target_extent_geom)
+            rc = info.get_image_stats(args)
+            if rc != 1:
+                # Set target_extent variables, including user-supplied extent if applicable
+                rc = info.set_extent_geom(target_extent_geom)
             if rc == 1:
                 err = 1
                 logger.error("Error in stats calculation")
@@ -1464,7 +1501,6 @@ def extract_dg_metadata_file(srcfp, regex, wd):
 
 
 def write_output_metadata(args, info):
-
     ####  Ortho metadata name
     omd = os.path.splitext(info.localdst)[0] + ".xml"
     til = None
@@ -1525,31 +1561,33 @@ def write_output_metadata(args, info):
             imd.append(elem)
 
     ####  Determine custom MD
-    dMD = {}
-    dMD["VERSION"] = "imagery_utils v{}".format(VERSION)
     tm = datetime.today()
-    dMD["PROCESS_DATE"] = tm.strftime("%d-%b-%Y %H:%M:%S")
+    dem_val = None
     if not args.skip_warp:
         if args.dem:
-            dMD["ORTHO_DEM"] = os.path.basename(args.dem)
+            dem_val = os.path.basename(args.dem)
         elif args.ortho_height is not None:
-            dMD["ORTHO_HEIGHT"] = str(args.ortho_height)
+            dem_val = str(args.ortho_height)
         else:
-            h = get_rpc_height(info)
-            dMD["ORTHO_HEIGHT"] = str(h)
-    dMD["RESAMPLEMETHOD"] = args.resample
-    dMD["STRETCH"] = info.stretch
-    dMD["BITDEPTH"] = args.outtype
-    dMD["FORMAT"] = args.format
-    dMD["COMPRESSION"] = args.gtiff_compression
-    #dMD["BANDNUMBER"]
-    #dMD["BANDMAP"]
-    dMD["EPSG_CODE"] = str(info.epsg)
+            dem_val = str(get_rpc_height(info))
+
+    dMD = {
+        "VERSION": "imagery_utils v{}".format(VERSION),
+        "PROCESS_DATE": tm.strftime("%d-%b-%Y %H:%M:%S"),
+        "ORTHO_HEIGHT": dem_val,
+        "RESAMPLEMETHOD": args.resample,
+        "STRETCH": info.stretch,
+        "BITDEPTH": args.outtype,
+        "FORMAT": args.format,
+        "COMPRESSION": args.gtiff_compression,
+        "EPSG_CODE": str(info.epsg)
+    }
 
     pgcmd = ET.Element("PGC_IMD")
     for tag in dMD:
-        child = ET.SubElement(pgcmd, tag)
-        child.text = dMD[tag]
+        if dMD[tag]:
+            child = ET.SubElement(pgcmd, tag)
+            child.text = dMD[tag]
 
     ####  Write output
     root = ET.Element("IMD")

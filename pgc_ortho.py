@@ -301,32 +301,23 @@ def main():
                                            argname_2D_list=csv_header_argname_list):
         srcfp = task_args.src
         dstdir = task_args.dst
+        try:
+            info = ortho_functions.ImageInfo(srcfp, dstdir, args.wd, args)
+        except Exception as e:
+            logger.error(e)
+        else:
+            task_args.epsg = info.epsg
+            dstfp = info.dstfp
+            vrtfile1 = os.path.splitext(dstfp)[0] + "_raw.vrt"
+            vrtfile2 = os.path.splitext(dstfp)[0] + "_vrt.vrt"
 
-        if type(task_args.epsg) is str:
-            task_args.epsg = ortho_functions.get_image_geometry_info(srcfp, spatial_ref, args,
-                                                                     return_type='epsg_code')
-        ## If image cannot be opened, skip it
-        if task_args.epsg is None:
-            continue
-        srcdir, srcfn = os.path.split(srcfp)
-        dst_basename = os.path.join(dstdir, "{}_{}{}{}".format(
-            os.path.splitext(srcfn)[0],
-            utils.get_bit_depth(task_args.outtype),
-            task_args.stretch,
-            task_args.epsg,
-        ))
-
-        dstfp = dst_basename + ortho_functions.formats[task_args.format]
-        vrtfile1 = dst_basename + "_raw.vrt"
-        vrtfile2 = dst_basename + "_vrt.vrt"
-
-        # Check to see if raw.vrt or vrt.vrt are present
-        vrt_exists = os.path.isfile(vrtfile1) or os.path.isfile(vrtfile2)
-        tif_done = os.path.isfile(dstfp)
-        # If no tif file present, need to make one
-        # If tif file is present but one of the vrt files is present, need to rebuild
-        if (not tif_done) or vrt_exists:
-            images_to_process.append(srcfp)
+            # Check to see if raw.vrt or vrt.vrt are present
+            vrt_exists = os.path.isfile(vrtfile1) or os.path.isfile(vrtfile2)
+            tif_done = os.path.isfile(dstfp)
+            # If no tif file present, need to make one
+            # If tif file is present but one of the vrt files is present, need to rebuild
+            if (not tif_done) or vrt_exists:
+                images_to_process.append(srcfp)
 
     logger.info("Number of incomplete tasks: %i", len(images_to_process))
     if len(images_to_process) == 0:
@@ -365,18 +356,13 @@ def main():
 
         if task_srcfp_list is images_to_process:
             if type(task_args.epsg) is str:
-                task_args.epsg = ortho_functions.get_image_geometry_info(srcfp, spatial_ref, args,
-                                                                         return_type='epsg_code')
-            ## If image cannot be opened, skip it
-            if task_args.epsg is None:
-                continue
-            dstfp = os.path.join(dstdir, "{}_{}{}{}{}".format(
-                os.path.splitext(srcfn)[0],
-                utils.get_bit_depth(task_args.outtype),
-                task_args.stretch,
-                task_args.epsg,
-                ortho_functions.formats[task_args.format]
-            ))
+                try:
+                    info = ortho_functions.ImageInfo(srcfp, dstdir, args.wd, args)
+                except Exception as e:
+                    logger.error(e)
+                else:
+                    task_args.epsg = info.epsg
+                    dstfp = info.dstfp
         else:
             dstfp = None
 

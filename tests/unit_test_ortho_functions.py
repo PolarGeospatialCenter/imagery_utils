@@ -196,11 +196,9 @@ class TestWriteMetadata(unittest.TestCase):
         if not os.path.isdir(self.dstdir):
             os.makedirs(self.dstdir)
 
-    
-    #@unittest.skip("skipping")
     def test_write_DG_md_file(self):
         test_args = ProcessArgs(self.epsg, self.stretch)
-        info = ortho_functions.ImageInfo(self.srcfp, self.dstfp, self.dstdir, test_args)
+        info = ortho_functions.ImageInfo(self.srcfp, self.dstdir, self.dstdir, test_args)
         rc = ortho_functions.write_output_metadata(test_args, info)
         ## read meta and check content
         f = open(self.mf)
@@ -277,16 +275,29 @@ class TestTargetExtent(unittest.TestCase):
         fn = 'GE01_20110307105821_1050410001518E00_11MAR07105821-M1BS-500657359080_01_P008.ntf'
         srcfp = os.path.join(test_dir, 'ortho', fn)
         dstdir = os.path.join(test_dir, 'output')
-        dstfp = os.path.join(dstdir, '{}_u08{}{}.tif'.format(
-            os.path.splitext(fn)[0],
-            stretch,
-            epsg))
         target_extent_geom = ogr.CreateGeometryFromWkt(wkt)
         test_args = ProcessArgs(epsg, stretch)
-        info = ortho_functions.ImageInfo(srcfp, dstfp, dstdir, test_args)
-        rc = info.get_image_stats(test_args, target_extent_geom)
+        info = ortho_functions.ImageInfo(srcfp, dstdir, dstdir, test_args)
+        rc = info.get_image_stats(test_args)
+        rc = info.set_extent_geom(target_extent_geom)
         self.assertEqual(info.extent,
                      '-te 805772.000000000000 2487233.000000000000 811661.000000000000 2505832.000000000000 ')
+
+
+class TestAutoStretchAndEpsg(unittest.TestCase):
+
+    def test_auto_stretch_and_epsg(self):
+        in_epsg = 'auto'
+        out_epsg = 32630
+        in_stretch = 'au'
+        out_stretch = 'mr'
+        fn = 'GE01_20110307105821_1050410001518E00_11MAR07105821-M1BS-500657359080_01_P008.ntf'
+        srcfp = os.path.join(test_dir, 'ortho', fn)
+        dstdir = os.path.join(test_dir, 'output')
+        test_args = ProcessArgs(in_epsg, in_stretch)
+        info = ortho_functions.ImageInfo(srcfp, dstdir, dstdir, test_args)
+        self.assertEqual(info.stretch, out_stretch)
+        self.assertEqual(info.epsg, out_epsg)
 
 
 def img_as_array(img_file, band=1):
@@ -427,11 +438,7 @@ class TestRPCHeight(unittest.TestCase):
     def test_rpc_height(self):
         for srcfn, test_h in self.srcfns:
             srcfp = os.path.join(self.srcdir, srcfn)
-            dstfp = os.path.join(self.dstdir, '{}_u08{}{}.tif'.format(
-                os.path.splitext(srcfn)[0],
-                self.stretch,
-                self.epsg))
-            info = ortho_functions.ImageInfo(srcfp, dstfp, self.dstdir, self.test_args)
+            info = ortho_functions.ImageInfo(srcfp, self.dstdir, self.dstdir, self.test_args)
             h = ortho_functions.get_rpc_height(info)
             self.assertEqual(h, test_h)
 
@@ -452,6 +459,7 @@ class ProcessArgs(object):
         self.stretch = stretch
         self.tap = False
         self.wd = None
+        self.epsg_utm_nad83 = False
 
 
 if __name__ == '__main__':
@@ -481,6 +489,7 @@ if __name__ == '__main__':
         TestCollectFiles,
         # TestDEMOverlap,  # TODO: Test DEM is corrupt. Replace it.
         TestTargetExtent,
+        TestAutoStretchAndEpsg,
         # TestOutputDataValues,  # TODO: output_static folder missing from test data
         TestRPCHeight,
         TestCalcEarthSunDist,
