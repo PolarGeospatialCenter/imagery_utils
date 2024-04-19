@@ -716,7 +716,7 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
             logger.error("Output type Byte is not compatible with absolution radiance (rd stretch)")
             err = 1
 
-        if args.stretch == 'ns' and args.outtype == OutputType.BYTE.value:
+        if args.stretch == 'ns' and args.outtype == OutputType.BYTE.value and info.image_type != ImageType.CAVIS:
             logger.error('Output type Byte is not compatible with no stretch (ns stretch)')
             err = 1
 

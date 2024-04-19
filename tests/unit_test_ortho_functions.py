@@ -287,17 +287,25 @@ class TestTargetExtent(unittest.TestCase):
 class TestAutoStretchAndEpsg(unittest.TestCase):
 
     def test_auto_stretch_and_epsg(self):
-        in_epsg = 'auto'
-        out_epsg = 32630
-        in_stretch = 'au'
-        out_stretch = 'mr'
-        fn = 'GE01_20110307105821_1050410001518E00_11MAR07105821-M1BS-500657359080_01_P008.ntf'
-        srcfp = os.path.join(test_dir, 'ortho', fn)
-        dstdir = os.path.join(test_dir, 'output')
-        test_args = ProcessArgs(in_epsg, in_stretch)
-        info = ortho_functions.ImageInfo(srcfp, dstdir, dstdir, test_args)
-        self.assertEqual(info.stretch, out_stretch)
-        self.assertEqual(info.epsg, out_epsg)
+        test_files = (
+            # file name, expected stretch, expected epsg
+            ('WV03_20190114103353_104C0100462B2500_19JAN14103353-C1BA-502817502010_01_P001.ntf', 'ns', 3031),  # CAVIS
+            ('WV03_20190114103355_104C0100462B2500_19JAN14103355-C1BB-502817502010_01_P001.ntf', 'ns', 3031),  # CAVIS
+            ('WV03_20150526221639_104A01000C51A100_15MAY26221639-A1BS-500802200030_01_P001.ntf', 'rf', 3413),  # SWIR
+            ('GE01_20110307105821_1050410001518E00_11MAR07105821-M1BS-500657359080_01_P008.ntf', 'mr', 32630),  # Nonpolar
+            ('WV03_20140919212947_104001000227BF00_14SEP19212947-M1BS-500191821040_01_P002.ntf', 'mr', 3413),  # Arctic
+            ('WV03_20181226170822_10400100468EFA00_18DEC26170822-M1BS-502826003080_01_P009.ntf', 'rf', 3031),  # Antarctic
+        )
+
+        for fn, out_stretch, out_epsg in test_files:
+            in_epsg = 'auto'
+            in_stretch = 'au'
+            srcfp = os.path.join(test_dir, 'ortho', fn)
+            dstdir = os.path.join(test_dir, 'output')
+            test_args = ProcessArgs(in_epsg, in_stretch)
+            info = ortho_functions.ImageInfo(srcfp, dstdir, dstdir, test_args)
+            self.assertEqual(info.stretch, out_stretch)
+            self.assertEqual(info.epsg, out_epsg)
 
 
 def img_as_array(img_file, band=1):
