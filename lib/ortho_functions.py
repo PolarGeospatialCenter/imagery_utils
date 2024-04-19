@@ -249,19 +249,22 @@ class ImageInfo:
         else:
             self.localsrc = self.srcfp
 
-        ## Verify EPSG. Epsg argument can also be 'utm' or 'auto', handled in get_image_stats
-        if type(args.epsg) is int:
-            self.epsg = args.epsg
-            try:
-                spatial_ref = utils.SpatialRef(self.epsg)
-            except RuntimeError:
-                raise RuntimeError("Invalid EPSG code: %i", self.epsg)
-            else:
-                self.spatial_ref = spatial_ref
+        # Verify EPSG. Epsg argument can be an integer, an integer as a string,
+        # or 'utm' or 'auto'. The latter is handled in get_image_stats
+        self.epsg = None
+        self.spatial_ref = None
+        try:
+            epsg_code = int(args.epsg)
+        except ValueError:
+            pass
         else:
-            # Determine automatic epsg and srs in get_image_stats
-            self.epsg = None
-            self.spatial_ref = None
+            try:
+                spatial_ref = utils.SpatialRef(epsg_code)
+            except RuntimeError:
+                raise RuntimeError("Invalid EPSG code: %i", epsg_code)
+            else:
+                self.epsg = epsg_code
+                self.spatial_ref = spatial_ref
 
         ## Get vendor info and text-based metadata
         self.vendor, self.sat, self.prod_code, self.band_name, self.tile, self.regex = utils.get_sensor(self.srcfn)
@@ -443,8 +446,8 @@ class ImageInfo:
                     #### Get geographic Envelope
                     self.minlon, self.maxlon, self.minlat, self.maxlat = image_geom.GetEnvelope()
 
-                    ## Determine output image projection if applicable
-                    if type(args.epsg) is str:
+                    ## if self.epgs is None, then EPSG needs to be determined
+                    if not self.epsg:
                         self.cent_lat = (self.minlat + self.maxlat) / 2
                         self.cent_lon = (self.minlon + self.maxlon) / 2
                         self.epsg = get_epsg_from_lat_lon(self.cent_lat, self.cent_lon, mode=args.epsg, utm_nad83=args.epsg_utm_nad83)
@@ -1084,7 +1087,7 @@ def calc_stats(args, info):
     logger.info("Calculating image with stats")
     rc = 0
 
-    ## Get Well-known Text String of Projection from EPSG Code
+    ## Get Well-known Text String of the spatial reference systems
     p = info.spatial_ref.srs
     prj = p.ExportToWkt()
 
@@ -1349,21 +1352,22 @@ def get_image_geometry_info(src_image, spatial_ref, args, return_type='extent_ge
     minlon, maxlon, minlat, maxlat = extent_geom.GetEnvelope()
 
     ## Determine output image projection if applicable
-    if type(args.epsg) is str:
+    try:
+        epsg_code = int(args.epsg)
+    except ValueError:
         cent_lat = (minlat + maxlat) / 2
         cent_lon = (minlon + maxlon) / 2
-        img_epsg = get_epsg_from_lat_lon(cent_lat, cent_lon, mode=args.epsg, utm_nad83=args.epsg_utm_nad83)
-        try:
-            spatial_ref = utils.SpatialRef(img_epsg)
-        except RuntimeError as e:
-            logger.error(utils.capture_error_trace())
-            logger.error("Invalid EPSG code: %i", img_epsg)
-            return None
-    else:
-        img_epsg = args.epsg
+        epsg_code = get_epsg_from_lat_lon(cent_lat, cent_lon, mode=args.epsg, utm_nad83=args.epsg_utm_nad83)
+
+    try:
+        spatial_ref = utils.SpatialRef(epsg_code)
+    except RuntimeError as e:
+        logger.error(utils.capture_error_trace())
+        logger.error("Invalid EPSG code: %i", epsg_code)
+        return None
 
     if return_type == 'epsg_code':
-        return img_epsg
+        return epsg_code
 
     #### Create target srs objects
     t_srs = spatial_ref.srs

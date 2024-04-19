@@ -387,7 +387,8 @@ def main():
     i = 0
     pairs_to_process = []
     for image_pair in pair_list:
-
+        # args.epsg has been converted to an int type if possible already,
+        # Look up the correct epsg if it's still a string
         if type(args.epsg) is str:
             img_epsg = ortho_functions.get_image_geometry_info(image_pair.mul_srcfp, spatial_ref, args,
                                                                return_type='epsg_code')
@@ -430,6 +431,8 @@ def main():
 
         if not tasklist_is_text_bundles:
             image_pair = task_item
+            # args.epsg has been converted to an int type if possible already,
+            # Look up the correct epsg if it's still a string
             if type(args.epsg) is str:
                 img_epsg = ortho_functions.get_image_geometry_info(image_pair.mul_srcfp, spatial_ref, args,
                                                                    return_type='epsg_code')
@@ -566,6 +569,8 @@ def exec_pansharpen(image_pair, pansh_dstfp, args):
     else:
         dem_arg = ""
 
+    # args.epsg has been converted to an int type if possible already,
+    # Look up the correct epsg if it's still a string
     if type(args.epsg) is str:
         img_epsg = ortho_functions.get_image_geometry_info(image_pair.mul_srcfp, None, args,
                                                            return_type='epsg_code')

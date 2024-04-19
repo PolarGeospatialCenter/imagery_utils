@@ -173,7 +173,7 @@ def test_stretch_params(test_obj, file_list, stretch, valid_data_range, test_ban
 class TestWriteMetadata(unittest.TestCase):
 
     def setUp(self):
-        self.epsg = 4326
+        self.epsg = '4326'
         self.stretch = 'rf'
         self.srcfn = 'WV03_20140919212947_104001000227BF00_14SEP19212947-M1BS-500191821040_01_P002.ntf'
         self.srcfp = os.path.join(test_dir, 'ortho', self.srcfn)
@@ -228,7 +228,7 @@ class TestCollectFiles(unittest.TestCase):
                 if (f.lower().endswith(".ntf") or f.lower().endswith(".tif")) and f not in skip_list:
                     #### Find metadata file
                     stretch = 'rf'
-                    epsg = 4326
+                    epsg = '4326'
                     srcfp = os.path.join(root, f)
                     dstdir = os.path.join(test_dir, 'output')
                     dstfp = os.path.join(dstdir, '{}_u08{}{}.tif'.format(
@@ -269,7 +269,7 @@ class TestDEMOverlap(unittest.TestCase):
 class TestTargetExtent(unittest.TestCase):
         
     def test_target_extent(self):
-        epsg = 32629
+        epsg = '32629'
         stretch = 'rf'
         wkt = 'POLYGON ((810287 2505832,811661 2487415,807201 2487233,805772 2505802,810287 2505832))'
         fn = 'GE01_20110307105821_1050410001518E00_11MAR07105821-M1BS-500657359080_01_P008.ntf'
@@ -421,7 +421,7 @@ class TestCalcEarthSunDist(unittest.TestCase):
 
 class TestRPCHeight(unittest.TestCase):
     def setUp(self):
-        self.epsg = 4326
+        self.epsg = 4326  # also test epsg as an integer
         self.stretch = 'rf'
         self.srcdir = os.path.join(test_dir, 'ortho')
         self.dstdir = os.path.join(test_dir, 'output')
@@ -444,7 +444,7 @@ class TestRPCHeight(unittest.TestCase):
 
 
 class ProcessArgs(object):
-    def __init__(self, epsg=4326, stretch='rf'):
+    def __init__(self, epsg='4326', stretch='rf'):
         self.epsg = epsg
         self.resolution = None
         self.rgb = False
