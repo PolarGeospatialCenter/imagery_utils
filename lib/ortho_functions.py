@@ -304,7 +304,7 @@ def buildParentArgumentParser():
                         help="Use NAD83 datum instead of WGS84 for '--epsg auto/utm' UTM zone projection EPSG codes")
     parser.add_argument("-d", "--dem",
                         help="the DEM to use for orthorectification (elevation values should be relative to the wgs84 "
-                             "ellipoid")
+                             "ellipsoid,  'auto': closest dem overlapping the area")
     parser.add_argument("-t", "--outtype", choices=[output_type.value for output_type in OutputType], default=OutputType.BYTE.value,
                         help=f"output data type (default={OutputType.BYTE.value})")
     parser.add_argument("-r", "--resolution", type=float,
@@ -497,23 +497,15 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
             err = 1
             logger.error("Error in stats calculation")
 
-
     # Check if DEM is None or 'auto'
     if (args.dem is None or args.dem in ('None', 'auto')) and not args.skip_dem_overlap_check:
-        # Loop over each dem in  the standard_dems_list text file
-        with open('doc/standard_dems_list.txt', 'r') as dems:
-            for path in dems:
-                overlap = overlap_check(info.geometry_wkt, info.spatial_ref, path.strip())
-                if overlap is True:
-                    args.dem = path.strip()
-                    break
-                #if overlap is False:
-                #   #Ocean or Sea Ice: No DEM input (it should default to a mean sea level ortho process that doesn't require a DEM)
-                #   print("Ocean or Sea Ice: No DEM input (it should default to a mean sea level ortho process that doesn't require a DEM)")
-                #   err = 1
+        logger.info("checking auto dem for each image")
+        args.dem = check_image_overlap_with_gpkg(info.geometry_wkt, info.spatial_ref, "doc/dem_list.gpkg")
+        if args.dem is None:
+            err = 1
 
     #### Check that DEM overlaps image
-    if not err == 1:
+    elif not err == 1:
         if args.dem and not args.skip_dem_overlap_check:
             overlap = overlap_check(info.geometry_wkt, info.spatial_ref, args.dem)
             if overlap is False:
@@ -1815,12 +1807,12 @@ def overlap_check(geometry_wkt, spatial_ref, demPath):
                 imageGeometry.Transform(coordinateTransformer)
                 #logger.info("Image Geometry after transformation: %s", imageGeometry)
 
-            dem = None
             overlap = imageGeometry.Within(demGeometry)
 
             if overlap is True:
                 logger.info("DEM overlap is True: %s ", os.path.basename(demPath))
                 logger.info("DEM extent: %s", str(demGeometry))
+
 
 
         else:
@@ -1832,6 +1824,85 @@ def overlap_check(geometry_wkt, spatial_ref, demPath):
         overlap = False
 
     return overlap
+
+def check_image_overlap_with_gpkg(geometry_wkt, spatial_ref, gpkg_path):
+    """
+    Parameters:
+        image_geometry (wkt)
+        image_spatial_ref
+        gpkg_path (str): Path to the GeoPackage file.
+
+    Returns:
+        str: The value of the "dempath" field from the final overlapping layer, or None if no overlap is found.
+    """
+    # image properties
+    imageSpatialReference = spatial_ref.srs
+    image_geometry = ogr.CreateGeometryFromWkt(geometry_wkt)
+
+    # Open the GeoPackage dataset
+    dataset = gdal.OpenEx(gpkg_path, gdal.OF_VECTOR)
+    num_layers = dataset.GetLayerCount()
+    overlapping_layers = []
+
+    # Iterate over each layer in the dataset
+    for i in range(num_layers):
+        layer = dataset.GetLayerByIndex(i)
+        layer_spatial_ref = layer.GetSpatialRef()
+
+        # Check if the image geometry is in the same spatial reference as the current layer
+        if not imageSpatialReference.IsSame(layer_spatial_ref):
+            coordinate_transformer = osr.CoordinateTransformation(imageSpatialReference, layer_spatial_ref)
+            logger.info("Transforming image geometry to dem spatial reference")
+            image_geometry_transformed = image_geometry.Clone()
+            image_geometry_transformed.Transform(coordinate_transformer)
+        else:
+            image_geometry_transformed = image_geometry
+
+        # Find the overlapping feature in the layer
+        feature = layer.GetNextFeature()
+        while feature:
+            feature_geometry = feature.GetGeometryRef()
+            if image_geometry_transformed.Intersects(feature_geometry):
+                overlapping_layers.append(layer)
+                break  # Break out of the loop since we found an overlap with this layer
+            feature = layer.GetNextFeature()
+
+    if not overlapping_layers:
+        logger.info("No overlapping layer")
+        return None  # No overlap found
+
+    # If there are multiple overlapping layers, choose the one where the image centroid is located
+    if len(overlapping_layers) > 1:
+        for layer in overlapping_layers:
+            logger.info("layers in overlapping_layers: %s", layer)
+
+            feature = layer.GetNextFeature()
+            while feature:
+                feature_geometry = feature.GetGeometryRef()
+                logger.info("check", feature_geometry.Contains(image_geometry_transformed.Centroid()))
+                if feature_geometry.Contains(image_geometry_transformed.Centroid()):
+                    layer.ResetReading()
+                    return feature.GetField("dempath")  # Return the value of the "dempath" field in the layer
+                feature = layer.GetNextFeature()
+
+    layer = overlapping_layers[0]
+    logger.info("layer info: %s", layer.GetName())
+    layer.ResetReading()
+    dempath = layer.GetNextFeature().GetField("dempath")
+
+    # check path compatibility with Windows
+    if platform.system() == "Windows":
+        dempath=dempath.replace("/mnt", "V:")
+        dempath=dempath.replace("/", "\\")
+
+    logger.info("dempath info: %s", dempath)
+    # Close the dataset
+    dataset = None
+
+    # If the centroid is not contained in any of the overlapping layers, return the "dempath" value from the first layer
+    return dempath
+
+
 
 
 def ExtractRPB(item, rpb_p):
@@ -2210,3 +2281,4 @@ def XmlToJ2w(jp2p):
         #print(param)
         j2w.write("{}\n".format(param))
     j2w.close()
+
