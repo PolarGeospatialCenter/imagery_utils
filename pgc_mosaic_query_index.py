@@ -171,7 +171,34 @@ def main():
         exclude_list = set()
     
     logger.debug("Exclude list: %s", str(exclude_list))
-    
+
+    #### Get exclude_list from the database
+    if args.exclude is None:
+        # If args.exclude is None, read the "exclude_list" table from the database
+        try:
+            # Establish a connection to the database using the provided parameters
+            connection = psycopg2.connect(
+                database=args.database,
+                user=args.username,
+                password=args.password,
+                host=args.host,
+                port=args.port
+            )
+            cursor = connection.cursor()
+
+            # Execute a query to fetch data from the "exclude_list" table
+            cursor.execute("SELECT * FROM qa_scenes")
+            exclude_list = cursor.fetchall()
+            logging.info("Successfully fetched exclude list from the database")
+
+            cursor.close()
+            connection.close()
+
+        except Exception as e:
+            logging.error(f"Error: {e}, {type(e)}")
+            logging.error("Could not fetch exclude list from the database")
+
+
     #### Parse csv, validate tile ID and get tilegeom
     tiles = {}
     csv = open(csvpath, 'r')
