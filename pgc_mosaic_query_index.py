@@ -5,6 +5,7 @@ import glob
 import logging
 import os
 import sys
+import requests
 from datetime import date, datetime
 
 from osgeo import ogr, osr
@@ -171,7 +172,15 @@ def main():
         exclude_list = set()
     
     logger.debug("Exclude list: %s", str(exclude_list))
-    
+
+    #### Get exclude_list from the database
+    if args.exclude is None:
+        # If args.exclude is None, read the "exclude_list" table from the database
+        url = "https://pgc-cloud-cover-assessment-dev-web-00.oit.umn.edu/exclude-list"
+        response = requests.get(url, verify=False)
+        exclude_list = response.json()
+        logging.info("Successfully fetched exclude list from the database")
+
     #### Parse csv, validate tile ID and get tilegeom
     tiles = {}
     csv = open(csvpath, 'r')
