@@ -9,6 +9,7 @@ import platform
 import re
 import shutil
 import tarfile
+import sys
 from datetime import datetime
 from xml.dom import minidom
 from xml.etree import cElementTree as ET
@@ -500,7 +501,10 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
     # Check if DEM is None or 'auto'
     if (args.dem is None or args.dem in ('None', 'auto')) and not args.skip_dem_overlap_check:
         logger.info("checking auto dem for each image")
-        args.dem = check_image_overlap_with_gpkg(info.geometry_wkt, info.spatial_ref, "doc/dem_list.gpkg")
+        gpkg_path = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), "doc/dem_list.gpkg")
+        if not os.path.isfile(gpkg_path):
+            logger.error("dem_list.gpkg does not exist in expected location: {}".format(gpkg_path))
+        args.dem = check_image_overlap_with_gpkg(info.geometry_wkt, info.spatial_ref, gpkg_path)
         if args.dem is None:
             err = 1
 
