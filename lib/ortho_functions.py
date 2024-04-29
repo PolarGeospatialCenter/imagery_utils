@@ -9,6 +9,7 @@ import platform
 import re
 import shutil
 import tarfile
+import sys
 from datetime import datetime
 from xml.dom import minidom
 from xml.etree import cElementTree as ET
@@ -499,12 +500,14 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
 
     # Check if DEM is None or 'auto'
     if (args.dem is None or args.dem in ('None', 'auto')) and not args.skip_dem_overlap_check:
-        logger.info("checking auto dem for each image")
-        args.dem = check_image_overlap_with_gpkg(info.geometry_wkt, info.spatial_ref, "doc/dem_list.gpkg")
+        gpkg_path = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), "doc/dem_list.gpkg")
+        if not os.path.isfile(gpkg_path):
+            logger.error("dem_list.gpkg does not exist in expected location: {}".format(gpkg_path))
+        args.dem = check_image_overlap_with_gpkg(info.geometry_wkt, info.spatial_ref, gpkg_path)
         if args.dem is None:
             err = 1
 
-    #### Check that DEM overlaps image
+    #### Check if DEM overlaps image
     elif not err == 1:
         if args.dem and not args.skip_dem_overlap_check:
             overlap = overlap_check(info.geometry_wkt, info.spatial_ref, args.dem)
@@ -1795,7 +1798,7 @@ def overlap_check(geometry_wkt, spatial_ref, demPath):
             dem_geometry_wkt = 'POLYGON (( {} {}, {} {}, {} {}, {} {}, {} {} ))'.format(minx, miny, minx, maxy, maxx,
                                                                                         maxy, maxx, miny, minx, miny)
             demGeometry = ogr.CreateGeometryFromWkt(dem_geometry_wkt)
-
+            logger.info("DEM extent: %s", str(demGeometry))
             demSpatialReference = utils.osr_srs_preserve_axis_order(osr.SpatialReference(demProjection))
 
             coordinateTransformer = osr.CoordinateTransformation(imageSpatialReference, demSpatialReference)
@@ -1807,13 +1810,11 @@ def overlap_check(geometry_wkt, spatial_ref, demPath):
                 imageGeometry.Transform(coordinateTransformer)
                 #logger.info("Image Geometry after transformation: %s", imageGeometry)
 
+            dem = None
             overlap = imageGeometry.Within(demGeometry)
 
-            if overlap is True:
-                logger.info("DEM overlap is True: %s ", os.path.basename(demPath))
-                logger.info("DEM extent: %s", str(demGeometry))
-
-
+            if overlap is False:
+                logger.error("Image is not contained within DEM extent")
 
         else:
             logger.error("DEM has no spatial reference information: %s", demPath)
@@ -1852,7 +1853,6 @@ def check_image_overlap_with_gpkg(geometry_wkt, spatial_ref, gpkg_path):
         # Check if the image geometry is in the same spatial reference as the current layer
         if not imageSpatialReference.IsSame(layer_spatial_ref):
             coordinate_transformer = osr.CoordinateTransformation(imageSpatialReference, layer_spatial_ref)
-            logger.info("Transforming image geometry to dem spatial reference")
             image_geometry_transformed = image_geometry.Clone()
             image_geometry_transformed.Transform(coordinate_transformer)
         else:
@@ -1868,25 +1868,20 @@ def check_image_overlap_with_gpkg(geometry_wkt, spatial_ref, gpkg_path):
             feature = layer.GetNextFeature()
 
     if not overlapping_layers:
-        logger.info("No overlapping layer")
         return None  # No overlap found
 
     # If there are multiple overlapping layers, choose the one where the image centroid is located
     if len(overlapping_layers) > 1:
         for layer in overlapping_layers:
-            logger.info("layers in overlapping_layers: %s", layer)
-
             feature = layer.GetNextFeature()
             while feature:
                 feature_geometry = feature.GetGeometryRef()
-                logger.info("check", feature_geometry.Contains(image_geometry_transformed.Centroid()))
                 if feature_geometry.Contains(image_geometry_transformed.Centroid()):
                     layer.ResetReading()
                     return feature.GetField("dempath")  # Return the value of the "dempath" field in the layer
                 feature = layer.GetNextFeature()
 
     layer = overlapping_layers[0]
-    logger.info("layer info: %s", layer.GetName())
     layer.ResetReading()
     dempath = layer.GetNextFeature().GetField("dempath")
 
@@ -1895,7 +1890,6 @@ def check_image_overlap_with_gpkg(geometry_wkt, spatial_ref, gpkg_path):
         dempath=dempath.replace("/mnt", "V:")
         dempath=dempath.replace("/", "\\")
 
-    logger.info("dempath info: %s", dempath)
     # Close the dataset
     dataset = None
 
