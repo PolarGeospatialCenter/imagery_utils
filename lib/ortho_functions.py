@@ -1798,7 +1798,7 @@ def overlap_check(geometry_wkt, spatial_ref, demPath):
             dem_geometry_wkt = 'POLYGON (( {} {}, {} {}, {} {}, {} {}, {} {} ))'.format(minx, miny, minx, maxy, maxx,
                                                                                         maxy, maxx, miny, minx, miny)
             demGeometry = ogr.CreateGeometryFromWkt(dem_geometry_wkt)
-            logger.info("DEM extent: %s", str(demGeometry))
+
             demSpatialReference = utils.osr_srs_preserve_axis_order(osr.SpatialReference(demProjection))
 
             coordinateTransformer = osr.CoordinateTransformation(imageSpatialReference, demSpatialReference)
