@@ -48,7 +48,12 @@ def main():
     parser.add_argument("--use-exposure", action="store_true", default=False,
                         help="use exposure settings in metadata to inform score")
     parser.add_argument("--exclude",
-                        help="file of file name patterns (text only, no wildcards or regexs) to exclude")
+                        help="file of file name patterns (text only, no wildcards or regexs) to exclude. "
+                             "By default, if a file is not passed to this argument, the sandwich.mosaic.qa_scenes "
+                             "table is used as the exclude list. To run without an exclude list, "
+                             "pass the --bypass-exclude-list flag.")
+    parser.add_argument("--bypass-exclude-list", action='store_true', default=False,
+                        help="bypass the --exclude flag to run without using an exclude list")
     parser.add_argument("--max-cc", type=float, default=0.2,
                         help="maximum fractional cloud cover (0.0-1.0, default 0.2)")
     parser.add_argument("--include-all-ms", action="store_true", default=False,
@@ -71,8 +76,6 @@ def main():
                         help="limit search to imagery with both a multispectral and a panchromatic component")
     parser.add_argument("--skip-cmd-txt", action='store_true', default=False,
                         help='Skip writing the txt file containing the input command.')
-    parser.add_argument("--bypass-exclude-list", action='store_true', default=False,
-                        help="bypassing exclude_list")
     parser.add_argument("--version", action='version', version="imagery_utils v{}".format(VERSION))
 
  
@@ -164,23 +167,25 @@ def main():
     logger.addHandler(lsh)
     
     #### Get exclude_list if specified
-    if args.exclude is not None:
+    # bypassing default exclude list from sandwich if passed the bypass_exclude_list arg
+    if args.bypass_exclude_list:
+        logger.info("Bypassing exclude list, no scenes will be excluded from query.")
+        exclude_list = set()
+    # referencing specified exclude list txt file and not using exclude list from sandwich
+    elif args.exclude is not None:
         if not os.path.isfile(args.exclude):
             parser.error("Value for option --exclude-list is not a valid file")
-        
+        logger.info("Using exclude list: %s", str(args.exclude))
         f = open(args.exclude, 'r')
         exclude_list = set([line.rstrip() for line in f.readlines()])
-    else:
-        exclude_list = set()
-
-    if args.bypass_exclude_list:
-        exclude_list = None
+    # default exclude list behavior: read from sandwich.mosaic.qa_scenes table
+    # exclude list includes any scenes labeled 'bad' or 'maybe'
     else:
         # If exclude list is None and bypass_exclude_list is not specified, read it from the database
         url = "https://pgc-cloud-cover-assessment-dev-web-00.oit.umn.edu/exclude-list"
         response = requests.get(url, verify=False)
-        exclude_list = ["\n".join(response.json())]
-        logging.info("Successfully fetched exclude list from the database")
+        exclude_list = set(response.json())
+        logger.info("Successfully fetched exclude list from the database")
 
     logging.debug("Exclude list: %s", str(exclude_list))
 
