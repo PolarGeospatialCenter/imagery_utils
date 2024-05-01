@@ -46,8 +46,8 @@ def main():
                              "random")
     parser.add_argument("--use-exposure", action="store_true", default=False,
                         help="use exposure settings in metadata to inform score")
-    parser.add_argument("--exclude",
-                        help="file of file name patterns (text only, no wildcards or regexs) to exclude")
+    parser.add_argument("--exclude", default=None,
+                        help="options: pgc_exclude_list: from pgc database; a filepath: of file name patterns (text only, no wildcards or regexs) to exclude; None: no exclude list")
     parser.add_argument("--max-cc", type=float, default=0.2,
                         help="maximum fractional cloud cover (0.0-1.0, default 0.2)")
     parser.add_argument("--include-all-ms", action="store_true", default=False,
@@ -159,17 +159,24 @@ def main():
     lsh.setLevel(logging.INFO)
     lsh.setFormatter(formatter)
     logger.addHandler(lsh)
-    
+
     #### Get exclude_list if specified
-    if args.exclude is not None:
+    if args.exclude == 'pgc_exclude_list':
+        # If pgc_exclude_list is  specified, read it from the database
+        url = "https://pgc-cloud-cover-assessment-dev-web-00.oit.umn.edu/exclude-list"
+        response = requests.get(url, verify=False)
+        # Convert JSON response to a set of lines
+        exclude_list = set([line.rstrip() for line in os.linesep.join(response.json()).splitlines()])
+        logger.info("Successfully fetched pgc_exclude_list from the database")
+
+    elif args.exclude is not None:
         if not os.path.isfile(args.exclude):
             parser.error("Value for option --exclude-list is not a valid file")
-        
         f = open(args.exclude, 'r')
         exclude_list = set([line.rstrip() for line in f.readlines()])
     else:
         exclude_list = set()
-    
+
     logger.debug("Exclude list: %s", str(exclude_list))
     
     #### Parse csv, validate tile ID and get tilegeom
