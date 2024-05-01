@@ -5,6 +5,7 @@ import glob
 import logging
 import os
 import sys
+import requests
 from datetime import date, datetime
 
 from osgeo import ogr, osr
@@ -47,7 +48,9 @@ def main():
     parser.add_argument("--use-exposure", action="store_true", default=False,
                         help="use exposure settings in metadata to inform score")
     parser.add_argument("--exclude", default=None,
-                        help="options: pgc_exclude_list: from pgc database; a filepath: of file name patterns (text only, no wildcards or regexs) to exclude; None: no exclude list")
+                        help="options: pgc_exclude_list: from pgc database; "
+                             "a filepath: of file name patterns (text only, no wildcards or regexs) to exclude;"
+                             "None: no exclude list")
     parser.add_argument("--max-cc", type=float, default=0.2,
                         help="maximum fractional cloud cover (0.0-1.0, default 0.2)")
     parser.add_argument("--include-all-ms", action="store_true", default=False,
@@ -159,7 +162,7 @@ def main():
     lsh.setLevel(logging.INFO)
     lsh.setFormatter(formatter)
     logger.addHandler(lsh)
-
+    
     #### Get exclude_list if specified
     if args.exclude == 'pgc_exclude_list':
         # If pgc_exclude_list is  specified, read it from the database
