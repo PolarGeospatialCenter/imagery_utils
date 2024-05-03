@@ -10,6 +10,7 @@ import re
 import shutil
 import tarfile
 import sys
+import configparser
 from datetime import datetime
 from xml.dom import minidom
 from xml.etree import cElementTree as ET
@@ -350,6 +351,21 @@ def buildParentArgumentParser():
 
     return parser, pos_arg_keys
 
+def convert_windows_path(path):
+    if platform.system() == "Windows":
+        # Replace "/mnt" with "V:"
+        path = path.replace("/mnt", "V:")
+        # Replace "/" with "\"
+        path = path.replace("/", "\\")
+    elif platform.system() == "Linux":
+        # Replace "\" with "/"
+        path = path.replace("\\", "/")
+        # Replace drive letter "V" with "/mnt:"
+        if ":" in path:
+            drive, rest = path.split(":", 1)
+            path = f"/mnt{rest}"
+    return path
+
 
 def process_image(srcfp, dstfp, args, target_extent_geom=None):
 
@@ -498,13 +514,19 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
             err = 1
             logger.error("Error in stats calculation")
 
-    # Check if DEM is None or 'auto'
-    if (args.dem is None or args.dem in ('None', 'auto')) and not args.skip_dem_overlap_check:
-        gpkg_path = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), "doc/dem_list.gpkg")
+    # Check if DEM is 'auto'
+    if args.dem == 'auto':
+        # Read the config file
+        config = configparser.ConfigParser()
+        config.read(convert_windows_path(args.config_file))
+        # Get the path from the config file
+        gpkg_path = convert_windows_path(config.get("default", "gpkg_path"))
+        logger.debug("gpkg_path: %s",gpkg_path)
         if not os.path.isfile(gpkg_path):
-            logger.error("dem_list.gpkg does not exist in expected location: {}".format(gpkg_path))
+            logger.error("The gpkg file does not exist in expected location: {}".format(gpkg_path))
         args.dem = check_image_overlap_with_gpkg(info.geometry_wkt, info.spatial_ref, gpkg_path)
         if args.dem is None:
+            logger.error("dem is None")
             err = 1
 
     #### Check if DEM overlaps image
@@ -1870,25 +1892,22 @@ def check_image_overlap_with_gpkg(geometry_wkt, spatial_ref, gpkg_path):
     if not overlapping_layers:
         return None  # No overlap found
 
+    selected_layer = overlapping_layers[0]
+
     # If there are multiple overlapping layers, choose the one where the image centroid is located
     if len(overlapping_layers) > 1:
+        logger.debug("check overlapping_layers >: %s", len(overlapping_layers))
         for layer in overlapping_layers:
             feature = layer.GetNextFeature()
             while feature:
                 feature_geometry = feature.GetGeometryRef()
                 if feature_geometry.Contains(image_geometry_transformed.Centroid()):
-                    layer.ResetReading()
-                    return feature.GetField("dempath")  # Return the value of the "dempath" field in the layer
+                    selected_layer = layer
+                    break  # Exit the loop once the desired layer is found
                 feature = layer.GetNextFeature()
 
-    layer = overlapping_layers[0]
-    layer.ResetReading()
-    dempath = layer.GetNextFeature().GetField("dempath")
-
-    # check path compatibility with Windows
-    if platform.system() == "Windows":
-        dempath=dempath.replace("/mnt", "V:")
-        dempath=dempath.replace("/", "\\")
+    selected_layer.ResetReading()
+    dempath = convert_windows_path(selected_layer.GetNextFeature().GetField("dempath"))
 
     # Close the dataset
     dataset = None
