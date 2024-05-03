@@ -5,7 +5,6 @@ import glob
 import logging
 import os
 import sys
-import requests
 from datetime import date, datetime
 
 from osgeo import ogr, osr
@@ -71,8 +70,6 @@ def main():
                         help="limit search to imagery with both a multispectral and a panchromatic component")
     parser.add_argument("--skip-cmd-txt", action='store_true', default=False,
                         help='Skip writing the txt file containing the input command.')
-    parser.add_argument("--bypass-exclude-list", action='store_true', default=False,
-                        help="bypassing exclude_list")
     parser.add_argument("--version", action='version', version="imagery_utils v{}".format(VERSION))
 
  
@@ -172,19 +169,9 @@ def main():
         exclude_list = set([line.rstrip() for line in f.readlines()])
     else:
         exclude_list = set()
-
-    if args.bypass_exclude_list:
-        exclude_list = None
-    else:
-        # If exclude list is None and bypass_exclude_list is not specified, read it from the database
-        url = "https://pgc-cloud-cover-assessment-dev-web-00.oit.umn.edu/exclude-list"
-        response = requests.get(url, verify=False)
-        exclude_list = ["\n".join(response.json())]
-        logging.info("Successfully fetched exclude list from the database")
-
-    logging.debug("Exclude list: %s", str(exclude_list))
-
-
+    
+    logger.debug("Exclude list: %s", str(exclude_list))
+    
     #### Parse csv, validate tile ID and get tilegeom
     tiles = {}
     csv = open(csvpath, 'r')
