@@ -24,22 +24,11 @@ ARGDEF_SCRATCH = os.path.join(os.path.expanduser('~'), 'scratch', 'task_bundles'
 def main():
     ret_code = 0
 
-    # input arguments from command line
-    script_path = os.path.dirname(os.path.realpath(__file__))
-    default_config = os.path.join(script_path, "doc/config.ini")
-
     #### Set Up Arguments
     parent_parser, pos_arg_keys = ortho_functions.buildParentArgumentParser()
     parser = argparse.ArgumentParser(
         parents=[parent_parser],
         description="Run/submit batch image ortho and conversion tasks"
-    )
-
-    # Add the --config-file argument to the main parser
-    parser.add_argument(
-        "--config-file",
-        help="Location of config file (default={})".format(default_config),
-        default=default_config
     )
 
     parser.add_argument("--pbs", action='store_true', default=False,

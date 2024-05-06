@@ -284,6 +284,10 @@ def thread_type():
 
 def buildParentArgumentParser():
 
+    # input arguments from command line
+    script_path = os.path.dirname(os.path.realpath(__file__))
+    default_config = os.path.join(os.path.abspath(os.path.join(script_path, os.pardir)), "doc/config.ini")
+
     #### Set Up Arguments
     parser = argparse.ArgumentParser(add_help=False)
 
@@ -291,7 +295,6 @@ def buildParentArgumentParser():
     parser.add_argument("src", help="source image, text file, or directory")
     parser.add_argument("dst", help="destination directory")
     pos_arg_keys = ["src", "dst"]
-
 
     ####Optional Arguments
     parser.add_argument("-f", "--format", choices=formats.keys(), default="GTiff",
@@ -307,6 +310,10 @@ def buildParentArgumentParser():
     parser.add_argument("-d", "--dem",
                         help="the DEM to use for orthorectification (elevation values should be relative to the wgs84 "
                              "ellipsoid,  'auto': closest dem overlapping the area")
+
+    # Add the --config-file argument to the main parser
+    parser.add_argument("--config-file", help="Location of config file (default={})".format(default_config),
+                        default=default_config)
     parser.add_argument("-t", "--outtype", choices=[output_type.value for output_type in OutputType], default=OutputType.BYTE.value,
                         help=f"output data type (default={OutputType.BYTE.value})")
     parser.add_argument("-r", "--resolution", type=float,
@@ -1890,7 +1897,8 @@ def check_image_overlap_with_gpkg(geometry_wkt, spatial_ref, gpkg_path):
             feature = layer.GetNextFeature()
 
     if not overlapping_layers:
-        return None  # No overlap found
+        dempath = None  # No overlap found
+        logger.info("image geometry does not overlap with any of the dem regions. %s", geometry_wkt)
 
     selected_layer = overlapping_layers[0]
 
