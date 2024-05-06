@@ -1,3 +1,0 @@
-/mnt/pgc/data/elev/dem/tandem-x/90m/mosaic/TanDEM-X_Antarctica_90m/TanDEMX_PolarDEM_90m.tif
-/mnt/pgc/data/elev/dem/gimp/GrIMPv2/data/grimp_v02.0_30m_dem.tif
-/mnt/pgc/data/elev/dem/copernicus-dem-30m/mosaic/global/cop30_tiles_global_wgs84-height_nunatak.vrt
