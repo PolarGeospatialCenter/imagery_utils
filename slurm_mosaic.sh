@@ -40,9 +40,7 @@ echo ________________________________________________________
 echo
 
 # init gdal tools
-pwd
-ls /home/bakke557 -lah
-source /home/bakke557/.bashrc; conda activate pgc
+source ~/.bashrc; conda activate pgc
 
 echo $p1
 time eval $p1
