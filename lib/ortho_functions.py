@@ -523,18 +523,24 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
 
     # Check if DEM is 'auto'
     if args.dem == 'auto':
-        # Read the config file
-        config = configparser.ConfigParser()
-        config.read(convert_windows_path(args.config_file))
-        # Get the path from the config file
-        gpkg_path = convert_windows_path(config.get("default", "gpkg_path"))
+        try:
+            # Read the config file
+            config = configparser.ConfigParser()
+            config.read(convert_windows_path(args.config_file))
+            # Get the path from the config file
+            gpkg_path = convert_windows_path(config.get("default", "gpkg_path"))
+            if not os.path.isfile(gpkg_path):
+                logger.error("The gpkg file does not exist in expected location: {}".format(gpkg_path))
+                gpkg_path = None
+        except (FileNotFoundError, configparser.NoSectionError) as e:
+            logger.info("Error reading config file: %s", e)
+            gpkg_path = None
         logger.debug("gpkg_path: %s",gpkg_path)
-        if not os.path.isfile(gpkg_path):
-            logger.error("The gpkg file does not exist in expected location: {}".format(gpkg_path))
-        args.dem = check_image_overlap_with_gpkg(info.geometry_wkt, info.spatial_ref, gpkg_path)
-        if args.dem is None:
-            logger.error("dem is None")
-            err = 1
+        if gpkg_path is not None:
+            args.dem = check_image_auto_dem(info.geometry_wkt, info.spatial_ref, gpkg_path)
+            if args.dem is None:
+                logger.error("dem is None")
+                err = 1
 
     #### Check if DEM overlaps image
     elif not err == 1:
@@ -1855,7 +1861,7 @@ def overlap_check(geometry_wkt, spatial_ref, demPath):
 
     return overlap
 
-def check_image_overlap_with_gpkg(geometry_wkt, spatial_ref, gpkg_path):
+def check_image_auto_dem(geometry_wkt, spatial_ref, gpkg_path):
     """
     Parameters:
         image_geometry (wkt)
@@ -1870,14 +1876,25 @@ def check_image_overlap_with_gpkg(geometry_wkt, spatial_ref, gpkg_path):
     image_geometry = ogr.CreateGeometryFromWkt(geometry_wkt)
 
     # Open the GeoPackage dataset
-    dataset = gdal.OpenEx(gpkg_path, gdal.OF_VECTOR)
+    try:
+        dataset = gdal.OpenEx(gpkg_path, gdal.OF_VECTOR)
+    except Exception as e:
+        logger.error("Error opening the GeoPackage file: %s", e)
+
     num_layers = dataset.GetLayerCount()
     overlapping_layers = []
 
     # Iterate over each layer in the dataset
     for i in range(num_layers):
         layer = dataset.GetLayerByIndex(i)
+        if layer is None:
+            # Skip this layer if it's None
+            continue
+
         layer_spatial_ref = layer.GetSpatialRef()
+        if layer_spatial_ref is None:
+            # Skip this layer if its spatial reference is None
+            continue
 
         # Check if the image geometry is in the same spatial reference as the current layer
         if not imageSpatialReference.IsSame(layer_spatial_ref):
@@ -1891,31 +1908,42 @@ def check_image_overlap_with_gpkg(geometry_wkt, spatial_ref, gpkg_path):
         feature = layer.GetNextFeature()
         while feature:
             feature_geometry = feature.GetGeometryRef()
-            if image_geometry_transformed.Intersects(feature_geometry):
-                overlapping_layers.append(layer)
-                break  # Break out of the loop since we found an overlap with this layer
+            if feature_geometry is not None:
+                try:
+                    if image_geometry_transformed.Intersects(feature_geometry):
+                        overlapping_layers.append(layer)
+                        break  # Break out of the loop since we found an overlap with this layer
+                except Exception as e:
+                    logger.error("Error processing feature: %s", e)
             feature = layer.GetNextFeature()
 
     if not overlapping_layers:
         dempath = None  # No overlap found
         logger.info("image geometry does not overlap with any of the dem regions. %s", geometry_wkt)
 
-    selected_layer = overlapping_layers[0]
+    else:
+        selected_layer = overlapping_layers[0]
 
-    # If there are multiple overlapping layers, choose the one where the image centroid is located
-    if len(overlapping_layers) > 1:
-        logger.debug("check overlapping_layers >: %s", len(overlapping_layers))
-        for layer in overlapping_layers:
-            feature = layer.GetNextFeature()
-            while feature:
-                feature_geometry = feature.GetGeometryRef()
-                if feature_geometry.Contains(image_geometry_transformed.Centroid()):
-                    selected_layer = layer
-                    break  # Exit the loop once the desired layer is found
+        # If there are multiple overlapping layers, choose the one where the image centroid is located
+        if len(overlapping_layers) > 1:
+            logger.debug("check overlapping_layers >: %s", len(overlapping_layers))
+            for layer in overlapping_layers:
+                feature = layer.GetNextFeature()
+                if feature_geometry is not None:
+                    try:
+                        if feature_geometry.Contains(image_geometry_transformed.Centroid()):
+                            selected_layer = layer
+                            break  # Exit the loop once the desired layer is found
+                    except Exception as e:
+                        logger.error("Error processing feature: %s", e)
                 feature = layer.GetNextFeature()
 
-    selected_layer.ResetReading()
-    dempath = convert_windows_path(selected_layer.GetNextFeature().GetField("dempath"))
+        selected_layer.ResetReading()
+        try:
+            dempath = convert_windows_path(selected_layer.GetNextFeature().GetField("dempath"))
+        except Exception as e:
+            logger.error("Error getting 'dempath' field: %s", e)
+            dempath = None
 
     # Close the dataset
     dataset = None
