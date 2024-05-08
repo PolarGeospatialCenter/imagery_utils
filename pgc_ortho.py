@@ -35,6 +35,10 @@ def main():
                         help="submit tasks to PBS")
     parser.add_argument("--slurm", action='store_true', default=False,
                         help="submit tasks to SLURM")
+    parser.add_argument("--slurm-log-dir", default=None,
+                        help="directory path for logs from slurm jobs on the cluster. "
+                             "Default is the parent directory of the output. "
+                             "To use the current working directory, use 'working_dir'")
     parser.add_argument("--tasks-per-job", type=int,
                         help="Number of tasks to bundle into a single job. (requires --pbs or --slurm option) (Warning:"
                              " a higher number of tasks per job may require modification of default wallclock limit.)")
