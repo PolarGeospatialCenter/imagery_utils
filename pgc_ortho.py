@@ -137,8 +137,11 @@ def main():
     if args.dem is not None and args.ortho_height is not None:
         parser.error("--dem and --ortho_height options are mutually exclusive.  Please choose only one.")
 
+    ## verify auto DEM
+    if args.dem == 'auto':
+        logger.info("DEM is auto default")
     #### Test if DEM exists
-    if args.dem is not None and not os.path.isfile(args.dem):
+    elif args.dem is not None and not os.path.isfile(args.dem):
         parser.error("DEM does not exist: {}".format(args.dem))
 
     #### Set up console logging handler
