@@ -368,34 +368,34 @@ def calc_ndvi(srcfp, dstfp, args):
                 ## generate mask for red nodata, nir nodata, and 
                 ## (red+nir) less than tol away from zero
                 red_mask = (red_array == red_nodata)
-                if red_array[red_mask] != []:
+                if red_array[red_mask].size > 0:
                     nir_mask = (nir_array == nir_nodata)
-                    if nir_array[nir_mask] != []:
+                    if nir_array[nir_mask].size > 0:
                         divzero_mask = abs(nir_array + red_array) < tol
-                        if red_array[divzero_mask] != []:
+                        if red_array[divzero_mask].size > 0:
                             ndvi_mask = red_mask | nir_mask | divzero_mask
                         else:
                             ndvi_mask = red_mask | nir_mask
                     else:
                         divzero_mask = abs(nir_array + red_array) < tol
-                        if red_array[divzero_mask] != []:
+                        if red_array[divzero_mask].size > 0:
                             ndvi_mask = red_mask | divzero_mask
                         else:
                             ndvi_mask = red_mask
                 else:
                     nir_mask = (nir_array == nir_nodata)
-                    if nir_array[nir_mask] != []:
+                    if nir_array[nir_mask].size > 0:
                         divzero_mask = abs(nir_array + red_array) < tol
-                        if red_array[divzero_mask] != []:
+                        if red_array[divzero_mask].size > 0:
                             ndvi_mask = nir_mask | divzero_mask
                         else:
                             ndvi_mask = nir_mask
                     else:
                         divzero_mask = abs(nir_array + red_array) < tol
-                        if red_array[divzero_mask] != []:
+                        if red_array[divzero_mask].size > 0:
                             ndvi_mask = divzero_mask
                         else:
-                            ndvi_mask = numpy.full_like(red_array, fill_value=0, dtype=numpy.bool)
+                            ndvi_mask = numpy.full_like(red_array, fill_value=0, dtype=bool)
 
                 ## declare ndvi array, init to nodata value
                 ndvi_array = numpy.full_like(red_array, fill_value=ndvi_nodata, dtype=numpy.float32)
