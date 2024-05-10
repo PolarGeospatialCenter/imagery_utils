@@ -299,10 +299,12 @@ def main():
     if args.dem is not None and args.ortho_height is not None:
         parser.error("--dem and --ortho_height options are mutually exclusive.  Please choose only one.")
 
+    ## verify auto DEM
+    if args.dem == 'auto':
+        logger.info("DEM is auto default")
     #### Test if DEM exists
-    if args.dem:
-        if not os.path.isfile(args.dem):
-            parser.error("DEM does not exist: {}".format(args.dem))
+    elif args.dem is not None and not os.path.isfile(args.dem):
+        parser.error("DEM does not exist: {}".format(args.dem))
         if args.l is None:
             if args.dem.endswith('.vrt'):
                 total_dem_filesz_gb = 0.0
