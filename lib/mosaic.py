@@ -341,7 +341,7 @@ class ImageInfo:
             
             else:
                 try:
-                    metad = utils.getGEMetadataAsXml(metapath)
+                    metad = utils.get_ge_metadata_as_xml(metapath)
                 except Exception as err:
                     logger.error(utils.capture_error_trace())
                     logger.debug("ERROR parsing metadata: %s, %s", err, metapath)

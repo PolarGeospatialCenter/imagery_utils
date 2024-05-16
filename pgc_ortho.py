@@ -25,7 +25,7 @@ def main():
     ret_code = 0
 
     #### Set Up Arguments
-    parent_parser, pos_arg_keys = ortho_functions.buildParentArgumentParser()
+    parent_parser, pos_arg_keys = ortho_functions.build_parent_argument_parser()
     parser = argparse.ArgumentParser(
         parents=[parent_parser],
         description="Run/submit batch image ortho and conversion tasks"
@@ -55,6 +55,8 @@ def main():
                         help="PBS queue to submit jobs to")
     parser.add_argument("--dryrun", action='store_true', default=False,
                         help='print actions without executing')
+    parser.add_argument("-v", "--verbose", action='store_true', default=False,
+                        help='log debug messages')
 
     #### Parse Arguments
     args = parser.parse_args()
@@ -142,7 +144,7 @@ def main():
     elif args.epsg is None:
         parser.error("--epsg argument is required")
     elif args.epsg in ('utm', 'auto'):
-        # EPSG code is automatically determined in ortho_functions.GetImageStats function
+        # EPSG code is automatically determined in ortho_functions.get_image_stats function
         pass
     else:
         try:
@@ -166,8 +168,12 @@ def main():
         parser.error("DEM does not exist: {}".format(args.dem))
 
     #### Set up console logging handler
+    if args.verbose:
+        lso_log_level = logging.DEBUG
+    else:
+        lso_log_level = logging.INFO
     lso = logging.StreamHandler()
-    lso.setLevel(logging.DEBUG)
+    lso.setLevel(lso_log_level)
     formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s', '%m-%d-%Y %H:%M:%S')
     lso.setFormatter(formatter)
     logger.addHandler(lso)
@@ -314,35 +320,31 @@ def main():
 
     ## Build task queue
     images_to_process = []
+    image_info_dict = {}
     for task_args in utils.yield_task_args(image_list, args,
                                            argname_1D='src',
                                            argname_2D_list=csv_header_argname_list):
         srcfp = task_args.src
         dstdir = task_args.dst
+        lso.setLevel(logging.WARNING)  # temporarily reduce logging level to limit excess terminal text
+        try:
+            info = ortho_functions.ImageInfo(srcfp, dstdir, args.wd, args)
+        except Exception as e:
+            logger.error(e)
+        else:
+            lso.setLevel(lso_log_level)
+            dstfp = info.dstfp
+            vrtfile1 = os.path.splitext(dstfp)[0] + "_raw.vrt"
+            vrtfile2 = os.path.splitext(dstfp)[0] + "_vrt.vrt"
 
-        if type(task_args.epsg) is str:
-            task_args.epsg = ortho_functions.GetImageGeometryInfo(srcfp, spatial_ref, args,
-                                                                  return_type='epsg_code')
-
-        srcdir, srcfn = os.path.split(srcfp)
-        dst_basename = os.path.join(dstdir, "{}_{}{}{}".format(
-            os.path.splitext(srcfn)[0],
-            utils.get_bit_depth(task_args.outtype),
-            task_args.stretch,
-            task_args.epsg,
-        ))
-
-        dstfp = dst_basename + ortho_functions.formats[task_args.format]
-        vrtfile1 = dst_basename + "_raw.vrt"
-        vrtfile2 = dst_basename + "_vrt.vrt"
-
-        # Check to see if raw.vrt or vrt.vrt are present
-        vrt_exists = os.path.isfile(vrtfile1) or os.path.isfile(vrtfile2)
-        tif_done = os.path.isfile(dstfp)
-        # If no tif file present, need to make one
-        # If tif file is present but one of the vrt files is present, need to rebuild
-        if (not tif_done) or vrt_exists:
-            images_to_process.append(srcfp)
+            # Check to see if raw.vrt or vrt.vrt are present
+            vrt_exists = os.path.isfile(vrtfile1) or os.path.isfile(vrtfile2)
+            tif_done = os.path.isfile(dstfp)
+            # If no tif file present, need to make one
+            # If tif file is present but one of the vrt files is present, need to rebuild
+            if (not tif_done) or vrt_exists:
+                images_to_process.append(srcfp)
+                image_info_dict[srcfp] = info
 
     logger.info("Number of incomplete tasks: %i", len(images_to_process))
     if len(images_to_process) == 0:
@@ -360,6 +362,7 @@ def main():
         # Use the CSV argument array in place of the standard image list
         images_to_process = csv_arg_data
 
+    ## Bundle tasks into sets by the number of tasks-per-job
     if args.tasks_per_job and args.tasks_per_job > 1:
         task_srcfp_list = utils.write_task_bundles(
             images_to_process, args.tasks_per_job, args.scratch, 'Or_src',
@@ -368,6 +371,7 @@ def main():
     else:
         task_srcfp_list = images_to_process
 
+    ## Build task objects
     for job_count, task_args in enumerate(
             utils.yield_task_args(task_srcfp_list, args,
                                   argname_1D='src',
@@ -376,21 +380,13 @@ def main():
         arg_str_base = taskhandler.convert_optional_args_to_string(task_args, pos_arg_keys, arg_keys_to_remove)
         srcfp = task_args.src
         dstdir = task_args.dst
-
         srcdir, srcfn = os.path.split(srcfp)
 
+        ## If task_srcfp_list = images_to_process, then the image_info_dict is also populated
         if task_srcfp_list is images_to_process:
-            if type(task_args.epsg) is str:
-                task_args.epsg = ortho_functions.GetImageGeometryInfo(srcfp, spatial_ref, args,
-                                                                      return_type='epsg_code')
-            dstfp = os.path.join(dstdir, "{}_{}{}{}{}".format(
-                os.path.splitext(srcfn)[0],
-                utils.get_bit_depth(task_args.outtype),
-                task_args.stretch,
-                task_args.epsg,
-                ortho_functions.formats[task_args.format]
-            ))
-        else:
+            info = image_info_dict[srcfp]
+            dstfp = info.dstfp
+        else:  # this case occurs when there is a textfile or csv to resubmit so dstfp is not needed
             dstfp = None
 
         task = taskhandler.Task(
@@ -468,8 +464,6 @@ def main():
 
                 if not args.dryrun:
                     results[task.name] = task.method(src, dstfp, task_arg_obj)
-                else:
-                    print(src)
 
                 #### remove existing file handler
                 logger.removeHandler(lfh)
