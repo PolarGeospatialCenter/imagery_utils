@@ -144,11 +144,12 @@ def main():
         parser.error("DEM does not exist: {}".format(args.dem))
 
     #### Set up console logging handler
-    lso = logging.StreamHandler()
     if args.verbose:
-        lso.setLevel(logging.DEBUG)
+        lso_log_level = logging.DEBUG
     else:
-        lso.setLevel(logging.INFO)
+        lso_log_level = logging.INFO
+    lso = logging.StreamHandler()
+    lso.setLevel(lso_log_level)
     formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s', '%m-%d-%Y %H:%M:%S')
     lso.setFormatter(formatter)
     logger.addHandler(lso)
@@ -296,17 +297,19 @@ def main():
 
     ## Build task queue
     images_to_process = []
+    image_info_dict = {}
     for task_args in utils.yield_task_args(image_list, args,
                                            argname_1D='src',
                                            argname_2D_list=csv_header_argname_list):
         srcfp = task_args.src
         dstdir = task_args.dst
+        lso.setLevel(logging.WARNING)  # temporarily reduce logging level to limit excess terminal text
         try:
             info = ortho_functions.ImageInfo(srcfp, dstdir, args.wd, args)
         except Exception as e:
             logger.error(e)
         else:
-            task_args.epsg = info.epsg
+            lso.setLevel(lso_log_level)
             dstfp = info.dstfp
             vrtfile1 = os.path.splitext(dstfp)[0] + "_raw.vrt"
             vrtfile2 = os.path.splitext(dstfp)[0] + "_vrt.vrt"
@@ -318,6 +321,7 @@ def main():
             # If tif file is present but one of the vrt files is present, need to rebuild
             if (not tif_done) or vrt_exists:
                 images_to_process.append(srcfp)
+                image_info_dict[srcfp] = info
 
     logger.info("Number of incomplete tasks: %i", len(images_to_process))
     if len(images_to_process) == 0:
@@ -335,6 +339,7 @@ def main():
         # Use the CSV argument array in place of the standard image list
         images_to_process = csv_arg_data
 
+    ## Bundle tasks into sets by the number of tasks-per-job
     if args.tasks_per_job and args.tasks_per_job > 1:
         task_srcfp_list = utils.write_task_bundles(
             images_to_process, args.tasks_per_job, args.scratch, 'Or_src',
@@ -343,6 +348,7 @@ def main():
     else:
         task_srcfp_list = images_to_process
 
+    ## Build task objects
     for job_count, task_args in enumerate(
             utils.yield_task_args(task_srcfp_list, args,
                                   argname_1D='src',
@@ -351,19 +357,13 @@ def main():
         arg_str_base = taskhandler.convert_optional_args_to_string(task_args, pos_arg_keys, arg_keys_to_remove)
         srcfp = task_args.src
         dstdir = task_args.dst
-
         srcdir, srcfn = os.path.split(srcfp)
 
+        ## If task_srcfp_list = images_to_process, then the image_info_dict is also populated
         if task_srcfp_list is images_to_process:
-            if type(task_args.epsg) is str:
-                try:
-                    info = ortho_functions.ImageInfo(srcfp, dstdir, args.wd, args)
-                except Exception as e:
-                    logger.error(e)
-                else:
-                    task_args.epsg = info.epsg
-                    dstfp = info.dstfp
-        else:
+            info = image_info_dict[srcfp]
+            dstfp = info.dstfp
+        else:  # this case occurs when there is a textfile or csv to resubmit so dstfp is not needed
             dstfp = None
 
         task = taskhandler.Task(
@@ -437,8 +437,6 @@ def main():
 
                 if not args.dryrun:
                     results[task.name] = task.method(src, dstfp, task_arg_obj)
-                else:
-                    print(src)
 
                 #### remove existing file handler
                 logger.removeHandler(lfh)

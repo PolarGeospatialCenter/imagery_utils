@@ -441,7 +441,7 @@ class ImageInfo:
                         ll_geom.Transform(sg_ct)
                         lr_geom.Transform(sg_ct)
                         image_geom.Transform(sg_ct)
-                    logger.info("Geographic extent: %s", str(image_geom))
+                    logger.debug("Geographic extent: %s", str(image_geom))
 
                     #### Get geographic Envelope
                     self.minlon, self.maxlon, self.minlat, self.maxlat = image_geom.GetEnvelope()
@@ -472,7 +472,7 @@ class ImageInfo:
                         ll_geom.Transform(gt_ct)
                         lr_geom.Transform(gt_ct)
                         image_geom.Transform(gt_ct)
-                    logger.info("Projected extent: %s", str(image_geom))
+                    logger.debug("Projected extent: %s", str(image_geom))
                     self.image_geom = image_geom
 
                     rasterxsize_m = abs(
@@ -558,8 +558,7 @@ class ImageInfo:
             tg_ct = osr.CoordinateTransformation(self.spatial_ref.srs, srs_wgs84)
             centroid.Transform(tg_ct)
 
-            #### Get projected Envelope
-
+            ## Get projected Envelope
             logger.info("Centroid: %s", str(centroid))
 
             if self.maxlon - self.minlon > 180:
@@ -689,6 +688,7 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
         except OSError:
             pass
     logger.info("Working Dir: %s", wd)
+    logger.info('Image: %s', os.path.basename(srcfp))
 
     ##  Initialize ImageInfo object with filename-based and argument-based attributes
     try:
@@ -697,8 +697,6 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
         logger.error(e)
         err = 1
     else:
-        logger.info('Image: %s', info.srcfn)
-
         # Cleanup temp files from failed or interrupted processing attempt
         ik_stacked_sem = "{}.stacked".format(os.path.join(wd, info.srcfn))
         if args.wd or os.path.isfile(ik_stacked_sem):
@@ -890,15 +888,12 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
     #### Calculate Total Time
     endtime = datetime.today()
     td = (endtime-starttime)
-    logger.info("Total Processing Time: %s\n", td)
-
+    logger.info("Total Processing Time: %s", td)
     return err
 
 
 def stack_ik_bands(dstfp, members):
-
     rc = 0
-
     band_dict = {1: gdalconst.GCI_BlueBand,
                  2: gdalconst.GCI_GreenBand,
                  3: gdalconst.GCI_RedBand,
