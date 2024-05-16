@@ -1926,12 +1926,14 @@ def check_image_auto_dem(geometry_wkt, spatial_ref, gpkg_path):
 
         # If there are multiple overlapping layers, choose the one where the image centroid is located
         if len(overlapping_layers) > 1:
-            logger.debug("check overlapping_layers >: %s", len(overlapping_layers))
+            logger.debug("multiple overlapping DEMs: %s. Checking image centroid", len(overlapping_layers))
             for layer in overlapping_layers:
-                feature = layer.GetNextFeature()
-                if feature_geometry is not None:
+                layer.ResetReading()
+                dem_feature = layer.GetNextFeature()
+                dem_feature_geometry = dem_feature.GetGeometryRef()
+                if dem_feature_geometry is not None:
                     try:
-                        if feature_geometry.Contains(image_geometry_transformed.Centroid()):
+                        if dem_feature_geometry.Contains(image_geometry_transformed.Centroid()):
                             selected_layer = layer
                             break  # Exit the loop once the desired layer is found
                     except Exception as e:

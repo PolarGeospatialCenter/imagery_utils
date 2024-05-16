@@ -35,6 +35,10 @@ def main():
                         help="submit tasks to PBS")
     parser.add_argument("--slurm", action='store_true', default=False,
                         help="submit tasks to SLURM")
+    parser.add_argument("--slurm-log-dir", default=None,
+                        help="directory path for logs from slurm jobs on the cluster. "
+                             "Default is the parent directory of the output. "
+                             "To use the current working directory, use 'working_dir'")
     parser.add_argument("--tasks-per-job", type=int,
                         help="Number of tasks to bundle into a single job. (requires --pbs or --slurm option) (Warning:"
                              " a higher number of tasks per job may require modification of default wallclock limit.)")
@@ -88,6 +92,23 @@ def main():
             qsubpath = os.path.abspath(args.qsubscript)
         if not os.path.isfile(qsubpath):
             parser.error("qsub script path is not valid: {}".format(qsubpath))
+
+    # Parse slurm log location
+    if args.slurm:
+        # by default, the parent directory of the dst dir is used for saving slurm logs
+        if args.slurm_log_dir == None:
+            slurm_log_dir = os.path.abspath(os.path.join(dstdir, os.pardir))
+            print("slurm log dir: {}".format(slurm_log_dir))
+        # if "working_dir" is passed in the CLI, use the default slurm behavior which saves logs in working dir
+        elif args.slurm_log_dir == "working_dir":
+            slurm_log_dir = None
+        # otherwise, verify that the path for the logs is a valid path
+        else:
+            slurm_log_dir = os.path.abspath(args.slurm_log_dir)
+        # Verify slurm log path
+        if not os.path.isdir(slurm_log_dir):
+            parser.error("Error directory for slurm logs is not a valid file path: {}".format(slurm_log_dir))
+        logger.info("Slurm output and error log saved here: {}".format(slurm_log_dir))
 
     ## Verify processing options do not conflict
     requested_threads = ortho_functions.ARGDEF_CPUS_AVAIL if args.threads == "ALL_CPUS" else args.threads
@@ -159,7 +180,6 @@ def main():
 
     # write input command to text file next to output folder for reference
     command_str = ' '.join(sys.argv)
-    logger.info("Running command: {}".format(command_str))
     if not args.skip_cmd_txt and not args.dryrun:
         utils.write_input_command_txt(command_str,dstdir)
         args.skip_cmd_txt = True
@@ -407,8 +427,12 @@ def main():
                     task_handler.run_tasks(task_queue, dryrun=args.dryrun)
 
         elif args.slurm:
+            qsub_args = ""
+            if not slurm_log_dir == None:
+                qsub_args += '-o {}/%x.o%j '.format(slurm_log_dir)
+                qsub_args += '-e {}/%x.o%j '.format(slurm_log_dir)
             try:
-                task_handler = taskhandler.SLURMTaskHandler(qsubpath)
+                task_handler = taskhandler.SLURMTaskHandler(qsubpath, qsub_args)
             except RuntimeError as e:
                 logger.error(utils.capture_error_trace())
                 logger.error(e)
