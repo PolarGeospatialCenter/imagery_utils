@@ -266,6 +266,28 @@ class TestDEMOverlap(unittest.TestCase):
             self.assertEqual(test_result, result)
 
 
+class TestAutoDEMOverlap(unittest.TestCase):
+
+    def setUp(self):
+        self.gpkg = os.path.join(os.path.join(test_dir, 'auto_dem', 'dems_list.gpkg'))
+        self.srs = utils.SpatialRef(4326)
+
+    def test_auto_dem_overlap(self):
+        image_geom_wkts = [
+            ('POLYGON ((-52.23 70.843333,-51.735 70.844444,-51.736667 70.760556,-52.23 70.759722,-52.23 70.843333))',
+             False),  # False
+            (
+                'POLYGON ((-64.23 -70.843333,-63.735 -70.844444,-63.736667 -70.760556,-64.23 -70.759722,-64.23 -70.843333))',
+                True),  # True
+            (
+                'POLYGON ((-52.23 -50.843333,-51.735 -50.844444,-51.736667 -50.760556,-52.23 -50.759722,-52.23 -50.843333))',
+                False)  # False
+        ]
+
+        for wkt, result in image_geom_wkts:
+            test_result = ortho_functions.check_image_auto_dem(wkt, self.srs, self.gpkg)
+            self.assertEqual(test_result, result)
+
 class TestTargetExtent(unittest.TestCase):
         
     def test_target_extent(self):
@@ -496,6 +518,7 @@ if __name__ == '__main__':
         TestWriteMetadata,
         TestCollectFiles,
         # TestDEMOverlap,  # TODO: Test DEM is corrupt. Replace it.
+        TestAutoDEMOverlap,
         TestTargetExtent,
         TestAutoStretchAndEpsg,
         # TestOutputDataValues,  # TODO: output_static folder missing from test data

@@ -119,7 +119,7 @@ def main():
             qsubpath = os.path.abspath(args.qsubscript)
         if not os.path.isfile(qsubpath):
             parser.error("qsub script path is not valid: {}".format(qsubpath))
-        
+
     ## Verify processing options do not conflict
     if args.pbs and args.slurm:
         parser.error("Options --pbs and --slurm are mutually exclusive")

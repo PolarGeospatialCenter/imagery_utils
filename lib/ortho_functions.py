@@ -9,6 +9,8 @@ import platform
 import re
 import shutil
 import tarfile
+import sys
+import configparser
 from datetime import datetime
 from xml.dom import minidom
 from xml.etree import cElementTree as ET
@@ -54,7 +56,8 @@ formatVRT = "VRT"
 VRTdriver = gdal.GetDriverByName(formatVRT)
 ikMsiBands = ['blu', 'grn', 'red', 'nir']
 
-EsunDict = {  # Spectral Irradiance in W/m2/um (from Thuillier 2003 - used by DG calibration team as of 2016v2)
+EsunDict = {  # Spectral Irradiance in W/m2/um (from Thuillier 2003 -
+    # used by DG calibration team as of 2016v2)
     'QB02_BAND_P': 1370.92,
     'QB02_BAND_B': 1949.59,
     'QB02_BAND_G': 1823.64,
@@ -602,6 +605,10 @@ def thread_type():
 
 def build_parent_argument_parser():
 
+    # input arguments from command line
+    script_path = os.path.dirname(os.path.realpath(__file__))
+    default_config = os.path.join(os.path.abspath(os.path.join(script_path, os.pardir)), "doc/config.ini")
+
     #### Set Up Arguments
     parser = argparse.ArgumentParser(add_help=False)
 
@@ -623,7 +630,11 @@ def build_parent_argument_parser():
                         help="Use NAD83 datum instead of WGS84 for '--epsg auto/utm' UTM zone projection EPSG codes")
     parser.add_argument("-d", "--dem",
                         help="the DEM to use for orthorectification (elevation values should be relative to the wgs84 "
-                             "ellipsoid")
+                             "ellipsoid,  'auto': closest dem overlapping the area")
+
+    # Add the --config-file argument to the main parser
+    parser.add_argument("--config-file", help="Location of config file (default={})".format(default_config),
+                        default=default_config)
     parser.add_argument("-t", "--outtype", choices=[output_type.value for output_type in OutputType], default=OutputType.BYTE.value,
                         help=f"output data type (default={OutputType.BYTE.value})")
     parser.add_argument("-r", "--resolution", type=float,
@@ -668,6 +679,22 @@ def build_parent_argument_parser():
     parser.add_argument("--version", action='version', version="imagery_utils v{}".format(VERSION))
 
     return parser, pos_arg_keys
+
+
+def convert_windows_path(path):
+    if platform.system() == "Windows":
+        # Replace "/mnt" with "V:"
+        path = path.replace("/mnt", "V:")
+        # Replace "/" with "\"
+        path = path.replace("/", "\\")
+    elif platform.system() == "Linux":
+        # Replace "\" with "/"
+        path = path.replace("\\", "/")
+        # Replace drive letter "V" with "/mnt:"
+        if ":" in path:
+            drive, rest = path.split(":", 1)
+            path = f"/mnt{rest}"
+    return path
 
 
 def process_image(srcfp, dstfp, args, target_extent_geom=None):
@@ -820,12 +847,33 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
                 err = 1
                 logger.error("Error in stats calculation")
 
-        ## Check that DEM overlaps image
-        if not err == 1:
-            if args.dem and not args.skip_dem_overlap_check:
-                overlap = overlap_check(info.geometry_wkt, info.spatial_ref, args.dem)
-                if overlap is False:
-                    err = 1
+    # Check if DEM is 'auto'
+    if args.dem == 'auto':
+        try:
+            # Read the config file
+            config = configparser.ConfigParser()
+            config.read(convert_windows_path(args.config_file))
+            # Get the path from the config file
+            gpkg_path = convert_windows_path(config.get("default", "gpkg_path"))
+            if not os.path.isfile(gpkg_path):
+                logger.error("The gpkg file does not exist in expected location: {}".format(gpkg_path))
+                gpkg_path = None
+        except (FileNotFoundError, configparser.NoSectionError) as e:
+            logger.info("Error reading config file: %s", e)
+            gpkg_path = None
+        logger.debug("gpkg_path: %s",gpkg_path)
+        if gpkg_path is not None:
+            args.dem = check_image_auto_dem(info.geometry_wkt, info.spatial_ref, gpkg_path)
+            if args.dem is None:
+                logger.error("dem is None")
+                err = 1
+
+    #### Check if DEM overlaps image
+    elif not err == 1:
+        if args.dem and not args.skip_dem_overlap_check:
+            overlap = overlap_check(info.geometry_wkt, info.spatial_ref, args.dem)
+            if overlap is False:
+                err = 1
 
         if not os.path.isfile(info.dstfp):
             ## Warp Image
@@ -1852,7 +1900,7 @@ def overlap_check(geometry_wkt, spatial_ref, demPath):
             dem_geometry_wkt = 'POLYGON (( {} {}, {} {}, {} {}, {} {}, {} {} ))'.format(minx, miny, minx, maxy, maxx,
                                                                                         maxy, maxx, miny, minx, miny)
             demGeometry = ogr.CreateGeometryFromWkt(dem_geometry_wkt)
-            logger.info("DEM extent: %s", str(demGeometry))
+
             demSpatialReference = utils.osr_srs_preserve_axis_order(osr.SpatialReference(demProjection))
 
             coordinateTransformer = osr.CoordinateTransformation(imageSpatialReference, demSpatialReference)
@@ -1879,6 +1927,100 @@ def overlap_check(geometry_wkt, spatial_ref, demPath):
         overlap = False
 
     return overlap
+
+def check_image_auto_dem(geometry_wkt, spatial_ref, gpkg_path):
+    """
+    Parameters:
+        image_geometry (wkt)
+        image_spatial_ref
+        gpkg_path (str): Path to the GeoPackage file.
+
+    Returns:
+        str: The value of the "dempath" field from the final overlapping layer, or None if no overlap is found.
+    """
+    # image properties
+    imageSpatialReference = spatial_ref.srs
+    image_geometry = ogr.CreateGeometryFromWkt(geometry_wkt)
+
+    # Open the GeoPackage dataset
+    try:
+        dataset = gdal.OpenEx(gpkg_path, gdal.OF_VECTOR)
+    except Exception as e:
+        logger.error("Error opening the GeoPackage file: %s", e)
+
+    num_layers = dataset.GetLayerCount()
+    overlapping_layers = []
+
+    # Iterate over each layer in the dataset
+    for i in range(num_layers):
+        layer = dataset.GetLayerByIndex(i)
+        if layer is None:
+            # Skip this layer if it's None
+            continue
+
+        layer_spatial_ref = layer.GetSpatialRef()
+        if layer_spatial_ref is None:
+            # Skip this layer if its spatial reference is None
+            continue
+
+        # Check if the image geometry is in the same spatial reference as the current layer
+        if not imageSpatialReference.IsSame(layer_spatial_ref):
+            coordinate_transformer = osr.CoordinateTransformation(imageSpatialReference, layer_spatial_ref)
+            image_geometry_transformed = image_geometry.Clone()
+            image_geometry_transformed.Transform(coordinate_transformer)
+        else:
+            image_geometry_transformed = image_geometry
+
+        # Find the overlapping feature in the layer
+        feature = layer.GetNextFeature()
+        while feature:
+            feature_geometry = feature.GetGeometryRef()
+            if feature_geometry is not None:
+                try:
+                    if image_geometry_transformed.Intersects(feature_geometry):
+                        overlapping_layers.append(layer)
+                        break  # Break out of the loop since we found an overlap with this layer
+                except Exception as e:
+                    logger.error("Error processing feature: %s", e)
+            feature = layer.GetNextFeature()
+
+    if not overlapping_layers:
+        dempath = None  # No overlap found
+        logger.info("image geometry does not overlap with any of the dem regions. %s", geometry_wkt)
+
+    else:
+        selected_layer = overlapping_layers[0]
+
+        # If there are multiple overlapping layers, choose the one where the image centroid is located
+        if len(overlapping_layers) > 1:
+            logger.debug("multiple overlapping DEMs: %s. Checking image centroid", len(overlapping_layers))
+            for layer in overlapping_layers:
+                layer.ResetReading()
+                dem_feature = layer.GetNextFeature()
+                dem_feature_geometry = dem_feature.GetGeometryRef()
+                if dem_feature_geometry is not None:
+                    try:
+                        if dem_feature_geometry.Contains(image_geometry_transformed.Centroid()):
+                            selected_layer = layer
+                            break  # Exit the loop once the desired layer is found
+                    except Exception as e:
+                        logger.error("Error processing feature: %s", e)
+                feature = layer.GetNextFeature()
+
+        selected_layer.ResetReading()
+        try:
+            dempath = convert_windows_path(selected_layer.GetNextFeature().GetField("dempath"))
+        except Exception as e:
+            logger.error("Error getting 'dempath' field: %s", e)
+            dempath = None
+
+    # Close the dataset
+    dataset = None
+
+    # If the centroid is not contained in any of the overlapping layers, return the "dempath" value from the first layer
+    return dempath
+
+
 
 
 def extract_rpb(item, rpb_p):
@@ -2207,3 +2349,4 @@ def xml_to_j2w(jp2p):
     for param in wldl:
         j2w.write("{}\n".format(param))
     j2w.close()
+
