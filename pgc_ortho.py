@@ -424,6 +424,10 @@ def main():
 
         elif args.slurm:
             qsub_args = ""
+            # add a custom name to the slurm job log
+            if args.slurm_job_name:
+                slurm_job_name = str(args.slurm_job_name)
+                qsub_args += '-J {} '.format(slurm_job_name)
             if not slurm_log_dir == None:
                 qsub_args += '-o {}/%x.o%j '.format(slurm_log_dir)
                 qsub_args += '-e {}/%x.o%j '.format(slurm_log_dir)
