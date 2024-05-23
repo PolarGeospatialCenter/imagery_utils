@@ -868,8 +868,8 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
                 logger.error("dem is None")
                 err = 1
 
-    #### Check if DEM overlaps image
-    elif not err == 1:
+    if not err == 1:
+        ## Check if image overlaps reference DEM
         if args.dem and not args.skip_dem_overlap_check:
             overlap = overlap_check(info.geometry_wkt, info.spatial_ref, args.dem)
             if overlap is False:
