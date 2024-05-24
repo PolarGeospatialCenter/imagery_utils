@@ -391,9 +391,15 @@ def main():
         else:  # this case occurs when there is a textfile or csv to resubmit so dstfp is not needed
             dstfp = None
 
+        # add a custom name to the job
+        if not args.slurm_job_name:
+            job_name = 'Or{:04g}'.format(job_count)
+        else:
+            job_name = str(args.slurm_job_name)
+
         task = taskhandler.Task(
             srcfn,
-            'Or{:04g}'.format(job_count),
+            job_name,
             'python',
             '{} {} {} {}'.format(
                 argval2str(scriptpath),
@@ -426,10 +432,6 @@ def main():
 
         elif args.slurm:
             qsub_args = ""
-            # add a custom name to the slurm job log
-            if args.slurm_job_name:
-                slurm_job_name = str(args.slurm_job_name)
-                qsub_args += '-J {} '.format(slurm_job_name)
             if not slurm_log_dir == None:
                 qsub_args += '-o {}/%x.o%j '.format(slurm_log_dir)
                 qsub_args += '-e {}/%x.o%j '.format(slurm_log_dir)

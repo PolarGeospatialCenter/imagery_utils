@@ -87,21 +87,13 @@ class SLURMTaskHandler(object):
     def run_tasks(self, tasks):
 
         for task in tasks:
-            if "-J" not in self.qsub_args:
-                cmd = r'sbatch {} -J {} --export=p1="{} {}" "{}"'.format(
-                    self.qsub_args,
-                    task.abrv,
-                    task.exe,
-                    escape_problem_jobsubmit_chars(task.cmd),
-                    self.qsubscript
-                )
-            else:
-                cmd = r'sbatch {} --export=p1="{} {}" "{}"'.format(
-                    self.qsub_args,
-                    task.exe,
-                    escape_problem_jobsubmit_chars(task.cmd),
-                    self.qsubscript
-                )
+            cmd = r'sbatch {} -J {} --export=p1="{} {}" "{}"'.format(
+                self.qsub_args,
+                task.abrv,
+                task.exe,
+                escape_problem_jobsubmit_chars(task.cmd),
+                self.qsubscript
+            )
             subprocess.call(cmd, shell=True)
             
 
