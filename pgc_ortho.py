@@ -39,6 +39,8 @@ def main():
                         help="directory path for logs from slurm jobs on the cluster. "
                              "Default is the parent directory of the output. "
                              "To use the current working directory, use 'working_dir'")
+    parser.add_argument("--slurm-job-name", default=None,
+                        help="assign a name to the slurm job for easier job tracking")
     parser.add_argument("--tasks-per-job", type=int,
                         help="Number of tasks to bundle into a single job. (requires --pbs or --slurm option) (Warning:"
                              " a higher number of tasks per job may require modification of default wallclock limit.)")
@@ -389,9 +391,15 @@ def main():
         else:  # this case occurs when there is a textfile or csv to resubmit so dstfp is not needed
             dstfp = None
 
+        # add a custom name to the job
+        if not args.slurm_job_name:
+            job_name = 'Or{:04g}'.format(job_count)
+        else:
+            job_name = str(args.slurm_job_name)
+
         task = taskhandler.Task(
             srcfn,
-            'Or{:04g}'.format(job_count),
+            job_name,
             'python',
             '{} {} {} {}'.format(
                 argval2str(scriptpath),

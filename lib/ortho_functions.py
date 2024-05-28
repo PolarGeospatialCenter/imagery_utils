@@ -631,8 +631,6 @@ def build_parent_argument_parser():
     parser.add_argument("-d", "--dem",
                         help="the DEM to use for orthorectification (elevation values should be relative to the wgs84 "
                              "ellipsoid,  'auto': closest dem overlapping the area")
-
-    # Add the --config-file argument to the main parser
     parser.add_argument("--config-file", help="Location of config file (default={})".format(default_config),
                         default=default_config)
     parser.add_argument("-t", "--outtype", choices=[output_type.value for output_type in OutputType], default=OutputType.BYTE.value,
