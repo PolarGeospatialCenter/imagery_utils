@@ -643,9 +643,11 @@ def exec_pansharpen(image_pair, pansh_dstfp, args):
     ####  Pansharpen
     ## get system info for program extension
     if platform.system() == 'Windows':
-        py_ext = ''
+        py_ext = '.py'
+        conda_prefix = "python %CONDA_PREFIX%\\scripts\\"
     else:
         py_ext = '.py'
+        conda_prefix = ''
 
     pan_threading = ''
     if hasattr(args, 'threads'):
@@ -674,9 +676,14 @@ def exec_pansharpen(image_pair, pansh_dstfp, args):
     logger.info("Pansharpening multispectral image")
     if os.path.isfile(pan_local_dstfp) and os.path.isfile(mul_local_dstfp):
         if not os.path.isfile(pansh_local_dstfp):
-            cmd = 'gdal_pansharpen{} -of {} {} {} "{}" "{}" "{}"'.\
-                format(py_ext, args.format, pan_threading, co, pan_local_dstfp, mul_local_dstfp, pansh_local_dstfp)
-            taskhandler.exec_cmd(cmd)
+            cmd = '{}gdal_pansharpen{} -of {} {} {} "{}" "{}" "{}"'.\
+                format(conda_prefix, py_ext, args.format, pan_threading, co, pan_local_dstfp, mul_local_dstfp, pansh_local_dstfp)
+            try:
+                taskhandler.exec_cmd(cmd)
+            except Exception as e:
+                logger.warning("There was an error running gdal_pansharpen.py: {}".format(e))
+                logger.warning("Please run this script in the recommended mamba/conda environment with GDAL => 3.7.2")
+                logger.error(utils.capture_error_trace())
     else:
         logger.warning("Pan or Multi warped image does not exist\n\t{}\n\t{}".format(pan_local_dstfp, mul_local_dstfp))
 
