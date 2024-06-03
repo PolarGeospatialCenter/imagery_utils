@@ -516,6 +516,10 @@ def main():
             if not slurm_log_dir == None:
                 qsub_args += '-o {}/%x.o%j '.format(slurm_log_dir)
                 qsub_args += '-e {}/%x.o%j '.format(slurm_log_dir)
+            # adjust wallclock if submitting multiple tasks ro be run in serial for a single slurm job
+            # default wallclock for pansharpen jobs is 1:00:00, refer to slurm_pansh.sh to verify
+            if args.tasks_per_job:
+                qsub_args += '-t {}:00:00 '.format(args.tasks_per_job)
             try:
                 task_handler = taskhandler.SLURMTaskHandler(qsubpath, qsub_args)
             except RuntimeError as e:
