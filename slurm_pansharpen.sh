@@ -4,7 +4,13 @@
 #SBATCH -N 1
 
 # number of cpus per task
-#SBATCH -c 2
+#SBATCH -c 1
+
+# memory
+#SBATCH -mem 24G
+
+# wallclock
+#SBATCH -t 1:00:00
 
 # job log path
 #SBATCH -o %x.o%j
