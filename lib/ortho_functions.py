@@ -362,6 +362,7 @@ def convert_windows_path(path):
     if platform.system() == "Windows":
         # Replace "/mnt" with "V:"
         path = path.replace("/mnt", "V:")
+        path = path.replace("nunatak","windows")
         # Replace "/" with "\"
         path = path.replace("/", "\\")
     elif platform.system() == "Linux":
