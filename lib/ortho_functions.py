@@ -362,7 +362,6 @@ def convert_windows_path(path):
     if platform.system() == "Windows":
         # Replace "/mnt" with "V:"
         path = path.replace("/mnt", "V:")
-        path = path.replace("nunatak","windows")
         # Replace "/" with "\"
         path = path.replace("/", "\\")
     elif platform.system() == "Linux":
@@ -530,6 +529,8 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
             config.read(convert_windows_path(args.config_file))
             # Get the path from the config file
             gpkg_path = convert_windows_path(config.get("default", "gpkg_path"))
+            if platform.system() == "Windows" and "nunatak" in gpkg_path: # this is for selecting between specific versions of the reference DEM file
+                gpkg_path = gpkg_path.replace("nunatak","windows")
             if not os.path.isfile(gpkg_path):
                 logger.error("The gpkg file does not exist in expected location: {}".format(gpkg_path))
                 gpkg_path = None
