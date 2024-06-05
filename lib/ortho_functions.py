@@ -529,8 +529,6 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
             config.read(convert_windows_path(args.config_file))
             # Get the path from the config file
             gpkg_path = convert_windows_path(config.get("default", "gpkg_path"))
-            if platform.system() == "Windows" and "nunatak" in gpkg_path: # this is for selecting between specific versions of the reference DEM file
-                gpkg_path = gpkg_path.replace("nunatak","windows")
             if not os.path.isfile(gpkg_path):
                 logger.error("The gpkg file does not exist in expected location: {}".format(gpkg_path))
                 gpkg_path = None
@@ -540,6 +538,8 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
         logger.debug("gpkg_path: %s",gpkg_path)
         if gpkg_path is not None:
             args.dem = check_image_auto_dem(info.geometry_wkt, info.spatial_ref, gpkg_path)
+            if platform.system() == "Windows" and "nunatak" in args.dem: # this is for selecting between specific versions of the PGC reference DEM file
+                args.dem = args.dem.replace("nunatak","windows")
             if args.dem is None:
                 logger.error("dem is None")
                 err = 1
@@ -1910,35 +1910,45 @@ def check_image_auto_dem(geometry_wkt, spatial_ref, gpkg_path):
         feature = layer.GetNextFeature()
         while feature:
             feature_geometry = feature.GetGeometryRef()
-            if feature_geometry is not None:
-                try:
-                    if image_geometry_transformed.Intersects(feature_geometry):
-                        overlapping_layers.append(layer)
-                        break  # Break out of the loop since we found an overlap with this layer
-                except Exception as e:
-                    logger.error("Error processing feature: %s", e)
+            if feature_geometry is None:
+                logger.debug("Skipping feature in layer %d because its geometry is None", i)
+                feature = layer.GetNextFeature()
+                continue
+            try:
+                if image_geometry_transformed.Intersects(feature_geometry):
+                    overlapping_layers.append(layer)
+                    break  # Break out of the loop since we found an overlap with this layer
+            except Exception as e:
+                logger.error("Error processing feature in layer %d: %s", i, e)
             feature = layer.GetNextFeature()
 
     if not overlapping_layers:
         dempath = None  # No overlap found
         logger.info("image geometry does not overlap with any of the dem regions. %s", geometry_wkt)
-
     else:
-        selected_layer = overlapping_layers[0]
+        selected_layer = None
 
         # If there are multiple overlapping layers, choose the one where the image centroid is located
         if len(overlapping_layers) > 1:
-            logger.debug("check overlapping_layers >: %s", len(overlapping_layers))
+            centroid = image_geometry_transformed.Centroid()
             for layer in overlapping_layers:
+                layer.ResetReading()  # Reset reading to iterate over all features from the start
                 feature = layer.GetNextFeature()
-                if feature_geometry is not None:
-                    try:
-                        if feature_geometry.Contains(image_geometry_transformed.Centroid()):
-                            selected_layer = layer
-                            break  # Exit the loop once the desired layer is found
-                    except Exception as e:
-                        logger.error("Error processing feature: %s", e)
-                feature = layer.GetNextFeature()
+                while feature:
+                    feature_geometry = feature.GetGeometryRef()
+                    if feature_geometry is None:
+                        logger.debug("Skipping feature in overlapping layer because its geometry is None")
+                        feature = layer.GetNextFeature()
+                        continue
+                    if feature_geometry.Contains(centroid):
+                        selected_layer = layer
+                        break  # Exit the loop once the desired layer is found
+                    feature = layer.GetNextFeature()
+                if selected_layer is not None:
+                    break
+
+        if selected_layer == None:
+            selected_layer = overlapping_layers[0]
 
         selected_layer.ResetReading()
         try:
@@ -1947,10 +1957,9 @@ def check_image_auto_dem(geometry_wkt, spatial_ref, gpkg_path):
             logger.error("Error getting 'dempath' field: %s", e)
             dempath = None
 
-    # Close the dataset
+        # Close the dataset
     dataset = None
 
-    # If the centroid is not contained in any of the overlapping layers, return the "dempath" value from the first layer
     return dempath
 
 
