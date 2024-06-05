@@ -548,16 +548,16 @@ if __name__ == '__main__':
         parser.error("Test data folder does not exist: {}".format(test_dir))
         
     test_cases = [
-        # TestReadMetadata,
-        # TestWriteMetadata,
-        # TestCollectFiles,
-        # TestDEMOverlap,
+        TestReadMetadata,
+        TestWriteMetadata,
+        TestCollectFiles,
+        TestDEMOverlap,
         TestAutoDEMOverlap,
-        # TestTargetExtent,
-        # TestOutputDataValues,
-        # TestRPCHeight,
-        # TestCalcEarthSunDist,
-        # TestOverlapCheck,
+        TestTargetExtent,
+        TestOutputDataValues,
+        TestRPCHeight,
+        TestCalcEarthSunDist,
+        TestOverlapCheck,
     ]
     
     suites = []
