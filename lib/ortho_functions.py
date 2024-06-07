@@ -538,8 +538,6 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
         logger.debug("gpkg_path: %s",gpkg_path)
         if gpkg_path is not None:
             args.dem = check_image_auto_dem(info.geometry_wkt, info.spatial_ref, gpkg_path)
-            if platform.system() == "Windows" and "nunatak" in args.dem: # this is for selecting between specific versions of the PGC reference DEM file
-                args.dem = args.dem.replace("nunatak","windows")
             if args.dem is None:
                 logger.error("dem is None")
                 err = 1
@@ -1952,7 +1950,10 @@ def check_image_auto_dem(geometry_wkt, spatial_ref, gpkg_path):
 
         selected_layer.ResetReading()
         try:
-            dempath = convert_windows_path(selected_layer.GetNextFeature().GetField("dempath"))
+            feature = selected_layer.GetNextFeature()
+            dempath = convert_windows_path(feature.GetField("dempath"))
+            if platform.system() == "Windows" and ".vrt" in dempath: # this is for selecting between specific versions of the PGC reference DEM file
+                dempath = convert_windows_path(feature.GetField("windowspath"))
         except Exception as e:
             logger.error("Error getting 'dempath' field: %s", e)
             dempath = None
