@@ -98,16 +98,16 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(utils.get_bit_depth("Uint16"), None)  # function logs error, and returns None
 
     def test_get_sensor(self):
-        vendor, sat = utils.get_sensor(self.srcdir_ge)
-        self.assertEqual(vendor, 'GeoEye')
+        vendor, sat, _, _, _, _ = utils.get_sensor(self.srcdir_ge)
+        self.assertEqual(vendor.value, 'GeoEye')
         self.assertEqual(sat, 'GE01')
 
-        vendor, sat = utils.get_sensor(self.srcdir_ik)
-        self.assertEqual(vendor, 'GeoEye')
+        vendor, sat, _, _, _, _ = utils.get_sensor(self.srcdir_ik)
+        self.assertEqual(vendor.value, 'GeoEye')
         self.assertEqual(sat, 'IK01')
 
-        vendor, sat = utils.get_sensor(self.srcdir_dg)
-        self.assertEqual(vendor, 'DigitalGlobe')
+        vendor, sat, _, _, _, _ = utils.get_sensor(self.srcdir_dg)
+        self.assertEqual(vendor.value, 'DigitalGlobe')
         self.assertEqual(sat, 'WV01')
 
     def test_find_images(self):

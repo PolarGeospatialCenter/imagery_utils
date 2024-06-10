@@ -19,13 +19,22 @@ from osgeo import gdal, gdalconst, ogr, osr
 
 from lib import taskhandler, utils
 from lib import VERSION
+from lib.utils import Vendor, ImageType, OutputType
+
+gdal.UseExceptions()
 
 #### Create Loggers
 logger = logging.getLogger("logger")
 logger.setLevel(logging.DEBUG)
 
-DGbandList = ['BAND_P', 'BAND_C', 'BAND_B', 'BAND_G', 'BAND_Y', 'BAND_R', 'BAND_RE', 'BAND_N', 'BAND_N2', 'BAND_S1',
-              'BAND_S2', 'BAND_S3', 'BAND_S4', 'BAND_S5', 'BAND_S6', 'BAND_S7', 'BAND_S8']
+DGbandList = ['BAND_P', 'BAND_C', 'BAND_B',  # Pan, Visible, NIR, Pansharpened: P*, M*, and S* product codes
+              'BAND_G', 'BAND_Y', 'BAND_R', 'BAND_RE', 'BAND_N', 'BAND_N2',
+              'BAND_S1', 'BAND_S2', 'BAND_S3', 'BAND_S4', 'BAND_S5',  # SWIR: A* product codes
+              'BAND_S6', 'BAND_S7', 'BAND_S8',
+              ## CAVIS band radiometric correction not yet supported. Need irradiance, gain, and bias info.
+              # 'BAND_DC', 'BAND_CG', 'BAND_W2', 'BAND_CRS', 'BAND_SNO',  # CAVIS: C* product codes
+              # 'BAND_A31', 'BAND_A1', 'BAND_A2',  'BAND_W1', 'BAND_W3', 'BAND_NDVI', 'BAND_A32',
+              ]
 formats = {'GTiff': '.tif', 'JP2OpenJPEG': '.jp2', 'ENVI': '.envi', 'HFA': '.img', 'JPEG': '.jpg'}
 stretches = ["ns", "rf", "mr", "rd", "au"]
 resamples = ["near", "bilinear", "cubic", "cubicspline", "lanczos"]
@@ -40,56 +49,15 @@ except AttributeError:
     import multiprocessing
     ARGDEF_CPUS_AVAIL = multiprocessing.cpu_count()
 
-
 srs_wgs84 = utils.osr_srs_preserve_axis_order(osr.SpatialReference())
 srs_wgs84.ImportFromEPSG(4326)
 
 formatVRT = "VRT"
 VRTdriver = gdal.GetDriverByName(formatVRT)
 ikMsiBands = ['blu', 'grn', 'red', 'nir']
-satList = ['WV01', 'QB02', 'WV02', 'GE01', 'IK01']
 
-PGC_DG_FILE = re.compile(r"""
-                         (?P<pgcpfx>                        # PGC prefix
-                            (?P<sensor>[a-z]{2}\d{2})_      # Sensor code
-                            (?P<tstamp>\d{14})_             # Acquisition time (yyyymmddHHMMSS)
-                            (?P<catid>[a-f0-9]{16})         # Catalog ID
-                         )_
-                         (?P<oname>                         # Original DG name
-                            (?P<ts>\d{2}[a-z]{3}\d{8})-     # Acquisition time (yymmmddHHMMSS)
-                            (?P<prod>[a-z0-9]{4})_?         # DG product code
-                            (?P<tile>R\d+C\d+)?-            # Tile code (mosaics, optional)
-                            (?P<oid>                        # DG Order ID
-                                (?P<onum>\d{12}_\d{2})_     # DG Order number
-                                (?P<pnum>P\d{3})            # Part number
-                            )
-                            )
-                         ?(?P<tail>[a-z0-9_-]+(?=\.))?      # Descriptor (optional)
-                         (?P<ext>\.[a-z0-9][a-z0-9.]*)      # File name extension
-                         """, re.I | re.X)
-
-DG_FILE = re.compile(r"""
-                        (?P<oname>\d{2}[a-z]{3}\d{8}-[a-z0-9_]{4,9}-\d{12}_\d{2}_P\d{3})
-                        """, re.I | re.X)
-
-PGC_IK_FILE = re.compile(r"""
-                         (?P<pgcpfx>                        # PGC prefix
-                            (?P<sensor>[a-z]{2}\d{2})_      # Sensor code
-                            (?P<tstamp>\d{14})_             # Acquisition time (yyyymmddHHMMSS)
-                            (?P<catid>\d{28})               # Catalog ID
-                         )_
-                         (?P<oname>
-                            po_(?P<po>\d{5,7})_             # PO number
-                            (?P<band>[a-z]+(?=_))?_?        # Band description
-                            (?P<cmp>\d{7}(?=[_.]))?         # Component number
-                            (?P<tail>[a-z0-9_-]+(?=\.))?    # Descriptor (optional)
-                         )
-                         (?P<ext>\.[a-z0-9][a-z0-9.]*)      # File name extension
-                         """, re.I | re.X)
-
-
-
-EsunDict = {  # Spectral Irradiance in W/m2/um (from Thuillier 2003 - used by DG calibration team as of 2016v2)
+EsunDict = {  # Spectral Irradiance in W/m2/um (from Thuillier 2003 -
+    # used by DG calibration team as of 2016v2)
     'QB02_BAND_P': 1370.92,
     'QB02_BAND_B': 1949.59,
     'QB02_BAND_G': 1823.64,
@@ -139,8 +107,7 @@ EsunDict = {  # Spectral Irradiance in W/m2/um (from Thuillier 2003 - used by DG
     'IK01_BAND_N': 1145.8
 }
 
-
-GainDict = {  # Spectral Irradiance in W/m2/um
+GainDict = {
     'QB02_BAND_P': 0.870,
     'QB02_BAND_B': 1.105,
     'QB02_BAND_G': 1.071,
@@ -190,7 +157,7 @@ GainDict = {  # Spectral Irradiance in W/m2/um
     'IK01_BAND_N': 1.043
 }
 
-BiasDict = {  # Spectral Irradiance in W/m2/um
+BiasDict = {
     'QB02_BAND_P': -1.491,
     'QB02_BAND_B': -2.820,
     'QB02_BAND_G': -3.338,
@@ -240,17 +207,374 @@ BiasDict = {  # Spectral Irradiance in W/m2/um
     'IK01_BAND_N': -8.869
 }
 
-class OutputType(enum.Enum):
-    BYTE = "Byte"
-    UINT16 = "UInt16"
-    FLOAT32 = "Float32"
-
 # Defines the relationship between the output type and the NoData value that will be assigned to the destination rasters
 NO_DATA_DICT = {
     OutputType.BYTE: 0,
     OutputType.UINT16: 65535,
     OutputType.FLOAT32: -9999.0,
 }
+
+IMAGE_TYPE_DICT = {
+    'M': ImageType.MULTI,
+    'P': ImageType.PAN,
+    'S': ImageType.PANSH,
+    'C': ImageType.CAVIS,
+    'A': ImageType.SWIR,
+    'BLU': ImageType.MULTI,
+    'GRN': ImageType.MULTI,
+    'RED': ImageType.MULTI,
+    'NIR': ImageType.MULTI,
+    'BGRN': ImageType.MULTI,
+    'MSI': ImageType.MULTI,
+    'PAN': ImageType.PAN
+}
+
+VISIBLE_IMAGE_TYPES = [
+    ImageType.MULTI,
+    ImageType.PAN,
+    ImageType.PANSH
+]
+
+SWIR_CAVIS_IMAGE_TYPES = [
+    ImageType.SWIR,
+    ImageType.CAVIS
+]
+
+
+class ImageInfo:
+    def __init__(self, srcfp, dstdir, wd, args):
+        self.srcfp = srcfp
+        self.srcdir, self.srcfn = os.path.split(srcfp)
+        self.dstdir = dstdir
+        self.ext = os.path.splitext(self.srcfp)[1].lower()
+        if args.wd:
+            self.localsrc = os.path.join(wd, self.srcfn)
+        else:
+            self.localsrc = self.srcfp
+
+        # Verify EPSG. Epsg argument can be an integer, an integer as a string,
+        # or 'utm' or 'auto'. The latter is handled in get_image_stats
+        self.epsg = None
+        self.spatial_ref = None
+        try:
+            epsg_code = int(args.epsg)
+        except ValueError:
+            pass
+        else:
+            try:
+                spatial_ref = utils.SpatialRef(epsg_code)
+            except RuntimeError:
+                raise RuntimeError("Invalid EPSG code: %i", epsg_code)
+            else:
+                self.epsg = epsg_code
+                self.spatial_ref = spatial_ref
+
+        ## Get vendor info and text-based metadata
+        self.vendor, self.sat, self.prod_code, self.band_name, self.tile, self.regex = utils.get_sensor(self.srcfn)
+        if self.vendor is None:
+            raise RuntimeError("Vendor not recognized")
+
+        if (self.vendor == Vendor.GE and self.sat == 'IK01' and "_msi_" in self.srcfn
+                and not os.path.isfile(self.localsrc)):
+            src_image_name = self.srcfn.replace("_msi_", "_blu_")
+            self.src_image = os.path.join(self.srcdir, src_image_name)
+            self.bands = 4
+        else:
+            self.src_image = self.localsrc
+            self.bands = None
+
+        # Get image metadata as an Etree dictionary and set image type
+        self.image_type = None
+
+        if self.vendor == Vendor.DG:
+            _mp = get_dg_metadata_path(self.srcfp, self.regex)
+            if _mp is None:
+                _mp = extract_dg_metadata_file(self.srcfp, self.regex, wd)
+            _func = utils.get_dg_metadata_as_xml
+            self.image_type = IMAGE_TYPE_DICT[self.prod_code[0]]
+
+        elif self.vendor == Vendor.GE and self.sat == "GE01":
+            _mp = get_ge_metadata_path(self.srcfp)
+            _func = utils.get_ge_metadata_as_xml
+            self.image_type = IMAGE_TYPE_DICT[self.band_name]
+
+        elif self.vendor == Vendor.GE and self.sat == "IK01":
+            _mp = get_ik_metadata_path(self.srcfp, self.regex)
+            _func = utils.get_ik_metadata_as_xml
+            self.image_type = IMAGE_TYPE_DICT[self.band_name]
+
+        else:
+            raise RuntimeError(f"Vendor or sensor not recognized: {self.vendor} {self.sat}")
+
+        if _mp:
+            self.metapath = _mp
+            self.metad_etree = _func(self.metapath)
+        else:
+            raise RuntimeError(f"Cannot find metadata file")
+
+        # Initialize attribs set by get_image_stats
+        self.extent = ''
+        self.extent_geom = None
+        self.image_geom = None
+        self.minlat = None
+        self.minlon = None
+        self.maxlat = None
+        self.maxlon = None
+        self.cent_lat = None
+        self.cent_lon = None
+        self.centerlong = ''
+        self.geometry_wkt = None
+        self.res = ''
+        self.tap = ''
+        self.rgb_bands = ''
+        self.stretch = args.stretch  # this is updated in get_image_stats if == "au"
+
+        # If items needed for the output name are not set, we have to open the image
+        if self.stretch == 'au' or self.epsg is None:
+            _err = self.get_image_stats(args)
+            if _err != 0:
+                raise RuntimeError(f"Error in stats calculation")
+
+        self.dstfn = "{}_{}{}{}{}".format(
+            os.path.splitext(self.srcfn)[0],
+            utils.get_bit_depth(args.outtype),
+            self.stretch,
+            self.epsg,
+            formats[args.format]
+        )
+        self.dstfp = os.path.join(self.dstdir, self.dstfn)
+        if args.wd is not None:
+            wd = args.wd
+        else:
+            wd = self.dstdir
+        self.localdst = os.path.join(wd, self.dstfn)
+        self.rawvrt = os.path.splitext(self.localdst)[0] + "_raw.vrt"
+        self.warpfile = os.path.splitext(self.localdst)[0] + "_warp.tif"
+        self.vrtfile = os.path.splitext(self.localdst)[0] + "_vrt.vrt"
+
+    def get_image_stats(self, args):
+        rc = 0
+        # If image_geom is already set, this method was already run, skip running it again
+        if not self.image_geom:
+            try:
+                ds = gdal.Open(self.src_image, gdalconst.GA_ReadOnly)
+            except RuntimeError:
+                logger.error("Cannot open dataset: %s", self.src_image)
+                rc = 1
+            else:
+                if self.bands is None:
+                    self.bands = ds.RasterCount
+
+                ##  Get extent from GCPs
+                num_gcps = ds.GetGCPCount()
+                if num_gcps == 4:
+                    gcps = ds.GetGCPs()
+                    proj = ds.GetGCPProjection()
+                    gcp_dict = {}
+                    id_dict = {"UpperLeft": 1,
+                               "1": 1,
+                               "UpperRight": 2,
+                               "2": 2,
+                               "LowerLeft": 4,
+                               "4": 4,
+                               "LowerRight": 3,
+                               "3": 3}
+
+                    for gcp in gcps:
+                        gcp_dict[id_dict[gcp.Id]] = [float(gcp.GCPPixel), float(gcp.GCPLine), float(gcp.GCPX),
+                                                     float(gcp.GCPY), float(gcp.GCPZ)]
+                    ulx = gcp_dict[1][2]
+                    uly = gcp_dict[1][3]
+                    urx = gcp_dict[2][2]
+                    ury = gcp_dict[2][3]
+                    llx = gcp_dict[4][2]
+                    lly = gcp_dict[4][3]
+                    lrx = gcp_dict[3][2]
+                    lry = gcp_dict[3][3]
+                    xsize = gcp_dict[1][0] - gcp_dict[2][0]
+                    ysize = gcp_dict[1][1] - gcp_dict[4][1]
+
+                else:
+                    xsize = ds.RasterXSize
+                    ysize = ds.RasterYSize
+                    proj = ds.GetProjectionRef()
+                    gtf = ds.GetGeoTransform()
+                    ulx = gtf[0] + 0 * gtf[1] + 0 * gtf[2]
+                    uly = gtf[3] + 0 * gtf[4] + 0 * gtf[5]
+                    urx = gtf[0] + xsize * gtf[1] + 0 * gtf[2]
+                    ury = gtf[3] + xsize * gtf[4] + 0 * gtf[5]
+                    llx = gtf[0] + 0 * gtf[1] + ysize * gtf[2]
+                    lly = gtf[3] + 0 * gtf[4] + ysize * gtf[5]
+                    lrx = gtf[0] + xsize * gtf[1] + ysize * gtf[2]
+                    lry = gtf[3] + xsize * gtf[4] + ysize * gtf[5]
+                ds = None
+
+                ####  Create geometry objects
+                ul_geom = ogr.Geometry(ogr.wkbPoint)
+                ul_geom.AddPoint(ulx, uly)
+                ur_geom = ogr.Geometry(ogr.wkbPoint)
+                ur_geom.AddPoint(urx, ury)
+                lr_geom = ogr.Geometry(ogr.wkbPoint)
+                lr_geom.AddPoint(lrx, lry)
+                ll_geom = ogr.Geometry(ogr.wkbPoint)
+                ll_geom.AddPoint(llx, lly)
+
+                ring = ogr.Geometry(ogr.wkbLinearRing)
+                ring.AddPoint(ulx, uly)
+                ring.AddPoint(urx, ury)
+                ring.AddPoint(lrx, lry)
+                ring.AddPoint(llx, lly)
+                ring.AddPoint(ulx, uly)
+                image_geom = ogr.Geometry(ogr.wkbPolygon)
+                image_geom.AddGeometry(ring)
+                g_srs = srs_wgs84
+
+                #### Create source srs objects
+                s_srs = utils.osr_srs_preserve_axis_order(osr.SpatialReference(proj))
+                try:
+                    sg_ct = osr.CoordinateTransformation(s_srs, g_srs)
+                except RuntimeError as e:
+                    logger.error(f"Source image coordinate system error: {self.src_image} - {e}")
+                    rc = 1
+                else:
+                    #### Transform geometries to geographic
+                    if not s_srs.IsSame(g_srs):
+                        ul_geom.Transform(sg_ct)
+                        ur_geom.Transform(sg_ct)
+                        ll_geom.Transform(sg_ct)
+                        lr_geom.Transform(sg_ct)
+                        image_geom.Transform(sg_ct)
+                    logger.debug("Geographic extent: %s", str(image_geom))
+
+                    #### Get geographic Envelope
+                    self.minlon, self.maxlon, self.minlat, self.maxlat = image_geom.GetEnvelope()
+
+                    ## if self.epgs is None, then EPSG needs to be determined
+                    if not self.epsg:
+                        self.cent_lat = (self.minlat + self.maxlat) / 2
+                        self.cent_lon = (self.minlon + self.maxlon) / 2
+                        self.epsg = get_epsg_from_lat_lon(self.cent_lat, self.cent_lon, mode=args.epsg, utm_nad83=args.epsg_utm_nad83)
+                        logger.info("Automatically selected output projection EPSG code: %d", self.epsg)
+                        try:
+                            spatial_ref = utils.SpatialRef(self.epsg)
+                        except RuntimeError:
+                            logger.error(utils.capture_error_trace())
+                            logger.error("Invalid EPSG code: %i", self.epsg)
+                            rc = 1
+                        else:
+                            self.spatial_ref = spatial_ref
+
+                    #### Create target srs objects
+                    t_srs = self.spatial_ref.srs
+                    gt_ct = osr.CoordinateTransformation(g_srs, t_srs)
+
+                    #### Transform geoms to target srs
+                    if not g_srs.IsSame(t_srs):
+                        ul_geom.Transform(gt_ct)
+                        ur_geom.Transform(gt_ct)
+                        ll_geom.Transform(gt_ct)
+                        lr_geom.Transform(gt_ct)
+                        image_geom.Transform(gt_ct)
+                    logger.debug("Projected extent: %s", str(image_geom))
+                    self.image_geom = image_geom
+
+                    rasterxsize_m = abs(
+                        math.sqrt((ul_geom.GetX() - ur_geom.GetX()) ** 2 + (ul_geom.GetY() - ur_geom.GetY()) ** 2))
+                    rasterysize_m = abs(
+                        math.sqrt((ul_geom.GetX() - ll_geom.GetX()) ** 2 + (ul_geom.GetY() - ll_geom.GetY()) ** 2))
+
+                    resx = abs(
+                        math.sqrt((ul_geom.GetX() - ur_geom.GetX()) ** 2 +
+                                  (ul_geom.GetY() - ur_geom.GetY()) ** 2) / xsize)
+                    resy = abs(
+                        math.sqrt((ul_geom.GetX() - ll_geom.GetX()) ** 2 +
+                                  (ul_geom.GetY() - ll_geom.GetY()) ** 2) / ysize)
+
+                    ####  Make a string for Pixel Size Specification
+                    if args.resolution is not None:
+                        self.res = "-tr {} {} ".format(args.resolution, args.resolution)
+                    else:
+                        self.res = "-tr {0:.12f} {1:.12f} ".format(resx, resy)
+                    if args.tap:
+                        self.tap = "-tap "
+
+                    logger.info("Original image size: %f x %f, res: %.12f x %.12f", rasterxsize_m, rasterysize_m, resx,
+                                resy)
+
+                    #### Set RGB bands
+                    if args.rgb is True:
+                        if self.bands == 1:
+                            pass
+                        elif self.bands in (3, 4):
+                            self.rgb_bands = "-b 3 -b 2 -b 1 "
+                        elif self.bands in (6, 8):
+                            self.rgb_bands = "-b 5 -b 3 -b 2 "
+                        else:
+                            logger.error("Cannot get rgb bands from a %i band image", self.bands)
+                            rc = 1
+
+                    if args.bgrn is True:
+                        if self.bands == 1:
+                            pass
+                        elif self.bands == 4:
+                            pass
+                        elif self.bands == 8:
+                            self.rgb_bands = "-b 2 -b 3 -b 5 -b 7 "
+                        else:
+                            logger.error("Cannot get bgrn bands from a %i band image", self.bands)
+                            rc = 1
+
+                    if self.stretch == 'au':
+                        # SWIR should never use the mr stretch
+                        if self.vendor == Vendor.DG and self.image_type == ImageType.SWIR:
+                            self.stretch = 'rf'
+                        # CAVIS can't yet be radiometrically corrected
+                        elif self.vendor == Vendor.DG and self.image_type == ImageType.CAVIS:
+                            self.stretch = 'ns'
+                        # Antarctic visible imagery should be rf
+                        elif ((self.maxlat + self.minlat) / 2) <= -60:
+                            self.stretch = 'rf'
+                        # Non-antarctic visible imagery should be mr
+                        else:
+                            self.stretch = 'mr'
+                        logger.info("Automatically selected stretch: %s", self.stretch)
+
+        return rc
+
+    def set_extent_geom(self, target_extent_geom=None):
+        rc = 0
+        if target_extent_geom:
+            if not self.image_geom.Intersects(target_extent_geom):
+                logger.error("User-provided extent does not overlap image")
+                rc = 1
+            else:
+                logger.info("Using user-provided extent: %s", str(target_extent_geom))
+                self.extent_geom = target_extent_geom
+        else:
+            self.extent_geom = self.image_geom.Clone()
+
+        if rc != 1:
+            self.geometry_wkt = self.extent_geom.ExportToWkt()
+            ## Get centroid and back project to geographic coords
+            # (this is neccesary for images that cross 180)
+            centroid = self.extent_geom.Centroid()
+            tg_ct = osr.CoordinateTransformation(self.spatial_ref.srs, srs_wgs84)
+            centroid.Transform(tg_ct)
+
+            ## Get projected Envelope
+            logger.info("Centroid: %s", str(centroid))
+
+            if self.maxlon - self.minlon > 180:
+
+                if centroid.GetX() < 0:
+                    self.centerlong = '--config CENTER_LONG -180 '
+                else:
+                    self.centerlong = '--config CENTER_LONG 180 '
+
+            minx, maxx, miny, maxy = self.extent_geom.GetEnvelope()
+            self.extent = "-te {0:.12f} {1:.12f} {2:.12f} {3:.12f} ".format(minx, miny, maxx, maxy)
+        return rc
+
 
 def get_destination_nodata(output_type: str | OutputType) -> int | float:
     """Determines the destination NoData value for a given output data type.
@@ -260,9 +584,6 @@ def get_destination_nodata(output_type: str | OutputType) -> int | float:
         output_type = OutputType(output_type)
 
     return NO_DATA_DICT[output_type]
-
-class ImageInfo:
-    pass
 
 
 def thread_type():
@@ -282,7 +603,7 @@ def thread_type():
     return posintorall
 
 
-def buildParentArgumentParser():
+def build_parent_argument_parser():
 
     # input arguments from command line
     script_path = os.path.dirname(os.path.realpath(__file__))
@@ -296,7 +617,7 @@ def buildParentArgumentParser():
     parser.add_argument("dst", help="destination directory")
     pos_arg_keys = ["src", "dst"]
 
-    ####Optional Arguments
+    ## Optional Arguments
     parser.add_argument("-f", "--format", choices=formats.keys(), default="GTiff",
                         help="output to the given format (default=GTiff)")
     parser.add_argument("--gtiff-compression", choices=gtiff_compressions, default="lzw",
@@ -310,8 +631,6 @@ def buildParentArgumentParser():
     parser.add_argument("-d", "--dem",
                         help="the DEM to use for orthorectification (elevation values should be relative to the wgs84 "
                              "ellipsoid,  'auto': closest dem overlapping the area")
-
-    # Add the --config-file argument to the main parser
     parser.add_argument("--config-file", help="Location of config file (default={})".format(default_config),
                         default=default_config)
     parser.add_argument("-t", "--outtype", choices=[output_type.value for output_type in OutputType], default=OutputType.BYTE.value,
@@ -320,7 +639,8 @@ def buildParentArgumentParser():
                         help="output pixel resolution in units of the projection")
     parser.add_argument("-c", "--stretch", choices=stretches, default="rf",
                         help="stretch type [ns: nostretch, rf: reflectance (default), mr: modified reflectance, rd: "
-                             "absolute radiance, au: automatically set (rf for images below 60S latitude, otherwise mr)]")
+                             "absolute radiance, au: automatically set (rf for images below 60S latitude, "
+                             "otherwise mr)]")
     parser.add_argument("--resample", choices=resamples, default="near",
                         help="resampling strategy - mimicks gdalwarp options")
     parser.add_argument("--tap", action="store_true", default=False,
@@ -343,7 +663,7 @@ def buildParentArgumentParser():
     parser.add_argument("--pyramid-type", choices=['near', 'cubic'], default='near', help='pyramid resampling strategy')
     parser.add_argument("--ortho-height", type=int,
                         help='constant elevation to use for orthorectification (value should be in meters above '
-                        'the wgs84 ellipoid)')
+                        'the wgs84 ellipsoid)')
     parser.add_argument("--threads", type=thread_type(),
                         help='Number of threads to use for gdalwarp and gdal_pansharpen processes, if applicable '
                              '(default={0}, number on system={1}). Can use any positive integer, or ALL_CPUS. '
@@ -357,6 +677,7 @@ def buildParentArgumentParser():
     parser.add_argument("--version", action='version', version="imagery_utils v{}".format(VERSION))
 
     return parser, pos_arg_keys
+
 
 def convert_windows_path(path):
     if platform.system() == "Windows":
@@ -375,151 +696,154 @@ def convert_windows_path(path):
 
 
 def process_image(srcfp, dstfp, args, target_extent_geom=None):
-
     err = 0
+    starttime = datetime.today()
 
-    #### Handle threads (default to 1 if arg not supplied)
+    ## Handle threads (default to 1 if arg not supplied)
     gdal_thread_count = 1 if not hasattr(args, 'threads') else args.threads
 
-    #### Instantiate ImageInfo object
-    info = ImageInfo()
-    info.srcfp = srcfp
-    info.srcdir, info.srcfn = os.path.split(srcfp)
-    info.dstfp = dstfp
-    info.dstdir, info.dstfn = os.path.split(dstfp)
-
-    starttime = datetime.today()
-    logger.info('Image: %s', info.srcfn)
-
-    #### Get working dir
+    ## Get working dir
     if args.wd is not None:
         wd = args.wd
     else:
-        wd = info.dstdir
+        wd = os.path.dirname(dstfp)
     if not os.path.isdir(wd):
         try:
             os.makedirs(wd)
         except OSError:
             pass
     logger.info("Working Dir: %s", wd)
+    logger.info('Image: %s', os.path.basename(srcfp))
 
-    #### Derive names
-    if args.wd:
-        info.localsrc = os.path.join(wd, info.srcfn)
-    else:
-        info.localsrc = info.srcfp
-    info.localdst = os.path.join(wd, info.dstfn)
-    info.rawvrt = os.path.splitext(info.localdst)[0] + "_raw.vrt"
-    info.warpfile = os.path.splitext(info.localdst)[0] + "_warp.tif"
-    info.vrtfile = os.path.splitext(info.localdst)[0] + "_vrt.vrt"
-    ik_stacked_sem = "{}.stacked".format(os.path.join(wd, info.srcfn))
-
-    # Cleanup temp files from failed or interrupted processing attempt
-    if args.wd or os.path.isfile(ik_stacked_sem):
-        utils.delete_temp_files([info.dstfp, info.rawvrt, info.warpfile, info.vrtfile, info.localsrc])
-    else:
-        utils.delete_temp_files([info.dstfp, info.rawvrt, info.warpfile, info.vrtfile])
-
-    #### Verify EPSG
-    # epsg argument could also be 'utm' or 'auto', handled in GetImageStats
-    if type(args.epsg) is int:
-        info.epsg = args.epsg
-        try:
-            spatial_ref = utils.SpatialRef(info.epsg)
-        except RuntimeError as e:
-            logger.error(utils.capture_error_trace())
-            logger.error("Invalid EPSG code: %i", info.epsg)
-            err = 1
-        else:
-            info.spatial_ref = spatial_ref
-    else:
-        # Determine automatic epsg and srs in GetImageStats
-        info.epsg = None
-        info.spatial_ref = None
-
-    #### Verify that dem and ortho_height are not both specified
-    if args.dem is not None and args.ortho_height is not None:
-        logger.error("--dem and --ortho_height options are mutually exclusive.  Please choose only one.")
+    ##  Initialize ImageInfo object with filename-based and argument-based attributes
+    try:
+        info = ImageInfo(srcfp, os.path.dirname(dstfp), wd, args)
+    except Exception as e:
+        logger.error(e)
         err = 1
-
-    #### Check if image is level 2A and tiled, raise error
-    p = re.compile("-(?P<prod>\w{4})?(_(?P<tile>\w+))?-\w+?(?P<ext>\.\w+)")
-    m = p.search(info.srcfn)
-    if m:
-        gd = m.groupdict()
-        if gd['prod'][3] == 'M':
-            logger.error("Cannot process mosaic product")
-            err = 1
-        if gd['prod'][1] == '3':
-            logger.error("Cannot process 3* products")
-            err = 1
-        if (gd['prod'][1:3] == '2A' and gd['tile'] is not None and gd['ext'] == '.tif') and not args.skip_warp:
-            logger.error("Cannot process 2A tiled Geotiffs")
-            err = 1
-
-    #### Find metadata file
-    if not err == 1:
-        metafile = GetDGMetadataPath(info.srcfp)
-        if metafile is None:
-            metafile = ExtractDGMetadataFile(info.srcfp, wd)
-        if metafile is None:
-            metafile = GetIKMetadataPath(info.srcfp)
-        if metafile is None:
-            metafile = GetGEMetadataPath(info.srcfp)
-        if metafile is None:
-            logger.error("Cannot find metadata for image: %s", info.srcfp)
-            err = 1
+    else:
+        # Cleanup temp files from failed or interrupted processing attempt
+        ik_stacked_sem = "{}.stacked".format(os.path.join(wd, info.srcfn))
+        if args.wd or os.path.isfile(ik_stacked_sem):
+            utils.delete_temp_files([info.dstfp, info.rawvrt, info.warpfile, info.vrtfile, info.localsrc])
         else:
-            info.metapath = metafile
+            utils.delete_temp_files([info.dstfp, info.rawvrt, info.warpfile, info.vrtfile])
 
-    #### Check If Image is IKONOS msi that does not exist, if so, stack to dstdir, else, copy srcfn to dstdir
-    if not err == 1:
-        if "IK01" in info.srcfn and "msi" in info.srcfn and not os.path.isfile(info.srcfp):
-            info.localsrc = os.path.join(wd, info.srcfn)
-            logger.info("Converting IKONOS band images to composite image")
-            members = [os.path.join(info.srcdir, info.srcfn.replace("msi", b)) for b in ikMsiBands]
-            status = [os.path.isfile(member) for member in members]
-            if sum(status) != 4:
-                logger.error("1 or more IKONOS multispectral member images are missing %s", ' '.join(members))
+        ## Verify that dem and ortho_height are not both specified
+        if args.dem is not None and args.ortho_height is not None:
+            logger.error("--dem and --ortho_height options are mutually exclusive.  Please choose only one.")
+            err = 1
+
+        ## Verify that output type and stretch options are compatible
+        if args.stretch == 'rd' and args.outtype == OutputType.BYTE.value:
+            logger.error("Output type Byte is not compatible with absolution radiance (rd stretch)")
+            err = 1
+
+        if args.stretch == 'ns' and args.outtype == OutputType.BYTE.value and info.image_type != ImageType.CAVIS:
+            logger.error('Output type Byte is not compatible with no stretch (ns stretch)')
+            err = 1
+
+        if args.stretch == 'ns' and args.outtype == OutputType.FLOAT32.value:
+            logger.error('Output type Float32 is not reasonable with no stretch (ns stretch)')
+            err = 1
+
+        if args.stretch == 'mr' and args.outtype == OutputType.FLOAT32.value:
+            logger.error('Output type Float32 is not reasonable with modified reflectance (mr stretch)')
+            err = 1
+
+        if args.stretch == 'mr' and args.outtype == OutputType.UINT16.value:
+            logger.error('Output type UInt16 is not reasonable with modified reflectance (mr stretch)')
+            err = 1
+
+        if args.gtiff_compression == 'jpeg95' and args.outtype == OutputType.UINT16.value:
+            logger.error('Output type UInt16 is not compatible with jpeg compression')
+            err = 1
+
+        ## Check if image is type and stretch are appropriate
+        if info.prod_code:
+            if info.prod_code[3] == 'M':
+                logger.error("Cannot process mosaic product")
                 err = 1
-            elif not os.path.isfile(info.localsrc):
-                rc = stackIkBands(info.localsrc, members)
-                #if not os.path.isfile(os.path.join(wd, os.path.basename(info.metapath))):
-                #    shutil.copy(info.metapath, os.path.join(wd, os.path.basename(info.metapath)))
-                if rc == 1:
-                    logger.error("Error building merged Ikonos image: %s", info.srcfp)
+            if info.prod_code[1] == '3':
+                logger.error("Cannot process 3* products")
+                err = 1
+            if (info.prod_code[1:3] == '2A' and info.tile is not None and info.ext == '.tif') and not args.skip_warp:
+                logger.error("Cannot process 2A tiled Geotiffs")
+                err = 1
+
+            ## Log error if imagery is not optical (e.g. swir/cavis) and --bgrn options were used
+
+            if args.bgrn and info.image_type not in VISIBLE_IMAGE_TYPES:
+                logger.error(f"--bgrn option is not valid for this image type: {info.image_type.value}")
+                err = 1
+
+            ## Inform the user that --rgb uses bands 5,4,2 for SWIR and CAVIS
+            if args.rgb and info.image_type in SWIR_CAVIS_IMAGE_TYPES:
+                logger.info(f"--rgb option uses bands 5, 4, and 2 for this image type: {info.image_type.value}")
+
+            ## Log error if imagery is not optical (e.g. swir/cavis) and the  "mr" stretch is used
+            if (args.stretch == 'mr') and info.image_type in SWIR_CAVIS_IMAGE_TYPES:
+                logger.error(
+                    f"The modified reflectance (mr) stretch is not valid for this image type: {info.image_type.value}")
+                err = 1
+
+            ## Until we have spectral response curves from Maxar that give irradiance and any gain and bias corrections,
+            # we cannot do any radiometric correction on CAVIS
+            if (args.stretch != 'ns') and info.image_type == ImageType.CAVIS:
+                logger.error(
+                    'Radiometric correction parameters not yet available for CAVIS bands. Use the "ns" stretch.')
+                err = 1
+
+        ## Check If Image is IKONOS msi that does not exist, if so, stack to dstdir, else, copy srcfn to dstdir
+        if not err == 1:
+            if "IK01" in info.srcfn and "msi" in info.srcfn and not os.path.isfile(info.srcfp):
+                info.localsrc = os.path.join(wd, info.srcfn)
+                logger.info("Converting IKONOS band images to composite image")
+                members = [os.path.join(info.srcdir, info.srcfn.replace("msi", b)) for b in ikMsiBands]
+                status = [os.path.isfile(member) for member in members]
+                if sum(status) != 4:
+                    logger.error("1 or more IKONOS multispectral member images are missing %s", ' '.join(members))
                     err = 1
-                elif os.path.isfile(info.localsrc):
-                    with open(ik_stacked_sem, 'w') as _:
-                        pass
+                elif not os.path.isfile(info.localsrc):
+                    rc = stack_ik_bands(info.localsrc, members)
+                    #if not os.path.isfile(os.path.join(wd, os.path.basename(info.metapath))):
+                    #    shutil.copy(info.metapath, os.path.join(wd, os.path.basename(info.metapath)))
+                    if rc == 1:
+                        logger.error("Error building merged Ikonos image: %s", info.srcfp)
+                        err = 1
+                    elif os.path.isfile(info.localsrc):
+                        with open(ik_stacked_sem, 'w') as _:
+                            pass
 
-    if not err == 1 and args.wd:
-        def copy_to_wd(source_fp, wd):
-            logger.info("Copying image to working directory")
-            copy_list = glob.glob("{}.*".format(os.path.splitext(source_fp)[0]))
-            # copy_list.append(info.metapath)
-            for fpi in copy_list:
-                fpo = os.path.join(wd, os.path.basename(fpi))
-                if not os.path.isfile(fpo):
-                    shutil.copy2(fpi, fpo)
+        if not err == 1 and args.wd:
+            def copy_to_wd(source_fp, wd):
+                logger.info("Copying image to working directory")
+                copy_list = glob.glob("{}.*".format(os.path.splitext(source_fp)[0]))
+                # copy_list.append(info.metapath)
+                for fpi in copy_list:
+                    fpo = os.path.join(wd, os.path.basename(fpi))
+                    if not os.path.isfile(fpo):
+                        shutil.copy2(fpi, fpo)
 
-        if os.path.isfile(info.srcfp):
-            copy_to_wd(info.srcfp, wd)
+            if os.path.isfile(info.srcfp):
+                copy_to_wd(info.srcfp, wd)
 
-        elif os.path.isfile(info.localsrc) and not os.path.isfile(info.srcfp):
-            copy_to_wd(info.localsrc, wd)
+            elif os.path.isfile(info.localsrc) and not os.path.isfile(info.srcfp):
+                copy_to_wd(info.localsrc, wd)
 
-        else:
-            logger.warning("Source image does not exist: %s", info.srcfp)
-            err = 1
+            else:
+                logger.warning("Source image does not exist: %s", info.srcfp)
+                err = 1
 
-
-    #### Get Image Stats
-    if not err == 1:
-        info, rc = GetImageStats(args, info, target_extent_geom)
-        if rc == 1:
-            err = 1
-            logger.error("Error in stats calculation")
+        ## Open raster to get further processing info
+        if not err == 1:
+            rc = info.get_image_stats(args)
+            if rc != 1:
+                # Set target_extent variables, including user-supplied extent if applicable
+                rc = info.set_extent_geom(target_extent_geom)
+            if rc == 1:
+                err = 1
+                logger.error("Error in stats calculation")
 
     # Check if DEM is 'auto'
     if args.dem == 'auto':
@@ -542,88 +866,85 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
                 logger.error("dem is None")
                 err = 1
 
-    #### Check if DEM overlaps image
-    elif not err == 1:
+    if not err == 1:
+        ## Check if image overlaps reference DEM
         if args.dem and not args.skip_dem_overlap_check:
             overlap = overlap_check(info.geometry_wkt, info.spatial_ref, args.dem)
             if overlap is False:
                 err = 1
 
-    if not os.path.isfile(info.dstfp):
-        #### Warp Image
-        if not err == 1 and not os.path.isfile(info.warpfile):
-            rc = WarpImage(args, info, gdal_thread_count=gdal_thread_count)
-            if rc == 1:
-                err = 1
-                logger.error("Error in image warping")
+        if not os.path.isfile(info.dstfp):
+            ## Warp Image
+            if not err == 1 and not os.path.isfile(info.warpfile):
+                rc = warp_image(args, info, gdal_thread_count=gdal_thread_count)
+                if rc == 1:
+                    err = 1
+                    logger.error("Error in image warping")
 
-        #### Calculate Output File
-        if not err == 1 and os.path.isfile(info.warpfile):
-            rc = calcStats(args, info)
-            if rc == 1:
-                err = 1
-                logger.error("Error in image calculation")
+            #### Calculate Output File
+            if not err == 1 and os.path.isfile(info.warpfile):
+                rc = calc_stats(args, info)
+                if rc == 1:
+                    err = 1
+                    logger.error("Error in image calculation")
 
-    ####  Write Output Metadata
-    if not err == 1:
-        rc = WriteOutputMetadata(args, info)
-        if rc == 1:
-            err = 1
-            logger.error("Error in writing metadata file")
-
-    #### Copy image to final location if working dir is used
-    if args.wd is not None:
+        ##  Write Output Metadata
         if not err == 1:
-            logger.info("Copying to destination directory")
-            for fpi in glob.glob("{}.*".format(os.path.splitext(info.localdst)[0])):
-                fpo = os.path.join(info.dstdir, os.path.basename(fpi))
-                if not os.path.isfile(fpo):
-                    shutil.copy2(fpi, fpo)
-        if not args.save_temps:
-            utils.delete_temp_files([info.localdst])
+            rc = write_output_metadata(args, info)
+            if rc == 1:
+                err = 1
+                logger.error("Error in writing metadata file")
 
-    #### Check If Done, Delete Temp Files
-    done = os.path.isfile(info.dstfp)
-    if done is False:
-        err = 1
-        logger.error("Final image not present")
+        ## Copy image to final location if working dir is used
+        if args.wd is not None:
+            if not err == 1:
+                logger.info("Copying to destination directory")
+                for fpi in glob.glob("{}.*".format(os.path.splitext(info.localdst)[0])):
+                    fpo = os.path.join(info.dstdir, os.path.basename(fpi))
+                    if not os.path.isfile(fpo):
+                        shutil.copy2(fpi, fpo)
+            if not args.save_temps:
+                utils.delete_temp_files([info.localdst])
 
-    if err == 1:
-        logger.error("Processing failed: %s", info.srcfn)
-        if not args.save_temps:
+        ## Check If Done, Delete Temp Files
+        done = os.path.isfile(info.dstfp)
+        if done is False:
+            err = 1
+            logger.error("Final image not present")
+
+        if err == 1:
+            logger.error("Processing failed: %s", info.srcfn)
+            if not args.save_temps:
+                if args.wd or os.path.isfile(ik_stacked_sem):
+                    utils.delete_temp_files([info.dstfp, info.rawvrt, info.warpfile, info.vrtfile, info.localsrc])
+                else:
+                    utils.delete_temp_files([info.dstfp, info.rawvrt, info.warpfile, info.vrtfile])
+
+        elif not args.save_temps:
             if args.wd or os.path.isfile(ik_stacked_sem):
-                utils.delete_temp_files([info.dstfp, info.rawvrt, info.warpfile, info.vrtfile, info.localsrc])
+                utils.delete_temp_files([info.rawvrt, info.warpfile, info.vrtfile, info.localsrc])
             else:
-                utils.delete_temp_files([info.dstfp, info.rawvrt, info.warpfile, info.vrtfile])
-
-    elif not args.save_temps:
-        if args.wd or os.path.isfile(ik_stacked_sem):
-            utils.delete_temp_files([info.rawvrt, info.warpfile, info.vrtfile, info.localsrc])
-        else:
-            utils.delete_temp_files([info.rawvrt, info.warpfile, info.vrtfile])
-    # Rename temp files if --save-temps
-    elif args.save_temps:
-        os.rename(info.rawvrt, info.rawvrt + ".save")
-        os.rename(info.vrtfile, info.vrtfile + ".save")
-        os.rename(info.warpfile, info.warpfile + ".save")
+                utils.delete_temp_files([info.rawvrt, info.warpfile, info.vrtfile])
+        # Rename temp files if --save-temps
+        elif args.save_temps:
+            os.rename(info.rawvrt, info.rawvrt + ".save")
+            os.rename(info.vrtfile, info.vrtfile + ".save")
+            os.rename(info.warpfile, info.warpfile + ".save")
 
     #### Calculate Total Time
     endtime = datetime.today()
     td = (endtime-starttime)
-    logger.info("Total Processing Time: %s\n", td)
-
+    logger.info("Total Processing Time: %s", td)
     return err
 
 
-def stackIkBands(dstfp, members):
-
+def stack_ik_bands(dstfp, members):
     rc = 0
-
     band_dict = {1: gdalconst.GCI_BlueBand,
                  2: gdalconst.GCI_GreenBand,
                  3: gdalconst.GCI_RedBand,
                  4: gdalconst.GCI_Undefined}
-    remove_keys = ("NITF_FHDR", "NITF_IREP", "NITF_OSTAID", "NITF_IC", "NITF_ICORDS", "NITF_IGEOLO") #"NITF_FHDR"
+    remove_keys = ("NITF_FHDR", "NITF_IREP", "NITF_OSTAID", "NITF_IC", "NITF_ICORDS", "NITF_IGEOLO", "IREPBAND")
     meta_dict = {"NITF_IREP": "MULTI"}
 
     srcfp = members[0]
@@ -671,24 +992,19 @@ def stackIkBands(dstfp, members):
         #### Close the source dataset
         src_ds = None
 
-        #print("Merging bands")
         cmd = 'gdalbuildvrt -separate "{}" "{}"'.format(vrt, '" "'.join(members))
-
         (err, so, se) = taskhandler.exec_cmd(cmd)
         if err == 1:
             rc = 1
-
         cmd = 'gdal_translate -a_srs "{}" -of NITF -co "IC=NC" {} {} "{}" "{}"'.format(s_srs_proj4,
                                                                                        " ".join(m_list),
                                                                                        " ".join(tre_list),
                                                                                        vrt,
                                                                                        dstfp)
-
         (err, so, se) = taskhandler.exec_cmd(cmd)
         if err == 1:
             rc = 1
 
-        #print("Writing metadata to output")
         dst_ds = gdal.Open(dstfp, gdalconst.GA_ReadOnly)
         if dst_ds is not None:
             #### check that ds has correct number of bands
@@ -730,7 +1046,7 @@ def stackIkBands(dstfp, members):
     return rc
 
 
-def GetEPSGFromLatLon(lat, lon, mode='auto', utm_nad83=False):
+def get_epsg_from_lat_lon(lat, lon, mode='auto', utm_nad83=False):
     """
     Get the EPSG code of the UTM or polar stereographic
     projected coordinate system closest to the provided
@@ -747,6 +1063,8 @@ def GetEPSGFromLatLon(lat, lon, mode='auto', utm_nad83=False):
         If 'auto', use closest UTM zone when
         `lat` is in the range [-60, 60], otherwise
         use the proper polar stereographic projection.
+    utm_nad83 : bool
+        If NAD83 datum should be used
 
     Returns
     -------
@@ -805,45 +1123,54 @@ def GetEPSGFromLatLon(lat, lon, mode='auto', utm_nad83=False):
     return epsg_code
 
 
-
-def calcStats(args, info):
+def calc_stats(args, info):
 
     logger.info("Calculating image with stats")
     rc = 0
 
-    #### Get Well-known Text String of Projection from EPSG Code
+    ## Get Well-known Text String of the spatial reference systems
     p = info.spatial_ref.srs
     prj = p.ExportToWkt()
 
-    imax = 2047.0
+    ## Set input max from image type
+    if info.image_type in VISIBLE_IMAGE_TYPES:  # Optical: 11 bit
+        imax = 2047.0
+    elif info.image_type in SWIR_CAVIS_IMAGE_TYPES:  # SWIR and CAVIS: 14 bit
+        imax = 16383.0
+    else:
+        logger.error(f"Image type {info.image_type} not supported")
+        return 1
 
     if info.stretch == 'ns':
-        if args.outtype == "Byte":
+        if args.outtype == OutputType.BYTE.value:
             omax = 255.0
-        elif args.outtype == "UInt16":
-            omax = 2047.0
-        elif args.outtype == "Float32":
-            omax = 2047.0
+        elif args.outtype == OutputType.UINT16.value:
+            omax = imax
+        elif args.outtype == OutputType.FLOAT32.value:
+            omax = imax
     elif info.stretch == 'mr':
-        if args.outtype == "Byte":
+        if args.outtype == OutputType.BYTE.value:
             omax = 255.0
-        elif args.outtype == "UInt16":
-            omax = 2047.0
-        elif args.outtype == "Float32":
+        elif args.outtype == OutputType.UINT16.value:
+            omax = imax
+        elif args.outtype == OutputType.FLOAT32.value:
             omax = 1.0
     elif info.stretch == 'rf':
-        if args.outtype == "Byte":
+        if args.outtype == OutputType.BYTE.value:
             omax = 200.0
-        elif args.outtype == "UInt16":
-            omax = 2000.0
-        elif args.outtype == "Float32":
+        elif args.outtype == OutputType.UINT16.value:
+            if imax == 2047.0:  # Optical
+                omax = 2000.0
+            elif imax == 16383.0:  # SWIR and CAVIS
+                omax = 16000.0
+        elif args.outtype == OutputType.FLOAT32.value:
             omax = 1.0
 
     dst_nodata = get_destination_nodata(args.outtype)
 
     #### Stretch
     if info.stretch != "ns":
-        CFlist = GetCalibrationFactors(info)
+        CFlist = get_calibration_factors(info)
         if len(CFlist) == 0:
             logger.error("Cannot get image calibration factors from metadata")
             return 1
@@ -860,23 +1187,24 @@ def calcStats(args, info):
 
         vds = VRTdriver.CreateCopy(info.vrtfile, wds, 0)
         if vds is not None:
-
-            for band in range(1,vds.RasterCount+1):
+            for band in range(1, vds.RasterCount+1):
                 if info.stretch == "ns":
-                    LUT = "0:0,{}:{}".format(imax,omax)
+                    LUT = "0:0,{}:{}".format(imax, omax)
                 else:
-                    calfact,offset = CFlist[band-1]
+                    calfact, offset = CFlist[band-1]
                     if info.stretch == "rf":
                         LUT = "0:{},{}:{}".format(offset*omax, imax, (imax*calfact+offset)*omax)
                     elif info.stretch == "rd":
                         LUT = "0:{},{}:{}".format(offset, imax, imax*calfact+offset)
                     elif info.stretch == "mr":
-                        # modified reflectance is rf with a non-linear curve applied according to the following histgram points
+                        # modified reflectance is rf with a non-linear curve applied according
+                        # to the following histgram points
                         iLUT = [0, 0.125, 0.25, 0.375, 0.625, 1]
                         oLUT = [0, 0.375, 0.625, 0.75, 0.875, 1]
                         lLUT = map(lambda x: "{}:{}".format(
-                            (iLUT[x]-offset)/calfact, ## find original DN for each 0-1 iLUT step by applying reverse reflectance transformation
-                            omax*oLUT[x] ## output value for each 0-1 oLUT step multiplied by omax
+                            (iLUT[x]-offset)/calfact,  # find original DN for each 0-1 iLUT
+                            # step by applying reverse reflectance transformation
+                            omax*oLUT[x]  # output value for each 0-1 oLUT step multiplied by omax
                         ), range(len(iLUT)))
                         LUT = ",".join(lLUT)
                     #logger.debug(LUT)
@@ -919,7 +1247,7 @@ def calcStats(args, info):
     elif args.format == 'HFA':
         co = '-co "COMPRESSED=YES" -co "STATISTICS=YES" '
 
-    elif args.format == 'JP2OpenJPEG':   #### add rgb constraint if openjpeg (3 bands only, also test if 16 bit possible)?
+    elif args.format == 'JP2OpenJPEG':
         co = '-co "QUALITY=25" '
 
     elif args.format == 'JPEG':
@@ -971,235 +1299,7 @@ def calcStats(args, info):
     return rc
 
 
-def GetImageStats(args, info, target_extent_geom=None):
-
-    #### Add code to read info from IKONOS blu image
-    rc = 0
-    info.extent = ""
-    info.centerlong = ""
-    vendor, sat = utils.get_sensor(info.srcfn)
-
-    if vendor is None:
-        rc = 1
-
-    info.sat = sat
-    info.vendor = vendor
-
-    if info.vendor == 'GeoEye' and info.sat == 'IK01' and "_msi_" in info.srcfn and not os.path.isfile(info.localsrc):
-        src_image_name = info.srcfn.replace("_msi_", "_blu_")
-        src_image = os.path.join(info.srcdir, src_image_name)
-        info.bands = 4
-    else:
-        src_image = info.localsrc
-        info.bands = None
-
-    ds = gdal.Open(src_image, gdalconst.GA_ReadOnly)
-    if ds is not None:
-
-        ####  Get extent from GCPs
-        num_gcps = ds.GetGCPCount()
-        if info.bands is None:
-            info.bands = ds.RasterCount
-
-        if num_gcps == 4:
-            gcps = ds.GetGCPs()
-            proj = ds.GetGCPProjection()
-
-            gcp_dict = {}
-
-            id_dict = {"UpperLeft": 1,
-                       "1": 1,
-                       "UpperRight": 2,
-                       "2": 2,
-                       "LowerLeft": 4,
-                       "4": 4,
-                       "LowerRight": 3,
-                       "3": 3}
-
-            for gcp in gcps:
-                gcp_dict[id_dict[gcp.Id]] = [float(gcp.GCPPixel), float(gcp.GCPLine), float(gcp.GCPX), float(gcp.GCPY),
-                                             float(gcp.GCPZ)]
-
-            ulx = gcp_dict[1][2]
-            uly = gcp_dict[1][3]
-            urx = gcp_dict[2][2]
-            ury = gcp_dict[2][3]
-            llx = gcp_dict[4][2]
-            lly = gcp_dict[4][3]
-            lrx = gcp_dict[3][2]
-            lry = gcp_dict[3][3]
-
-            xsize = gcp_dict[1][0] - gcp_dict[2][0]
-            ysize = gcp_dict[1][1] - gcp_dict[4][1]
-
-        else:
-            xsize = ds.RasterXSize
-            ysize = ds.RasterYSize
-            proj = ds.GetProjectionRef()
-            gtf = ds.GetGeoTransform()
-
-            ulx = gtf[0] + 0 * gtf[1] + 0 * gtf[2]
-            uly = gtf[3] + 0 * gtf[4] + 0 * gtf[5]
-            urx = gtf[0] + xsize * gtf[1] + 0 * gtf[2]
-            ury = gtf[3] + xsize * gtf[4] + 0 * gtf[5]
-            llx = gtf[0] + 0 * gtf[1] + ysize * gtf[2]
-            lly = gtf[3] + 0 * gtf[4] + ysize * gtf[5]
-            lrx = gtf[0] + xsize * gtf[1] + ysize * gtf[2]
-            lry = gtf[3] + xsize * gtf[4] + ysize * gtf[5]
-
-        ds = None
-
-        ####  Create geometry objects
-        ul = "POINT ( {0:.12f} {1:.12f} )".format(ulx, uly)
-        ur = "POINT ( {0:.12f} {1:.12f} )".format(urx, ury)
-        ll = "POINT ( {0:.12f} {1:.12f} )".format(llx, lly)
-        lr = "POINT ( {0:.12f} {1:.12f} )".format(lrx, lry)
-        poly_wkt = 'POLYGON (( {0:.12f} {1:.12f}, {2:.12f} {3:.12f}, ' \
-                   '{4:.12f} {5:.12f}, {6:.12f} {7:.12f}, ' \
-                   '{8:.12f} {9:.12f} ))'.format(ulx, uly, urx, ury, lrx, lry, llx, lly, ulx, uly)
-
-        ul_geom = ogr.CreateGeometryFromWkt(ul)
-        ur_geom = ogr.CreateGeometryFromWkt(ur)
-        ll_geom = ogr.CreateGeometryFromWkt(ll)
-        lr_geom = ogr.CreateGeometryFromWkt(lr)
-        extent_geom = ogr.CreateGeometryFromWkt(poly_wkt)
-
-        g_srs = srs_wgs84
-
-        #### Create source srs objects
-        s_srs = utils.osr_srs_preserve_axis_order(osr.SpatialReference(proj))
-        sg_ct = osr.CoordinateTransformation(s_srs, g_srs)
-
-        #### Transform geometries to geographic
-        if not s_srs.IsSame(g_srs):
-            ul_geom.Transform(sg_ct)
-            ur_geom.Transform(sg_ct)
-            ll_geom.Transform(sg_ct)
-            lr_geom.Transform(sg_ct)
-            extent_geom.Transform(sg_ct)
-        logger.info("Geographic extent: %s", str(extent_geom))
-
-        #### Get geographic Envelope
-        minlon, maxlon, minlat, maxlat = extent_geom.GetEnvelope()
-
-        ## Determine output image projection if applicable
-        if type(args.epsg) is str:
-            cent_lat = (minlat + maxlat) / 2
-            cent_lon = (minlon + maxlon) / 2
-            info.epsg = GetEPSGFromLatLon(cent_lat, cent_lon, mode=args.epsg, utm_nad83=args.epsg_utm_nad83)
-            logger.info("Automatically selected output projection EPSG code: %d", info.epsg)
-            try:
-                spatial_ref = utils.SpatialRef(info.epsg)
-            except RuntimeError as e:
-                logger.error(utils.capture_error_trace())
-                logger.error("Invalid EPSG code: %i", info.epsg)
-                rc = 1
-            else:
-                info.spatial_ref = spatial_ref
-
-        #### Create target srs objects
-        t_srs = info.spatial_ref.srs
-        gt_ct = osr.CoordinateTransformation(g_srs, t_srs)
-        tg_ct = osr.CoordinateTransformation(t_srs, g_srs)
-
-        #### Transform geoms to target srs
-        if not g_srs.IsSame(t_srs):
-            ul_geom.Transform(gt_ct)
-            ur_geom.Transform(gt_ct)
-            ll_geom.Transform(gt_ct)
-            lr_geom.Transform(gt_ct)
-            extent_geom.Transform(gt_ct)
-        logger.info("Projected extent: %s", str(extent_geom))
-
-        ## test user provided extent and ues if appropriate
-        if target_extent_geom:
-            if not extent_geom.Intersects(target_extent_geom):
-                rc = 1
-            else:
-                logger.info("Using user-provided extent: %s", str(target_extent_geom))
-                extent_geom = target_extent_geom
-
-        if rc != 1:
-            info.extent_geom = extent_geom
-            info.geometry_wkt = extent_geom.ExportToWkt()
-            #### Get centroid and back project to geographic coords (this is neccesary for images that cross 180)
-            centroid = extent_geom.Centroid()
-            centroid.Transform(tg_ct)
-
-            #### Get projected Envelope
-            minx, maxx, miny, maxy = extent_geom.GetEnvelope()
-
-            #print(lons)
-            logger.info("Centroid: %s", str(centroid))
-
-            if maxlon - minlon > 180:
-
-                if centroid.GetX() < 0:
-                    info.centerlong = '--config CENTER_LONG -180 '
-                else:
-                    info.centerlong = '--config CENTER_LONG 180 '
-
-            info.extent = "-te {0:.12f} {1:.12f} {2:.12f} {3:.12f} ".format(minx, miny, maxx, maxy)
-
-            rasterxsize_m = abs(math.sqrt((ul_geom.GetX() - ur_geom.GetX())**2 + (ul_geom.GetY() - ur_geom.GetY())**2))
-            rasterysize_m = abs(math.sqrt((ul_geom.GetX() - ll_geom.GetX())**2 + (ul_geom.GetY() - ll_geom.GetY())**2))
-
-            resx = abs(math.sqrt((ul_geom.GetX() - ur_geom.GetX())**2 + (ul_geom.GetY() - ur_geom.GetY())**2) / xsize)
-            resy = abs(math.sqrt((ul_geom.GetX() - ll_geom.GetX())**2 + (ul_geom.GetY() - ll_geom.GetY())**2) / ysize)
-
-            ####  Make a string for Pixel Size Specification
-            if args.resolution is not None:
-                info.res = "-tr {} {} ".format(args.resolution, args.resolution)
-            else:
-                info.res = "-tr {0:.12f} {1:.12f} ".format(resx, resy)
-            if args.tap:
-                info.tap = "-tap "
-            else:
-                info.tap = ""
-            logger.info("Original image size: %f x %f, res: %.12f x %.12f", rasterxsize_m, rasterysize_m, resx, resy)
-
-            #### Set RGB bands
-            info.rgb_bands = ""
-
-            if args.rgb is True:
-                if info.bands == 1:
-                    pass
-                elif info.bands == 3:
-                    info.rgb_bands = "-b 3 -b 2 -b 1 "
-                elif info.bands == 4:
-                    info.rgb_bands = "-b 3 -b 2 -b 1 "
-                elif info.bands == 8:
-                    info.rgb_bands = "-b 5 -b 3 -b 2 "
-                else:
-                    logger.error("Cannot get rgb bands from a %i band image", info.bands)
-                    rc = 1
-
-            if args.bgrn is True:
-                if info.bands == 1:
-                    pass
-                elif info.bands == 4:
-                    pass
-                elif info.bands == 8:
-                    info.rgb_bands = "-b 2 -b 3 -b 5 -b 7 "
-                else:
-                    logger.error("Cannot get bgrn bands from a %i band image", info.bands)
-                    rc = 1
-
-            info.stretch = args.stretch
-            if args.stretch == 'au':
-                if ((maxlat + minlat) / 2) <= -60:
-                    info.stretch = 'rf'
-                else:
-                    info.stretch = 'mr'
-                logger.info("Automatically selected stretch: %s", info.stretch)
-    else:
-        logger.error("Cannot open dataset: %s", src_image)
-        rc = 1
-
-    return info, rc
-
-
-def GetImageGeometryInfo(src_image, spatial_ref, args, return_type='extent_geom'):
+def get_image_geometry_info(src_image, spatial_ref, args, return_type='extent_geom'):
     return_type_choices = ['extent_geom', 'epsg_code']
     if return_type not in return_type_choices:
         raise utils.InvalidArgumentError(
@@ -1212,160 +1312,203 @@ def GetImageGeometryInfo(src_image, spatial_ref, args, return_type='extent_geom'
     if not os.path.isfile(src_image) and srcfn.startswith("IK01") and "_msi_" in srcfn:
         srcfn = srcfn.replace("_msi_", "_blu_")
         src_image = os.path.join(os.path.dirname(src_image), srcfn)
-
-    ds = gdal.Open(src_image, gdalconst.GA_ReadOnly)
-    if ds is not None:
-
-        ####  Get extent from GCPs
-        num_gcps = ds.GetGCPCount()
-
-        if num_gcps == 4:
-            gcps = ds.GetGCPs()
-            proj = ds.GetGCPProjection()
-
-            gcp_dict = {}
-            id_dict = {"UpperLeft": 1,
-                       "1": 1,
-                       "UpperRight": 2,
-                       "2": 2,
-                       "LowerLeft": 4,
-                       "4": 4,
-                       "LowerRight": 3,
-                       "3": 3}
-
-            for gcp in gcps:
-                gcp_dict[id_dict[gcp.Id]] = [float(gcp.GCPPixel), float(gcp.GCPLine), float(gcp.GCPX),
-                                             float(gcp.GCPY), float(gcp.GCPZ)]
-            ulx = gcp_dict[1][2]
-            uly = gcp_dict[1][3]
-            urx = gcp_dict[2][2]
-            ury = gcp_dict[2][3]
-            llx = gcp_dict[4][2]
-            lly = gcp_dict[4][3]
-            lrx = gcp_dict[3][2]
-            lry = gcp_dict[3][3]
-
-            xsize = gcp_dict[1][0] - gcp_dict[2][0]
-            ysize = gcp_dict[1][1] - gcp_dict[4][1]
-
-        else:
-            xsize = ds.RasterXSize
-            ysize = ds.RasterYSize
-            proj = ds.GetProjectionRef()
-            gtf = ds.GetGeoTransform()
-
-            ulx = gtf[0] + 0 * gtf[1] + 0 * gtf[2]
-            uly = gtf[3] + 0 * gtf[4] + 0 * gtf[5]
-            urx = gtf[0] + xsize * gtf[1] + 0 * gtf[2]
-            ury = gtf[3] + xsize * gtf[4] + 0 * gtf[5]
-            llx = gtf[0] + 0 * gtf[1] + ysize * gtf[2]
-            lly = gtf[3] + 0 * gtf[4] + ysize * gtf[5]
-            lrx = gtf[0] + xsize * gtf[1] + ysize* gtf[2]
-            lry = gtf[3] + xsize * gtf[4] + ysize * gtf[5]
-
-        ds = None
-
-        ####  Create geometry objects
-        ring = ogr.Geometry(ogr.wkbLinearRing)
-        ring.AddPoint(ulx, uly)
-        ring.AddPoint(urx, ury)
-        ring.AddPoint(lrx, lry)
-        ring.AddPoint(llx, lly)
-        ring.AddPoint(ulx, uly)
-
-        extent_geom = ogr.Geometry(ogr.wkbPolygon)
-        extent_geom.AddGeometry(ring)
-
-        g_srs = srs_wgs84
-
-        #### Create source srs objects
-        s_srs = utils.osr_srs_preserve_axis_order(osr.SpatialReference(proj))
-        sg_ct = osr.CoordinateTransformation(s_srs, g_srs)
-
-        #### Transform geometries to geographic
-        if not s_srs.IsSame(g_srs):
-            extent_geom.Transform(sg_ct)
-        # logger.info("Geographic extent: %s", str(extent_geom))
-
-        #### Get geographic Envelope
-        minlon, maxlon, minlat, maxlat = extent_geom.GetEnvelope()
-
-        ## Determine output image projection if applicable
-        if type(args.epsg) is str:
-            cent_lat = (minlat + maxlat) / 2
-            cent_lon = (minlon + maxlon) / 2
-            img_epsg = GetEPSGFromLatLon(cent_lat, cent_lon, mode=args.epsg, utm_nad83=args.epsg_utm_nad83)
-            try:
-                spatial_ref = utils.SpatialRef(img_epsg)
-            except RuntimeError as e:
-                logger.error(utils.capture_error_trace())
-                logger.error("Invalid EPSG code: %i", img_epsg)
-                return None
-        else:
-            img_epsg = args.epsg
-
-        if return_type == 'epsg_code':
-            return img_epsg
-
-        #### Create target srs objects
-        t_srs = spatial_ref.srs
-        gt_ct = osr.CoordinateTransformation(g_srs, t_srs)
-
-        #### Transform geoms to target srs
-        if not g_srs.IsSame(t_srs):
-            extent_geom.Transform(gt_ct)
-        # logger.info("Projected extent: %s", str(extent_geom))
-
-        return extent_geom
-
-    else:
-        logger.error("Cannot open dataset: %s", src_image)
+    try:
+        ds = gdal.Open(src_image, gdalconst.GA_ReadOnly)
+    except RuntimeError as e:
+        logger.error(f"Cannot open dataset: {e}")
         return None
 
+    ####  Get extent from GCPs
+    num_gcps = ds.GetGCPCount()
 
-def GetDGMetadataPath(srcfp):
+    if num_gcps == 4:
+        gcps = ds.GetGCPs()
+        proj = ds.GetGCPProjection()
+
+        gcp_dict = {}
+        id_dict = {"UpperLeft": 1,
+                   "1": 1,
+                   "UpperRight": 2,
+                   "2": 2,
+                   "LowerLeft": 4,
+                   "4": 4,
+                   "LowerRight": 3,
+                   "3": 3}
+
+        for gcp in gcps:
+            gcp_dict[id_dict[gcp.Id]] = [float(gcp.GCPPixel), float(gcp.GCPLine), float(gcp.GCPX),
+                                         float(gcp.GCPY), float(gcp.GCPZ)]
+        ulx = gcp_dict[1][2]
+        uly = gcp_dict[1][3]
+        urx = gcp_dict[2][2]
+        ury = gcp_dict[2][3]
+        llx = gcp_dict[4][2]
+        lly = gcp_dict[4][3]
+        lrx = gcp_dict[3][2]
+        lry = gcp_dict[3][3]
+
+    else:
+        xsize = ds.RasterXSize
+        ysize = ds.RasterYSize
+        proj = ds.GetProjectionRef()
+        gtf = ds.GetGeoTransform()
+
+        ulx = gtf[0] + 0 * gtf[1] + 0 * gtf[2]
+        uly = gtf[3] + 0 * gtf[4] + 0 * gtf[5]
+        urx = gtf[0] + xsize * gtf[1] + 0 * gtf[2]
+        ury = gtf[3] + xsize * gtf[4] + 0 * gtf[5]
+        llx = gtf[0] + 0 * gtf[1] + ysize * gtf[2]
+        lly = gtf[3] + 0 * gtf[4] + ysize * gtf[5]
+        lrx = gtf[0] + xsize * gtf[1] + ysize* gtf[2]
+        lry = gtf[3] + xsize * gtf[4] + ysize * gtf[5]
+
+    ds = None
+
+    ####  Create geometry objects
+    ring = ogr.Geometry(ogr.wkbLinearRing)
+    ring.AddPoint(ulx, uly)
+    ring.AddPoint(urx, ury)
+    ring.AddPoint(lrx, lry)
+    ring.AddPoint(llx, lly)
+    ring.AddPoint(ulx, uly)
+    extent_geom = ogr.Geometry(ogr.wkbPolygon)
+    extent_geom.AddGeometry(ring)
+
+    g_srs = srs_wgs84
+
+    #### Create source srs objects
+    s_srs = utils.osr_srs_preserve_axis_order(osr.SpatialReference(proj))
+    try:
+        sg_ct = osr.CoordinateTransformation(s_srs, g_srs)
+    except RuntimeError as e:
+        logger.error(f"Source image coordinate system error: {src_image} - {e}")
+        return None
+
+    #### Transform geometries to geographic
+    if not s_srs.IsSame(g_srs):
+        extent_geom.Transform(sg_ct)
+    # logger.info("Geographic extent: %s", str(extent_geom))
+
+    #### Get geographic Envelope
+    minlon, maxlon, minlat, maxlat = extent_geom.GetEnvelope()
+
+    ## Determine output image projection if applicable
+    try:
+        epsg_code = int(args.epsg)
+    except ValueError:
+        cent_lat = (minlat + maxlat) / 2
+        cent_lon = (minlon + maxlon) / 2
+        epsg_code = get_epsg_from_lat_lon(cent_lat, cent_lon, mode=args.epsg, utm_nad83=args.epsg_utm_nad83)
+
+    try:
+        spatial_ref = utils.SpatialRef(epsg_code)
+    except RuntimeError as e:
+        logger.error(utils.capture_error_trace())
+        logger.error("Invalid EPSG code: %i", epsg_code)
+        return None
+
+    if return_type == 'epsg_code':
+        return epsg_code
+
+    #### Create target srs objects
+    t_srs = spatial_ref.srs
+    gt_ct = osr.CoordinateTransformation(g_srs, t_srs)
+
+    #### Transform geoms to target srs
+    if not g_srs.IsSame(t_srs):
+        extent_geom.Transform(gt_ct)
+    # logger.info("Projected extent: %s", str(extent_geom))
+
+    return extent_geom
+
+
+def get_dg_metadata_path(srcfp, regex):
     """
     Returns the filepath of the XML, if it can be found. Returns
     None if no valid filepath could be found.
     """
-
-    filename = os.path.basename(srcfp)
-
-    if os.path.isfile(os.path.splitext(srcfp)[0] + '.xml'):
-        metapath = os.path.splitext(srcfp)[0] + '.xml'
-    elif os.path.isfile(os.path.splitext(srcfp)[0] + '.XML'):
-        metapath = os.path.splitext(srcfp)[0] + '.XML'
-    else:
+    filebasename = os.path.splitext(os.path.basename(srcfp))[0]
+    srcdir = os.path.dirname(srcfp)
+    metapath = os.path.join(srcdir, filebasename) + '.xml'
+    if not os.path.isfile(metapath):
+        metapath = os.path.join(srcdir, filebasename) + '.XML'
+    if not os.path.isfile(metapath):
         # Tiled DG images may have a metadata file at the strip level
+        match = re.match(regex, filebasename.lower())
         metapath = None
-        match = re.match(PGC_DG_FILE, filename)
         if match:
-            try:
-                # Build the expected strip-level metadata filepath using
-                # parts of the source image filepath
-                metapath = os.path.dirname(srcfp)
-                metapath = os.path.join(metapath, match.group('pgcpfx'))
-                metapath += "_{}".format(match.group('ts'))
-                metapath += "-{}".format(match.group('prod'))
-                metapath += "-{}".format(match.group('oid'))
+            if match.group('tile'):
+                tile_removed = filebasename[:match.start('tile') - 1] + filebasename[match.end('tile'):]
+                metapath = os.path.join(srcdir, tile_removed) + '.xml'
+                if not os.path.isfile(metapath):
+                    os.path.join(srcdir, tile_removed) + ".XML"
+                if not os.path.isfile(metapath):
+                    metapath = None
 
-                if os.path.isfile(metapath + '.xml'):
-                    metapath += ".xml"
-                elif os.path.isfile(metapath + ".XML"):
-                    metapath += ".XML"
-            # If any of the groups we use to build the metapath aren't there,
-            # a name error will be thrown, which means we won't be able to find
-            # the metapath.
-            except NameError:
-                metapath = None
+    return metapath
 
-    if metapath and os.path.isfile(metapath):
+
+def get_ik_metadata_path(srcfp, regex):
+    """
+    Same as GetDGMetadataPath, but for Ikonos.
+    """
+    # Most of the time, the metadata file will be the same filename
+    # except for the extension or with the band name replaced with rgb.
+    # However, some IK metadata will be for
+    # an entire strip, and will have a different filename, which we
+    # will look for if we need to.
+    metapath = os.path.splitext(srcfp)[0] + '.txt'
+
+    if not os.path.isfile(metapath):
+        for b in ikMsiBands:
+            mp = metapath.replace(b, 'rgb')
+            if os.path.isfile(mp):
+                metapath = mp
+                break
+
+    if not os.path.isfile(metapath):
+        metapath = os.path.splitext(srcfp)[0] + '_metadata.txt'
+
+    if not os.path.isfile(metapath):
+        for b in ikMsiBands:
+            mp = metapath.replace(b, 'rgb')
+            if os.path.isfile(mp):
+                metapath = mp
+                break
+
+    if not os.path.isfile(metapath):
+        filebasename = os.path.splitext(os.path.basename(srcfp))[0]
+        srcdir = os.path.dirname(srcfp)
+        match = re.match(regex, filebasename.lower())
+        metapath = None
+        if match:
+            if match.group('po'):
+                tile_removed = filebasename[:match.end('po')]
+                metapath = os.path.join(srcdir, tile_removed) + '_metadata.txt'
+                if not os.path.isfile(metapath):
+                    metapath = None
+
+    return metapath
+
+
+def get_ge_metadata_path(srcfp):
+    """
+    Same as GetDGMetadataPath, but for GE01.
+    """
+    # Most of the time, the metadata file will be the same filename
+    # except for the extension. However, some IK metadata will be for
+    # an entire strip, and will have a different filename, which we
+    # will look for if we need to.
+    metapath = os.path.splitext(srcfp)[0] + '.txt'
+    if not os.path.isfile(metapath):
+        metapath = os.path.splitext(srcfp)[0] + '.pvl'
+    if os.path.isfile(metapath):
         return metapath
     else:
         return None
 
 
-def ExtractDGMetadataFile(srcfp, wd):
+def extract_dg_metadata_file(srcfp, regex, wd):
     """
     Searches the .tar for a valid XML. If found,
     extracts the metadata file. Returns
@@ -1376,7 +1519,7 @@ def ExtractDGMetadataFile(srcfp, wd):
     filename = os.path.basename(srcfp)
     tarpath = os.path.splitext(srcfp)[0] + '.tar'
     if os.path.isfile(tarpath):
-        match = re.search(DG_FILE, filename)
+        match = re.search(regex, filename)
         if match:
             metaname = match.group('oname')
 
@@ -1402,103 +1545,29 @@ def ExtractDGMetadataFile(srcfp, wd):
         return None
 
 
-def GetIKMetadataPath(srcfp):
-    """
-    Same as GetDGMetadataPath, but for Ikonos.
-    """
-    # Most of the time, the metadata file will be the same filename
-    # except for the extension or with the band name replaced with rgb.
-    # However, some IK metadata will be for
-    # an entire strip, and will have a different filename, which we
-    # will look for if we need to.
-    metapath = os.path.splitext(srcfp)[0] + '.txt'
-
-    if not os.path.isfile(metapath):
-        metapath = os.path.splitext(srcfp)[0] + '_metadata.txt'
-
-    if not os.path.isfile(metapath):
-        for b in ikMsiBands:
-            mp = metapath.replace(b, 'rgb')
-            if os.path.isfile(mp):
-                metapath = mp
-                break
-
-    if not os.path.isfile(metapath):
-        source_filename = os.path.basename(srcfp)
-        match = re.match(PGC_IK_FILE, source_filename)
-        if match:
-            try:
-                # Build the expected strip-level metadata filepath using
-                # parts of the source image filepath
-                metapath = os.path.dirname(srcfp)
-                metapath = os.path.join(metapath, match.group('pgcpfx'))
-                metapath += "_po_{}".format(match.group('po'))
-
-                if os.path.isfile(metapath + '_metadata.txt'):
-                    metapath += "_metadata.txt"
-            # If any of the groups we use to build the metapath aren't there,
-            # a name error will be thrown, which means we won't be able to find
-            # the metapath.
-            except NameError:
-                metapath = None
-    if metapath and os.path.isfile(metapath):
-        return metapath
-    else:
-        return None
-
-
-def GetGEMetadataPath(srcfp):
-    """
-    Same as GetDGMetadataPath, but for GE01.
-    """
-    # Most of the time, the metadata file will be the same filename
-    # except for the extension. However, some IK metadata will be for
-    # an entire strip, and will have a different filename, which we
-    # will look for if we need to.
-    metapath = os.path.splitext(srcfp)[0] + '.txt'
-    if not os.path.isfile(metapath):
-        metapath = os.path.splitext(srcfp)[0] + '.pvl'
-    if os.path.isfile(metapath):
-        return metapath
-    else:
-        return None
-
-
-def WriteOutputMetadata(args, info):
-
+def write_output_metadata(args, info):
     ####  Ortho metadata name
     omd = os.path.splitext(info.localdst)[0] + ".xml"
-
     til = None
+    imd = None
 
-    ####  Get xml/pvl metadata
-    ####  If DG
-    if info.vendor == 'DigitalGlobe':
-        metapath = info.metapath
+    #  If DG
+    if info.vendor == Vendor.DG:
+        imd = info.metad_etree.find("IMD")
+        til = info.metad_etree.find("TIL")
 
-        try:
-            metad = ET.parse(metapath)
-        except ET.ParseError:
-            logger.error("Invalid xml formatting in metadata file: %s", metapath)
-            return 1
-        else:
-            imd = metad.find("IMD")
-            til = metad.find("TIL")
-
-    ####  If GE
-    elif info.vendor == 'GeoEye' and info.sat == "GE01":
-
-        metad = utils.getGEMetadataAsXml(info.metapath)
+    #  If GE
+    elif info.vendor == Vendor.GE and info.sat == "GE01":
         imd = ET.Element("IMD")
         include_tags = ["sensorInfo", "inputImageInfo", "correctionParams", "bandSpecificInformation"]
 
-        elem = metad.find("productInfo")
+        elem = info.metad_etree.find("productInfo")
         if elem is not None:
             rpc = elem.find("rationalFunctions")
             elem.remove(rpc)
             imd.append(elem)
 
-        elem = metad.find('productOrderInfo')
+        elem = info.metad_etree.find('productOrderInfo')
         elem.remove(elem.find('numberOfAOICoordinates'))
         for child in elem.findall('aoiGeoCoordinate'):
             elem.remove(child)
@@ -1507,19 +1576,16 @@ def WriteOutputMetadata(args, info):
         imd.append(elem)
 
         for tag in include_tags:
-            elems = metad.findall(tag)
+            elems = info.metad_etree.findall(tag)
             imd.extend(elems)
 
-
     elif info.sat in ['IK01']:
-        match = PGC_IK_FILE.search(info.srcfn)
+        match = re.search(info.regex, info.srcfn)
         if match:
             component = match.group('cmp')
-
-            metad = utils.getIKMetadataAsXml(info.metapath)
             imd = ET.Element("IMD")
 
-            elem = metad.find('Source_Image_Metadata')
+            elem = info.metad_etree.find('Source_Image_Metadata')
             elem.remove(elem.find('Number_of_Source_Images'))
             for child in elem.findall("Source_Image_ID"):
                 prod_id_elem = child.find("Product_Image_ID")
@@ -1527,63 +1593,62 @@ def WriteOutputMetadata(args, info):
                     elem.remove(child)
             imd.append(elem)
 
-            elem = metad.find('Product_Component_Metadata')
+            elem = info.metad_etree.find('Product_Component_Metadata')
             elem.remove(elem.find('Number_of_Components'))
             for child in elem.findall("Component_ID"):
                 if not child.attrib['id'] == component:
                     elem.remove(child)
             imd.append(elem)
 
-            elem = metad.find('Product_Order_Metadata')
+            elem = info.metad_etree.find('Product_Order_Metadata')
             elem.remove(elem.find('Product_Order_Area_Geographic_Coordinates'))
             elem.remove(elem.find('Product_Order_Area_Map_Coordinates_in_Map_Units'))
             imd.append(elem)
 
     ####  Determine custom MD
-    dMD = {}
-    dMD["VERSION"] = "imagery_utils v{}".format(VERSION)
     tm = datetime.today()
-    dMD["PROCESS_DATE"] = tm.strftime("%d-%b-%Y %H:%M:%S")
+    dem_val = None
     if not args.skip_warp:
         if args.dem:
-            dMD["ORTHO_DEM"] = os.path.basename(args.dem)
+            dem_val = os.path.basename(args.dem)
         elif args.ortho_height is not None:
-            dMD["ORTHO_HEIGHT"] = str(args.ortho_height)
+            dem_val = str(args.ortho_height)
         else:
-            h = get_rpc_height(info)
-            dMD["ORTHO_HEIGHT"] = str(h)
-    dMD["RESAMPLEMETHOD"] = args.resample
-    dMD["STRETCH"] = args.stretch
-    dMD["BITDEPTH"] = args.outtype
-    dMD["FORMAT"] = args.format
-    dMD["COMPRESSION"] = args.gtiff_compression
-    #dMD["BANDNUMBER"]
-    #dMD["BANDMAP"]
-    dMD["EPSG_CODE"] = str(info.epsg)
+            dem_val = str(get_rpc_height(info))
+
+    dMD = {
+        "VERSION": "imagery_utils v{}".format(VERSION),
+        "PROCESS_DATE": tm.strftime("%d-%b-%Y %H:%M:%S"),
+        "ORTHO_HEIGHT": dem_val,
+        "RESAMPLEMETHOD": args.resample,
+        "STRETCH": info.stretch,
+        "BITDEPTH": args.outtype,
+        "FORMAT": args.format,
+        "COMPRESSION": args.gtiff_compression,
+        "EPSG_CODE": str(info.epsg)
+    }
 
     pgcmd = ET.Element("PGC_IMD")
     for tag in dMD:
-        child = ET.SubElement(pgcmd, tag)
-        child.text = dMD[tag]
+        if dMD[tag]:
+            child = ET.SubElement(pgcmd, tag)
+            child.text = dMD[tag]
 
     ####  Write output
-
     root = ET.Element("IMD")
-
     root.append(pgcmd)
 
     ref = ET.SubElement(root, "SOURCE_IMD")
     child = ET.SubElement(ref, "SOURCE_IMAGE")
     child.text = os.path.basename(info.localsrc)
     child = ET.SubElement(ref, "VENDOR")
-    child.text = info.vendor
+    child.text = info.vendor.value
 
     if imd is not None:
         ref.append(imd)
     if til is not None:
         ref.append(til)
 
-    #ET.ElementTree(root).write(omd,xml_declaration=True)
     xmlstring = prettify(root)
     fh = open(omd, 'w')
     fh.write(xmlstring)
@@ -1606,7 +1671,7 @@ def prettify(root):
     return reparsed.toprettyxml(indent="\t")
 
 
-def WarpImage(args, info, gdal_thread_count=1):
+def warp_image(args, info, gdal_thread_count=1):
 
     rc = 0
 
@@ -1631,10 +1696,10 @@ def WarpImage(args, info, gdal_thread_count=1):
 
             #### If Image is TIF, extract RPB
             if os.path.splitext(info.localsrc)[1].lower() == ".tif":
-                if info.vendor == "DigitalGlobe":
+                if info.vendor == Vendor.DG:
                     rpb_p = os.path.splitext(info.localsrc)[0] + ".RPB"
 
-                elif info.vendor == "GeoEye" and info.sat == "GE01":
+                elif info.vendor == Vendor.GE and info.sat == "GE01":
                     rpb_p = os.path.splitext(info.localsrc)[0] + "_rpc.txt"
 
                 elif info.sat in ['IK01']:
@@ -1649,7 +1714,7 @@ def WarpImage(args, info, gdal_thread_count=1):
                 # if rpb_p:
                 if True:
                     if rpb_p is None or not os.path.isfile(rpb_p):
-                        err = ExtractRPB(info.localsrc, rpb_p)
+                        err = extract_rpb(info.localsrc, rpb_p)
                         if err == 1:
                             rc = 1
                     if rpb_p is None or not os.path.isfile(rpb_p):
@@ -1694,26 +1759,24 @@ def WarpImage(args, info, gdal_thread_count=1):
                     to = "RPC_HEIGHT={}".format(h)
                     ds = None
 
-
                 #### GDALWARP Command
                 cmd = 'gdalwarp {} -srcnodata "{}" -dstnodata "{}" -of GTiff -ot Float32 {}{}{}{}-co "TILED=YES" -co "BIGTIFF=YES" ' \
                       '-t_srs "{}" -r {} -et 0.01 -rpc -to "{}" "{}" "{}"'.format(
-                    config_options,
-                    " ".join(src_nodata_list),
-                    " ".join(dst_nodata_list),
-                    info.centerlong,
-                    info.extent,
-                    info.res,
-                    info.tap,
-                    info.spatial_ref.proj4,
-                    args.resample,
-                    to,
-                    info.rawvrt,
-                    info.warpfile
-                )
+                        config_options,
+                        " ".join(src_nodata_list),
+                        " ".join(dst_nodata_list),
+                        info.centerlong,
+                        info.extent,
+                        info.res,
+                        info.tap,
+                        info.spatial_ref.proj4,
+                        args.resample,
+                        to,
+                        info.rawvrt,
+                        info.warpfile
+                        )
 
                 (err, so, se) = taskhandler.exec_cmd(cmd)
-                #print(err)
                 if err == 1:
                     rc = 1
 
@@ -1721,19 +1784,18 @@ def WarpImage(args, info, gdal_thread_count=1):
             #### GDALWARP Command
             cmd = 'gdalwarp {} -srcnodata "{}" -dstnodata "{}" -of GTiff -ot UInt16 {}{}-co "TILED=YES" -co "BIGTIFF=YES" -t_srs ' \
                   '"{}" -r {} "{}" "{}"'.format(
-                config_options,
-                " ".join(src_nodata_list),
-                " ".join(dst_nodata_list),
-                info.res,
-                info.tap,
-                info.spatial_ref.proj4,
-                args.resample,
-                info.rawvrt,
-                info.warpfile
-            )
+                    config_options,
+                    " ".join(src_nodata_list),
+                    " ".join(dst_nodata_list),
+                    info.res,
+                    info.tap,
+                    info.spatial_ref.proj4,
+                    args.resample,
+                    info.rawvrt,
+                    info.warpfile
+                    )
 
             (err, so, se) = taskhandler.exec_cmd(cmd)
-            #print(err)
             if err == 1:
                 rc = 1
 
@@ -1766,29 +1828,34 @@ def get_rpc_height(info):
     return h
 
 
-def GetCalibrationFactors(info):
+def get_calibration_factors(info):
 
     calibDict = {}
     CFlist = []
+    bandList = []
 
-    if info.vendor == "DigitalGlobe":
-
-        xmlpath = info.metapath
-        calibDict = getDGXmlData(xmlpath, info.stretch)
+    if info.vendor == Vendor.DG:
+        try:
+            calibDict = get_dg_calib_dict(info.metad_etree, info.stretch)
+        except utils.InvalidMetadataError as e:
+            logger.error(e)
         bandList = DGbandList
 
-    elif info.vendor == "GeoEye" and info.sat == "GE01":
-
-        metapath = info.metapath
-        calibDict = GetGEcalibDict(metapath, info.stretch)
+    elif info.vendor == Vendor.GE and info.sat == "GE01":
+        try:
+            calibDict = get_ge_calib_dict(info.metad_etree, info.stretch)
+        except utils.InvalidMetadataError as e:
+            logger.error(e)
         if info.bands == 1:
             bandList = [5]
         elif info.bands == 4:
             bandList = range(1, 5, 1)
 
-    elif info.vendor == "GeoEye" and info.sat == "IK01":
-        metapath = info.metapath
-        calibDict = GetIKcalibDict(metapath, info.stretch)
+    elif info.vendor == Vendor.GE and info.sat == "IK01":
+        try:
+            calibDict = get_ik_calib_dict(info.metad_etree, info.metapath, info.regex, info.stretch)
+        except utils.InvalidMetadataError as e:
+            logger.error(e)
         if info.bands == 1:
             bandList = [4]
         elif info.bands == 4:
@@ -1797,9 +1864,8 @@ def GetCalibrationFactors(info):
             bandList = range(0, 3, 1)
 
     else:
-        logger.warning("Vendor or sensor not recognized: %s, %s", info.vendor, info.sat)
+        logger.error(f"Vendor or sensor not recognized: {info.vendor} {info.sat}")
 
-    #logger.info("Calibration factors: %s", calibDict)
     if len(calibDict) > 0:
 
         for band in bandList:
@@ -1811,7 +1877,6 @@ def GetCalibrationFactors(info):
 
 
 def overlap_check(geometry_wkt, spatial_ref, demPath):
-
 
     imageSpatialReference = spatial_ref.srs
     imageGeometry = ogr.CreateGeometryFromWkt(geometry_wkt)
@@ -1838,12 +1903,12 @@ def overlap_check(geometry_wkt, spatial_ref, demPath):
 
             coordinateTransformer = osr.CoordinateTransformation(imageSpatialReference, demSpatialReference)
             if not imageSpatialReference.IsSame(demSpatialReference):
-                #logger.info("Image Spatial Refernce: %s", imageSpatialReference)
-                #logger.info("DEM Spatial ReferenceL %s", emSpatialReference)
-                #logger.info("Image Geometry before transformation: %s", imageGeometry)
+                # logger.info("Image Spatial Refernce: %s", imageSpatialReference)
+                # logger.info("DEM Spatial ReferenceL %s", emSpatialReference)
+                # logger.info("Image Geometry before transformation: %s", imageGeometry)
                 logger.info("Transforming image geometry to dem spatial reference")
                 imageGeometry.Transform(coordinateTransformer)
-                #logger.info("Image Geometry after transformation: %s", imageGeometry)
+                # logger.info("Image Geometry after transformation: %s", imageGeometry)
 
             dem = None
             overlap = imageGeometry.Within(demGeometry)
@@ -1928,6 +1993,7 @@ def check_image_auto_dem(geometry_wkt, spatial_ref, gpkg_path):
 
         # If there are multiple overlapping layers, choose the one where the image centroid is located
         if len(overlapping_layers) > 1:
+
             centroid = image_geometry_transformed.Centroid()
             for layer in overlapping_layers:
                 layer.ResetReading()  # Reset reading to iterate over all features from the start
@@ -1948,6 +2014,7 @@ def check_image_auto_dem(geometry_wkt, spatial_ref, gpkg_path):
         if selected_layer == None:
             selected_layer = overlapping_layers[0]
 
+
         selected_layer.ResetReading()
         try:
             feature = selected_layer.GetNextFeature()
@@ -1966,7 +2033,7 @@ def check_image_auto_dem(geometry_wkt, spatial_ref, gpkg_path):
 
 
 
-def ExtractRPB(item, rpb_p):
+def extract_rpb(item, rpb_p):
     rc = 0
     tar_p = os.path.splitext(item)[0] + ".tar"
     logger.info(tar_p)
@@ -1976,7 +2043,7 @@ def ExtractRPB(item, rpb_p):
             tar = tarfile.open(tar_p, 'r')
             tarlist = tar.getnames()
             for t in tarlist:
-                if '.rpb' in t.lower() or '_rpc' in t.lower(): #or '.til' in t.lower():
+                if '.rpb' in t.lower() or '_rpc' in t.lower():  # or '.til' in t.lower():
                     tf = tar.extractfile(t)
                     fp = os.path.splitext(rpb_p)[0] + os.path.splitext(t)[1]
                     fp_extracted.append(fp)
@@ -1984,7 +2051,6 @@ def ExtractRPB(item, rpb_p):
                     tfstr = tf.read()
                     if type(tfstr) is bytes and type(tfstr) is not str:
                         tfstr = tfstr.decode('utf-8')
-                    #print(repr(tfstr))
                     fpfh.write(tfstr)
                     fpfh.close()
                     tf.close()
@@ -2007,7 +2073,7 @@ def ExtractRPB(item, rpb_p):
     return rc
 
 
-def calcEarthSunDist(t):
+def calc_earth_sun_dist(t):
     year = t.year
     month = t.month
     day = t.day
@@ -2015,7 +2081,6 @@ def calcEarthSunDist(t):
     minute = t.minute
     sec = t.second
     ut = hr + (minute / 60.) + (sec / 3600.)
-    #print(ut)
 
     if month <= 2:
         year = year - 1
@@ -2024,142 +2089,131 @@ def calcEarthSunDist(t):
     a = int(year / 100)
     b = 2 - a + int(a / 4)
     jd = int(365.25 * (year + 4716)) + int(30.6001 * (month + 1)) + day + (ut / 24) + b - 1524.5
-    #print(jd)
 
     g = 357.529 + 0.98560028 * (jd - 2451545.0)
     d = 1.00014 - 0.01671 * math.cos(math.radians(g)) - 0.00014 * math.cos(math.radians(2 * g))
-    #print(d)
 
     return d
 
 
-def getDGXmlData(xmlpath, stretch):
+def get_dg_calib_dict(metad_etree, stretch):
+
     calibDict = {}
     abscalfact_dict = {}
-    try:
-        xmldoc = minidom.parse(xmlpath)
-    except Exception:
-        logger.error(utils.capture_error_trace())
-        logger.error("Cannot parse metadata file: %s", xmlpath)
-        return None
+    nodeIMD = metad_etree.find('IMD')
+    if nodeIMD is None:
+        raise utils.InvalidMetadataError(f"Metadata file is missing the IMD xml section")
     else:
+        nodeIMAGE = nodeIMD.find('IMAGE')
+        nodeMPP = nodeIMD.find('MAP_PROJECTED_PRODUCT')
 
-        if len(xmldoc.getElementsByTagName('IMD')) >= 1:
+        sat = nodeIMAGE.find('SATID').text
+        elem = nodeIMAGE.find('FIRSTLINETIME')
+        if elem is None:
+            if nodeMPP is not None:
+                elem = nodeMPP.find('EARLIESTACQTIME')
+        if elem is not None:
+            t = elem.text
+        else:
+            raise utils.InvalidMetadataError(f"Metadata file is missing the FIRSTLINETIME and EARLIESTACQTIME xml tags")
 
-            nodeIMD = xmldoc.getElementsByTagName('IMD')[0]
+        elem = nodeIMAGE.find('MEANSUNEL')
+        if elem is None:
+            elem = nodeIMAGE.find('SUNEL')
+        if elem is not None:
+            sunEl = float(elem.text)
+        else:
+            raise utils.InvalidMetadataError(f"Metadata file is missing the MEANSUNEL and SUNEL xml tags")
 
-            # get acquisition IMAGE tags
-            nodeIMAGE = nodeIMD.getElementsByTagName('IMAGE')
+        sun_angle = 90.0 - sunEl
+        des = calc_earth_sun_dist(datetime.strptime(t, "%Y-%m-%dT%H:%M:%S.%fZ"))
 
-            sat = nodeIMAGE[0].getElementsByTagName('SATID')[0].firstChild.data
-
-            tTag = nodeIMAGE[0].getElementsByTagName('FIRSTLINETIME')
-            if len(tTag) == 0:
-                tTag = nodeIMAGE[0].getElementsByTagName('EARLIESTACQTIME')
-            if len(tTag) == 0:
-                raise utils.InvalidMetadataError(f"Metadata file {xmlpath} is missing the FIRSTLINETIME and EARLIESTACQTIME xml tags")
-            t = tTag[0].firstChild.data
-
-            if len(nodeIMAGE[0].getElementsByTagName('MEANSUNEL')) >= 1:
-                sunEl = float(nodeIMAGE[0].getElementsByTagName('MEANSUNEL')[0].firstChild.data)
-            elif len(nodeIMAGE[0].getElementsByTagName('SUNEL')) >= 1:
-                sunEl = float(nodeIMAGE[0].getElementsByTagName('SUNEL')[0].firstChild.data)
-            else:
-                return None
-
-            sunAngle = 90.0 - sunEl
-            des = calcEarthSunDist(datetime.strptime(t, "%Y-%m-%dT%H:%M:%S.%fZ"))
-
-            # get BAND tags
-            for band in DGbandList:
-                nodeBAND = nodeIMD.getElementsByTagName(band)
-                #print(nodeBAND)
-                if not len(nodeBAND) == 0:
-
-                    temp = nodeBAND[0].getElementsByTagName('ABSCALFACTOR')
-                    if not len(temp) == 0:
-                        abscal = float(temp[0].firstChild.data)
-
-                    else:
-                        return None
-
-                    temp = nodeBAND[0].getElementsByTagName('EFFECTIVEBANDWIDTH')
-                    if not len(temp) == 0:
-                        effbandw = float(temp[0].firstChild.data)
-                    else:
-                        return None
-
-                    abscalfact_dict[band] = (abscal, effbandw)
-
-            #### Determine if unit shift factor should be applied
-
-            ## 1) If BAND_B abscalfact < 0.004, then units are in W/cm2/nm and should be multiplied
-            ##  by 10 in order to get units of W/m2/um
-            ## 1) If BAND_P abscalfact < 0.01, then units are in W/cm2/nm and should be multiplied
-            ##  by 10 in order to get units of W/m2/um
-
-            units_factor = 1
-            if sat == 'GE01':
-                if 'BAND_B' in abscalfact_dict:
-                    if abscalfact_dict['BAND_B'][0] < 0.004:
-                        units_factor = 10
-                if 'BAND_P' in abscalfact_dict:
-                    if abscalfact_dict['BAND_P'][0] < 0.01:
-                        units_factor = 10
-
-            for band in abscalfact_dict:
-                satband = sat + '_' + band
-                if satband not in EsunDict:
-                    logger.warning("Cannot find sensor and band in Esun lookup table: %s.  Try using --stretch "
-                                   "ns.", satband)
-                    return None
+        # get BAND tags
+        for band in DGbandList:
+            nodeBAND = nodeIMD.find(band)
+            if nodeBAND is not None:
+                elem = nodeBAND.find('ABSCALFACTOR')
+                if elem is not None:
+                    abscal = float(elem.text)
                 else:
-                    Esun = EsunDict[satband]
-                    gain = GainDict[satband]
-                    bias = BiasDict[satband]
+                    raise utils.InvalidMetadataError(
+                        f"Metadata file is missing the ABSCALFACTOR xml tag")
 
-                abscal, effbandw = abscalfact_dict[band]
+                elem = nodeBAND.find('EFFECTIVEBANDWIDTH')
+                if elem is not None:
+                    effbandw = float(elem.text)
+                else:
+                    raise utils.InvalidMetadataError(
+                        f"Metadata file is missing the EFFECTIVEBANDWIDTH xml tag")
 
-                rad_fact = units_factor * gain * abscal / effbandw
-                refl_fact = units_factor * (gain * abscal * des ** 2 * math.pi) / \
-                            (Esun * math.cos(math.radians(sunAngle)) * effbandw)
-                refl_offset = units_factor * (bias * des ** 2 * math.pi) / (Esun * math.cos(math.radians(sunAngle)))
+                abscalfact_dict[band] = (abscal, effbandw)
 
-                logger.debug("%s: \n\tabsCalFactor %f\n\teffectiveBandwidth %f\n\tEarth-Sun distance %f"
+        #### Determine if unit shift factor should be applied
+
+        ## 1) If BAND_B abscalfact < 0.004, then units are in W/cm2/nm and should be multiplied
+        ##  by 10 in order to get units of W/m2/um
+        ## 1) If BAND_P abscalfact < 0.01, then units are in W/cm2/nm and should be multiplied
+        ##  by 10 in order to get units of W/m2/um
+
+        units_factor = 1
+        if sat == 'GE01':
+            if 'BAND_B' in abscalfact_dict:
+                if abscalfact_dict['BAND_B'][0] < 0.004:
+                    units_factor = 10
+            if 'BAND_P' in abscalfact_dict:
+                if abscalfact_dict['BAND_P'][0] < 0.01:
+                    units_factor = 10
+
+        for band in abscalfact_dict:
+            satband = sat + '_' + band
+            if satband not in EsunDict:
+                logger.warning("Cannot find sensor and band in Esun lookup table: %s.  Try using --stretch "
+                               "ns.", satband)
+                return None
+            else:
+                Esun = EsunDict[satband]
+                gain = GainDict[satband]
+                bias = BiasDict[satband]
+
+            abscal, effbandw = abscalfact_dict[band]
+
+            rad_fact = units_factor * gain * abscal / effbandw
+            refl_fact = units_factor * (gain * abscal * des ** 2 * math.pi) / \
+                        (Esun * math.cos(math.radians(sun_angle)) * effbandw)
+            refl_offset = units_factor * (bias * des ** 2 * math.pi) / (Esun * math.cos(math.radians(sun_angle)))
+
+            logger.debug("%s: \n\tabsCalFactor %f\n\teffectiveBandwidth %f\n\tEarth-Sun distance %f"
                             "\n\tEsun %f\n\tSun angle %f\n\tSun elev %f\n\tGain %f\n\tBias %f"
                             "\n\tUnits factor %f\n\tReflectance correction %f\n\tReflectance offset %f"
                             "\n\tRadiance correction %f\n\tRadiance offset %f", satband, abscal, effbandw,
-                            des, Esun, sunAngle, sunEl, gain, bias, units_factor, refl_fact, refl_offset,
+                            des, Esun, sun_angle, sunEl, gain, bias, units_factor, refl_fact, refl_offset,
                             rad_fact, bias)
 
-                if stretch == "rd":
-                    calibDict[band] = (rad_fact, bias)
-                else:
-                    calibDict[band] = (refl_fact, refl_offset)
+            if stretch == "rd":
+                calibDict[band] = (rad_fact, bias)
+            else:
+                calibDict[band] = (refl_fact, refl_offset)
 
     # return correction factor and offset
     return calibDict
 
 
-def GetIKcalibDict(metafile, stretch):
-    fp_mode = "renamed"
-    metadict = getIKMetadata(fp_mode, metafile)
-    #print(metadict)
+def get_ik_calib_dict(metad_etree, metafile, regex, stretch):
 
     calibDict = {}
-    EsunDict = [1930.9, 1854.8, 1556.5, 1156.9, 1375.8] # B,G,R,N,Pan(TDI13)
-    bwList = [71.3, 88.6, 65.8, 95.4, 403] # B,G,R,N,Pan(TDI13)
-    calCoefs1 = [633, 649, 840, 746, 161] # B,G,R,N,Pan(TDI13) - Pre 2/22/01
-    calCoefs2 = [728, 727, 949, 843, 161] # B,G,R,N,Pan(TDI13) = Post 2/22/01
+    EsunDict = [1930.9, 1854.8, 1556.5, 1156.9, 1375.8]  # B,G,R,N,Pan(TDI13)
+    bwList = [71.3, 88.6, 65.8, 95.4, 403]  # B,G,R,N,Pan(TDI13)
+    calCoefs1 = [633, 649, 840, 746, 161]  # B,G,R,N,Pan(TDI13) - Pre 2/22/01
+    calCoefs2 = [728, 727, 949, 843, 161]  # B,G,R,N,Pan(TDI13) = Post 2/22/01
 
-
+    metadict = get_ik_metadata(metad_etree, metafile, regex)
     for band in range(0, 5, 1):
         sunElStr = metadict["Sun_Angle_Elevation"]
         sunAngle = float(sunElStr.strip(" degrees"))
         theta = 90.0 - sunAngle
-        datestr = metadict["Acquisition_Date_Time"] # 2011-12-09 18:43 GMT
+        datestr = metadict["Acquisition_Date_Time"]  # 2011-12-09 18:43 GMT
         d = datetime.strptime(datestr, "%Y-%m-%d %H:%M GMT")
-        des = calcEarthSunDist(d)
+        des = calc_earth_sun_dist(d)
 
         breakdate = datetime(2001, 2, 22)
         if d < breakdate:
@@ -2169,14 +2223,12 @@ def GetIKcalibDict(metafile, stretch):
 
         bw = bwList[band]
         Esun = EsunDict[band]
-
-        #print(sunAngle, des, gain, Esun)
         rad_fact = 10000.0 / (calCoef * bw)
         refl_fact = (10000.0 * des ** 2 * math.pi) / (calCoef * bw * Esun * math.cos(math.radians(theta)))
 
         logger.debug("%i: calibration coef %f, Earth-Sun distance %f, Esun %f, sun angle %f, bandwidth %f, "
-                    "reflectance factor %f radiance factor %f", band, calCoef, des, Esun, sunAngle, bw, refl_fact,
-                    rad_fact)
+                        "reflectance factor %f radiance factor %f", band, calCoef, des, Esun, sunAngle,
+                        bw, refl_fact, rad_fact)
 
         if stretch == "rd":
             calibDict[band] = (rad_fact, 0)
@@ -2187,7 +2239,7 @@ def GetIKcalibDict(metafile, stretch):
     return calibDict
 
 
-def getIKMetadata(fp_mode, metafile):
+def get_ik_metadata(metad_etree, metafile, regex):
     ik2fp = [
         ("File_Format", "OUTPUT_FMT"),
         ("Product_Order_Number", "ORDER_ID"),
@@ -2201,55 +2253,27 @@ def getIKMetadata(fp_mode, metafile):
         ("Sun_Angle_Elevation", "SUN_ELEV"),
     ]
 
-    metad = utils.getIKMetadataAsXml(metafile)
-    if metad is not None:
-        metadict = {}
-        search_keys = dict(ik2fp)
+    metadict = {}
+    search_keys = dict(ik2fp)
+    siid_node = None
 
+    match = re.search(regex, os.path.basename(metafile.lower()))
+    if match:
+        siid = match.group('catid')
     else:
-        logger.error("Unable to parse metadata from %s", metafile)
-        return None
+        raise RuntimeError(f"Could not match IKONOS image name: {metafile}")
 
-    # metad_map = dict((c, p) for p in metad.iter() for c in p)  # Child/parent mapping
-    # attribs = ["Source_Image_ID", "Component_ID"]  # nodes we need the attributes of
+    siid_nodes = metad_etree.findall(r".//Source_Image_ID")
+    if siid_nodes is None:
+        raise utils.InvalidMetadataError(f"Could not find any Source Image ID fields in metadata: {metafile}")
 
-    # We must identify the exact Source_Image_ID and Component_ID for this image
-    # before loading the dictionary
+    for node in siid_nodes:
+        if node.attrib["id"] == siid:
+            siid_node = node
+            break
 
-    # In raw mode we match the image file name to a Component_ID, this yields a Product_Image_ID,
-    # which in turn links to a Source_Image_ID; we accomplish this by examining all the
-    # Component_File_Name nodes for an image file name match, on a hit, the parent node of
-    # the CFN node will be the Component_ID node we are interested in
-
-    if fp_mode == "renamed":
-
-        # In renamed mode, we find the Source Image ID (from the file name) and then find
-        # the matching Component ID
-
-        # For new style(pgctools3) filename, we use a regex to get the source image ID.
-        # If we can't match the filename to the new style name regex, we assume
-        # that we have old style names, and we can get the source image ID directly from
-        # the filename, as shown below.
-        match = re.search(PGC_IK_FILE, metafile.lower())
-        if match:
-            siid = match.group('catid')
-        else:
-            siid = os.path.basename(metafile.lower())[5:33]
-        siid_nodes = metad.findall(r".//Source_Image_ID")
-        if siid_nodes is None:
-            logger.error("Could not find any Source Image ID fields in metadata %s", metafile)
-            return None
-
-        siid_node = None
-        for node in siid_nodes:
-            if node.attrib["id"] == siid:
-                siid_node = node
-                break
-
-        if siid_node is None:
-            logger.error("Could not locate SIID: %s in metadata %s", siid, metafile)
-            return None
-
+    if siid_node is None:
+        raise utils.InvalidMetadataError(f"Could not locate SIID: {siid} in metadata {metafile}")
 
     # Now assemble the dict
     for node in siid_node.iter():
@@ -2262,24 +2286,23 @@ def getIKMetadata(fp_mode, metafile):
     return metadict
 
 
-def GetGEcalibDict(metafile, stretch):
-    fp_mode = "renamed"
-    metadict = getGEMetadata(fp_mode, metafile)
-    #print(metadict)
+def get_ge_calib_dict(metad_etree, stretch):
 
     calibDict = {}
     EsunDict = [196.0, 185.3, 150.5, 103.9, 161.7]
 
+    metadict = get_ge_metadata(metad_etree)
     for band in metadict["gain"].keys():
         sunAngle = float(metadict["firstLineSunElevationAngle"])
         theta = 90.0 - sunAngle
-        datestr = metadict["originalFirstLineAcquisitionDateTime"] # 2009-11-01T01:49:33.685421Z
-        des = calcEarthSunDist(datetime.strptime(datestr, "%Y-%m-%dT%H:%M:%S.%fZ"))
+        datestr = metadict["originalFirstLineAcquisitionDateTime"]  # 2009-11-01T01:49:33.685421Z
+        des = calc_earth_sun_dist(datetime.strptime(datestr, "%Y-%m-%dT%H:%M:%S.%fZ"))
         gain = float(metadict["gain"][band])
         Esun = EsunDict[band - 1]
 
-        logger.debug("Band {}, Sun elev: {}, Earth-Sun distance: {}, Gain: {}, Esun: {}".format(band, theta, des, gain, Esun))
-        rad_fact = gain * 10 # multiply by 10 to convert from mW/cm2/um to W/m2/um
+        logger.debug("Band {}, Sun elev: {}, Earth-Sun distance: {}, Gain: {}, "
+                     "Esun: {}".format(band, theta, des, gain, Esun))
+        rad_fact = gain * 10  # multiply by 10 to convert from mW/cm2/um to W/m2/um
         refl_fact = (gain * des ** 2 * math.pi) / (Esun * math.cos(math.radians(theta)))
 
         if stretch == "rd":
@@ -2291,40 +2314,35 @@ def GetGEcalibDict(metafile, stretch):
     return calibDict
 
 
-def getGEMetadata(fp_mode, metafile):
+def get_ge_metadata(metad_etree):
     metadict = {}
-    metad = utils.getGEMetadataAsXml(metafile)
-    if metad is not None:
+    search_keys = ["originalFirstLineAcquisitionDateTime", "firstLineSunElevationAngle"]
+    for key in search_keys:
+        node = metad_etree.find(".//{}".format(key))
+        if node is not None:
+            metadict[key] = node.text
 
-        search_keys = ["originalFirstLineAcquisitionDateTime", "firstLineSunElevationAngle"]
-        for key in search_keys:
-            node = metad.find(".//{}".format(key))
-            if node is not None:
-                metadict[key] = node.text
+    band_keys = ["gain", "offset"]
+    for key in band_keys:
+        nodes = metad_etree.findall(".//bandSpecificInformation")
 
-        band_keys = ["gain", "offset"]
-        for key in band_keys:
-            nodes = metad.findall(".//bandSpecificInformation")
-
-            vals = {}
-            for node in nodes:
-                try:
-                    band = int(node.attrib["bandNumber"])
-                except Exception:
-                    logger.error(utils.capture_error_trace())
-                    logger.error("Unable to retrieve band number in GE metadata")
-                else:
-                    node = node.find(".//{}".format(key))
-                    if node is not None:
-                        vals[band] = node.text
-            metadict[key] = vals
-    else:
-        logger.error("Unable to get metadata from %s", metafile)
+        vals = {}
+        for node in nodes:
+            try:
+                band = int(node.attrib["bandNumber"])
+            except Exception:
+                logger.error(utils.capture_error_trace())
+                logger.error("Unable to retrieve band number in GE metadata")
+            else:
+                node = node.find(".//{}".format(key))
+                if node is not None:
+                    vals[band] = node.text
+        metadict[key] = vals
 
     return metadict
 
 
-def XmlToJ2w(jp2p):
+def xml_to_j2w(jp2p):
 
     xmlp = jp2p + ".aux.xml"
     xml = open(xmlp, 'r')
@@ -2339,7 +2357,6 @@ def XmlToJ2w(jp2p):
     j2wp = xmlp[:xmlp.find(".")] + ".j2w"
     j2w = open(j2wp, "w")
     for param in wldl:
-        #print(param)
         j2w.write("{}\n".format(param))
     j2w.close()
 
