@@ -1951,9 +1951,12 @@ def check_image_auto_dem(geometry_wkt, spatial_ref, gpkg_path):
         selected_layer.ResetReading()
         try:
             feature = selected_layer.GetNextFeature()
-            dempath = convert_windows_path(feature.GetField("dempath"))
-            if platform.system() == "Windows" and ".vrt" in dempath: # this is for selecting between specific versions of the PGC reference DEM file
-                dempath = convert_windows_path(feature.GetField("windowspath"))
+            if feature.GetField("dempath") is not None:
+                dempath = convert_windows_path(feature.GetField("dempath"))
+                if platform.system() == "Windows" and ".vrt" in dempath: # this is for selecting between specific versions of the PGC reference DEM file
+                    dempath = convert_windows_path(feature.GetField("windowspath"))
+            else:
+                dempath = feature.GetField("dempath")
         except Exception as e:
             logger.error("Error getting 'dempath' field: %s", e)
             dempath = None
