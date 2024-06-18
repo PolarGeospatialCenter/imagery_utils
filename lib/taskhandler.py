@@ -87,7 +87,8 @@ class SLURMTaskHandler(object):
     def run_tasks(self, tasks):
 
         for task in tasks:
-            cmd = r'sbatch -J {} --export=p1="{} {}" "{}"'.format(
+            cmd = r'sbatch {} -J {} --export=p1="{} {}" "{}"'.format(
+                self.qsub_args,
                 task.abrv,
                 task.exe,
                 escape_problem_jobsubmit_chars(task.cmd),
