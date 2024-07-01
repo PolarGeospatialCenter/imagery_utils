@@ -85,6 +85,8 @@ def main():
                         help="submit tasks to PBS")
     parser.add_argument("--slurm", action='store_true', default=False,
                         help="submit tasks to SLURM")
+    parser.add_argument("--slurm-job-name", default=None,
+                        help="assign a name to the slurm job for easier job tracking")
     parser.add_argument("--parallel-processes", type=int, default=1,
                         help="number of parallel processes to spawn (default 1)")
     parser.add_argument("--qsubscript",
@@ -207,10 +209,16 @@ def main():
         inpath,
         mosaicname
     )
-    
+
+    # add a custom name to the job
+    if not args.slurm_job_name:
+        job_name = 'Mos{:04g}'.format(1)
+    else:
+        job_name = str(args.slurm_job_name)
+
     task = taskhandler.Task(
         'Mosaic {}'.format(os.path.basename(mosaicname)),
-        'Mos{:04g}'.format(1),
+        job_name,
         'python',
         cmd
     )

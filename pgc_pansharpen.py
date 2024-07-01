@@ -184,6 +184,8 @@ def main():
                         help="directory path for logs from slurm jobs on the cluster. "
                              "Default is the parent directory of the output. "
                              "To use the current working directory, use 'working_dir'")
+    parser.add_argument("--slurm-job-name", default=None,
+                        help="assign a name to the slurm job for easier job tracking")
     parser.add_argument("--tasks-per-job", type=int,
                         help="Number of tasks to bundle into a single job. (requires --pbs or --slurm option) (Warning:"
                              " a higher number of tasks per job may require modification of default wallclock limit.)")
@@ -478,9 +480,15 @@ def main():
             task_item_srcfp = task_item
             task_item_srcdir, task_item_srcfn = os.path.split(task_item_srcfp)
 
+        # add a custom name to the job
+        if not args.slurm_job_name:
+            job_name = 'Psh{:04g}'.format(job_count)
+        else:
+            job_name = str(args.slurm_job_name)
+
         task = taskhandler.Task(
             task_item_srcfn,
-            'Psh{:04g}'.format(job_count),
+            job_name,
             'python',
             '{} {} {} {}'.format(
                 argval2str(scriptpath),
@@ -516,6 +524,10 @@ def main():
             if not slurm_log_dir == None:
                 qsub_args += '-o {}/%x.o%j '.format(slurm_log_dir)
                 qsub_args += '-e {}/%x.o%j '.format(slurm_log_dir)
+            # adjust wallclock if submitting multiple tasks ro be run in serial for a single slurm job
+            # default wallclock for pansharpen jobs is 1:00:00, refer to slurm_pansh.sh to verify
+            if args.tasks_per_job:
+                qsub_args += '-t {}:00:00 '.format(args.tasks_per_job)
             try:
                 task_handler = taskhandler.SLURMTaskHandler(qsubpath, qsub_args)
             except RuntimeError as e:

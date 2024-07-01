@@ -44,6 +44,8 @@ def main():
                         help="directory path for logs from slurm jobs on the cluster. "
                              "Default is the parent directory of the output. "
                              "To use the current working directory, use 'working_dir'")
+    parser.add_argument("--slurm-job-name", default=None,
+                        help="assign a name to the slurm job for easier job tracking")
     parser.add_argument("--parallel-processes", type=int, default=1,
                         help="number of parallel processes to spawn (default 1)")
     parser.add_argument("--qsubscript",
@@ -150,9 +152,16 @@ def main():
         
         if not os.path.isfile(dstfp):
             i += 1
+
+            # add a custom name to the job
+            if not args.slurm_job_name:
+                job_name = 'NDVI{:04g}'.format(i)
+            else:
+                job_name = str(args.slurm_job_name)
+
             task = taskhandler.Task(
                 srcfn,
-                'NDVI{:04g}'.format(i),
+                job_name,
                 'python',
                 '{} {} {} {}'.format(scriptpath, arg_str, srcfp, dstdir),
                 calc_ndvi,
@@ -181,6 +190,10 @@ def main():
             if not slurm_log_dir == None:
                 qsub_args += '-o {}/%x.o%j '.format(slurm_log_dir)
                 qsub_args += '-e {}/%x.o%j '.format(slurm_log_dir)
+            # adjust wallclock if submitting multiple tasks ro be run in serial for a single slurm job
+            # default wallclock for ortho jobs is 1:00:00, refer to slurm_ndvi.sh to verify
+            if args.tasks_per_job:
+                qsub_args += '-t {}:00:00 '.format(args.tasks_per_job)
             try:
                 task_handler = taskhandler.SLURMTaskHandler(qsubpath, qsub_args)
             except RuntimeError as e:
