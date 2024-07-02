@@ -253,8 +253,7 @@ class TestDEMOverlap(unittest.TestCase):
         image_geom_wkts = [
             ('POLYGON ((-52.23 70.843333,-51.735 70.844444,-51.736667 70.760556,-52.23 70.759722,-52.23 70.843333))',
              False),  # False
-            (
-            'POLYGON ((-64.23 -70.843333,-63.735 -70.844444,-63.736667 -70.760556,-64.23 -70.759722,-64.23 -70.843333))',
+            ('POLYGON ((-64.23 -70.843333,-63.735 -70.844444,-63.736667 -70.760556,-64.23 -70.759722,-64.23 -70.843333))',
             True),  # True
             (
             'POLYGON ((-52.23 -50.843333,-51.735 -50.844444,-51.736667 -50.760556,-52.23 -50.759722,-52.23 -50.843333))',
@@ -274,14 +273,13 @@ class TestAutoDEMOverlap(unittest.TestCase):
 
     def test_auto_dem_overlap(self):
         image_geom_wkts = [
-            ('POLYGON ((-52.23 70.843333,-51.735 70.844444,-51.736667 70.760556,-52.23 70.759722,-52.23 70.843333))',
-             False),  # False
-            (
-                'POLYGON ((-64.23 -70.843333,-63.735 -70.844444,-63.736667 -70.760556,-64.23 -70.759722,-64.23 -70.843333))',
-                True),  # True
-            (
-                'POLYGON ((-52.23 -50.843333,-51.735 -50.844444,-51.736667 -50.760556,-52.23 -50.759722,-52.23 -50.843333))',
-                False)  # False
+            ('POLYGON ((-52.23 70.843333, -51.735 70.844444, -51.736667 70.760556, -52.23 70.759722, -52.23 70.843333))','/mnt/pgc/data/elev/dem/gimp/GrIMPv2/data/grimp_v02.0_30m_dem.tif'), #greenland
+            ('POLYGON ((-52.23 -80.843333, -51.735 -80.844444, -51.736667 -80.760556, -52.23 -80.759722, -52.23 -80.843333))', '/mnt/pgc/data/elev/dem/tandem-x/90m/mosaic/TanDEM-X_Antarctica_90m/TanDEMX_PolarDEM_90m.tif'), #antarctic
+            ('POLYGON ((-52.23 -50.843333, -51.735 -50.844444, -51.736667 -50.760556, -52.23 -50.759722, -52.23 -50.843333))','/mnt/pgc/data/elev/dem/copernicus-dem-30m/mosaic/global/cop30_tiles_global_wgs84-height_nunatak.vrt'), #other
+            ('POLYGON ((-49.23 61.910556, -47.735 58.844444, -47.735 61.910556, -49.23 58.844444,-49.23 61.910556))', '/mnt/pgc/data/elev/dem/gimp/GrIMPv2/data/grimp_v02.0_30m_dem.tif'), # greenland centroid
+            ('POLYGON ((11 -68.5, 11 -70, 12 -70, 12 -68.5, 11 -68.5))', '/mnt/pgc/data/elev/dem/tandem-x/90m/mosaic/TanDEM-X_Antarctica_90m/TanDEMX_PolarDEM_90m.tif'), # antarctic centroid
+            ('POLYGON ((-49.23 59.7, -48.23 59.7,-47.23 58.7, -49.23 58.7,-49.23 59.7))','/mnt/pgc/data/elev/dem/copernicus-dem-30m/mosaic/global/cop30_tiles_global_wgs84-height_nunatak.vrt'), # other than greenland centroid
+            ('POLYGON ((-56 -61, -55 -61, -55 -60,-56 -60, -56 -61))','/mnt/pgc/data/elev/dem/copernicus-dem-30m/mosaic/global/cop30_tiles_global_wgs84-height_nunatak.vrt') # other than antarctic centroid
         ]
 
         for wkt, result in image_geom_wkts:

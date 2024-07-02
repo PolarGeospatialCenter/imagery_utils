@@ -1973,49 +1973,64 @@ def check_image_auto_dem(geometry_wkt, spatial_ref, gpkg_path):
         feature = layer.GetNextFeature()
         while feature:
             feature_geometry = feature.GetGeometryRef()
-            if feature_geometry is not None:
-                try:
-                    if image_geometry_transformed.Intersects(feature_geometry):
-                        overlapping_layers.append(layer)
-                        break  # Break out of the loop since we found an overlap with this layer
-                except Exception as e:
-                    logger.error("Error processing feature: %s", e)
+            if feature_geometry is None:
+                logger.debug("Skipping feature in layer %d because its geometry is None", i)
+                feature = layer.GetNextFeature()
+                continue
+            try:
+                if image_geometry_transformed.Intersects(feature_geometry):
+                    overlapping_layers.append(layer)
+                    break  # Break out of the loop since we found an overlap with this layer
+            except Exception as e:
+                logger.error("Error processing feature in layer %d: %s", i, e)
             feature = layer.GetNextFeature()
 
     if not overlapping_layers:
         dempath = None  # No overlap found
         logger.info("image geometry does not overlap with any of the dem regions. %s", geometry_wkt)
-
     else:
-        selected_layer = overlapping_layers[0]
+        selected_layer = None
 
         # If there are multiple overlapping layers, choose the one where the image centroid is located
         if len(overlapping_layers) > 1:
-            logger.debug("multiple overlapping DEMs: %s. Checking image centroid", len(overlapping_layers))
+
+            centroid = image_geometry_transformed.Centroid()
             for layer in overlapping_layers:
-                layer.ResetReading()
-                dem_feature = layer.GetNextFeature()
-                dem_feature_geometry = dem_feature.GetGeometryRef()
-                if dem_feature_geometry is not None:
-                    try:
-                        if dem_feature_geometry.Contains(image_geometry_transformed.Centroid()):
-                            selected_layer = layer
-                            break  # Exit the loop once the desired layer is found
-                    except Exception as e:
-                        logger.error("Error processing feature: %s", e)
+                layer.ResetReading()  # Reset reading to iterate over all features from the start
                 feature = layer.GetNextFeature()
+                while feature:
+                    feature_geometry = feature.GetGeometryRef()
+                    if feature_geometry is None:
+                        logger.debug("Skipping feature in overlapping layer because its geometry is None")
+                        feature = layer.GetNextFeature()
+                        continue
+                    if feature_geometry.Contains(centroid):
+                        selected_layer = layer
+                        break  # Exit the loop once the desired layer is found
+                    feature = layer.GetNextFeature()
+                if selected_layer is not None:
+                    break
+
+        if selected_layer == None:
+            selected_layer = overlapping_layers[0]
+
 
         selected_layer.ResetReading()
         try:
-            dempath = convert_windows_path(selected_layer.GetNextFeature().GetField("dempath"))
+            feature = selected_layer.GetNextFeature()
+            if feature.GetField("dempath") is not None:
+                dempath = convert_windows_path(feature.GetField("dempath"))
+                if platform.system() == "Windows" and ".vrt" in dempath: # this is for selecting between specific versions of the PGC reference DEM file
+                    dempath = convert_windows_path(feature.GetField("windowspath"))
+            else:
+                dempath = feature.GetField("dempath")
         except Exception as e:
             logger.error("Error getting 'dempath' field: %s", e)
             dempath = None
 
-    # Close the dataset
+        # Close the dataset
     dataset = None
 
-    # If the centroid is not contained in any of the overlapping layers, return the "dempath" value from the first layer
     return dempath
 
 
