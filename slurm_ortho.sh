@@ -7,7 +7,7 @@
 #SBATCH -c 1
 
 # memory
-#SBATCH -mem 12G
+#SBATCH --mem 12G
 
 # wallclock
 #SBATCH -t 1:00:00
