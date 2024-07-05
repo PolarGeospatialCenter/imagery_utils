@@ -41,6 +41,10 @@ resamples = ["near", "bilinear", "cubic", "cubicspline", "lanczos"]
 gtiff_compressions = ["jpeg95", "lzw"]
 exts = ['.ntf', '.tif']
 ARGDEF_THREADS = 1
+
+# slurm partitions as of 7/3/2024: update here for acceptable inputs to '--queue' arg if cluster partitions change
+slurm_partitions = ['batch','big_mem','low_priority']
+
 try:
     # Python 3.x only
     ARGDEF_CPUS_AVAIL = os.cpu_count()
