@@ -199,7 +199,9 @@ def main():
     parser.add_argument("-l",
                         help="PBS resources requested (mimicks qsub syntax, PBS only)")
     parser.add_argument("--queue",
-                        help="PBS queue to submit jobs to")
+                        help="Cluster queue/partition to submit jobs to. Accepted slurm queues: batch (default "
+                             "partition, no need to specify it in this arg), big_mem (for large memory jobs), "
+                             "and low_priority (for background processes)")
     parser.add_argument("--dryrun", action="store_true", default=False,
                         help="print actions without executing")
 
@@ -250,6 +252,11 @@ def main():
             # otherwise, verify that the path for the logs is a valid path
             else:
                 slurm_log_dir = os.path.abspath(args.slurm_log_dir)
+            # check that partition names are valid
+            if args.queue and not args.queue in ortho_functions.slurm_partitions:
+                parser.error("--queue argument '{}' is not a valid slurm partition. "
+                             "Valid partitions: {}".format(args.queue,
+                                                           ortho_functions.slurm_partitions))
             # Verify slurm log path
             if not os.path.isdir(slurm_log_dir):
                 parser.error("Error directory for slurm logs is not a valid file path: {}".format(slurm_log_dir))
@@ -528,6 +535,8 @@ def main():
             # default wallclock for pansharpen jobs is 1:00:00, refer to slurm_pansh.sh to verify
             if args.tasks_per_job:
                 qsub_args += '-t {}:00:00 '.format(args.tasks_per_job)
+            if args.queue:
+                qsub_args += "-p {} ".format(args.queue)
             try:
                 task_handler = taskhandler.SLURMTaskHandler(qsubpath, qsub_args)
             except RuntimeError as e:
