@@ -112,9 +112,10 @@ def main():
         else:
             slurm_log_dir = os.path.abspath(args.slurm_log_dir)
         # check that partition names are valid
-        if not args.queue in ortho_functions.slurm_partitions:
-            parser.error("--queue argument is not a valid slurm partition. "
-                         "Valid partitions: {}".format(ortho_functions.slurm_partitions))
+        if args.queue and not args.queue in ortho_functions.slurm_partitions:
+            parser.error("--queue argument '{}' is not a valid slurm partition. "
+                         "Valid partitions: {}".format(args.queue,
+                                                       ortho_functions.slurm_partitions))
         # Verify slurm log path
         if not os.path.isdir(slurm_log_dir):
             parser.error("Error directory for slurm logs is not a valid file path: {}".format(slurm_log_dir))
