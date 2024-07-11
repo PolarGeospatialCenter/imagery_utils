@@ -184,7 +184,7 @@ def get_sensor(srcfn):
 
     if not vendor:
         for pattern in IK_patterns:
-            p = re.compile(pattern)
+            p = re.compile(pattern, re.IGNORECASE)
             m = p.search(srcfn.lower())
             if m is not None:
                 vendor = Vendor.GE
