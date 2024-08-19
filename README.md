@@ -50,6 +50,31 @@ The pansharpening utility applies the orthorectification process to both the pan
 
 The NDVI utility calculates NDVI from multispectral image(s).  The tool is designed to run on data that have already been run through the pgc_ortho utility.
 
+## Miscellaneous Utility Scripts
+### Building RGB Composite Landsat TIFs - stack_landsat.py
+
+`stack_landsat.py` is a command line tool to combine individual Landsat band .tif files into a stacked RGB composite .tif. To run, set the input directory to a folder with the downloaded Landsat imagery you want to combine, with each of the bands as a separate .tiff file. The script will need to be run within the same environment as the other PGC utilities in this repo; it only uses standard python and gdal functionality, so there is nothing further to install.
+
+Show tool help text:
+```python C:\path\to\stack_landsat.py -h```
+
+Example usage with long options:
+```python C:\path\to\stack_landsat.py --input-dir C:\path\to\landsat\directory --output-dir C:\path\to\output\dir```
+
+Example usage with short options:
+```python C:\path\to\stack_landsat.py -i C:\path\to\landsat\directory -o C:\path\to\output\dir```
+
+The script will:
+ - Verify that the provided input directory exists and is, in fact, a directory
+ - Create the output directory if it does not already exist
+ - Find all the Landsat scenes in the input directory
+ - Attempt to create a composite RGB TIF of the scenes it finds
+ - Report the scenes it fails to build. For instance, an RGB TIF will not be built if all of bands 4, 3, and 2 do not exist
+ - Write the console messages to a log file in the input directory (stack_landsat_{date}.log). There is no need to retain the logs long term if the script is operating smoothly
+
+The script will not:
+ - Know anything about previous runs. If you rerun the script, it will process whatever inputs are present, even if they have been run previously. It will also overwrite any corresponding outputs if pointed to the same output directory.
+
 ## Installation and dependencies
 PGC uses the Miniforge installer to build our Python/GDAL software stack.  You can find installers for your OS here:
 https://github.com/conda-forge/miniforge?tab=readme-ov-file#miniforge3
