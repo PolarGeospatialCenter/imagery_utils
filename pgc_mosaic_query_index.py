@@ -5,7 +5,6 @@ import glob
 import logging
 import os
 import sys
-import requests
 from datetime import date, datetime
 
 from osgeo import ogr, osr
@@ -164,24 +163,8 @@ def main():
     logger.addHandler(lsh)
     
     #### Get exclude_list if specified
-    if args.exclude == 'pgc_exclude_list':
-        # If pgc_exclude_list is  specified, read it from the database
-        url = "https://pgc-cloud-cover-assessment-dev-web-00.oit.umn.edu/exclude-list"
-        response = requests.get(url, verify=False)
-        # Convert JSON response to a set of lines
-        exclude_list = set([line.rstrip() for line in os.linesep.join(response.json()).splitlines()])
-        logger.info("Successfully fetched pgc_exclude_list from the database")
+    exclude_list = mosaic.getExcludeList(args.exclude)
 
-    elif args.exclude is not None:
-        if not os.path.isfile(args.exclude):
-            parser.error("Value for option --exclude-list is not a valid file")
-        f = open(args.exclude, 'r')
-        exclude_list = set([line.rstrip() for line in f.readlines()])
-    else:
-        exclude_list = set()
-
-    logger.debug("Exclude list: %s", str(exclude_list))
-    
     #### Parse csv, validate tile ID and get tilegeom
     tiles = {}
     csv = open(csvpath, 'r')
