@@ -4,6 +4,7 @@ import logging
 import math
 import os
 import shutil
+import requests
 from datetime import datetime
 from xml.etree import cElementTree as ET
 
@@ -1261,3 +1262,21 @@ def copyall(srcfile, dstdir):
             shutil.copy2(fpi, fpo)
         except WindowsError as e:
             logger.warning(e)
+
+def getExcludeList(exclude_arg):
+    if exclude_arg == 'pgc_exclude_list':
+        # If pgc_exclude_list is  specified, read it from the database
+        url = "https://pgc-cloud-cover-assessment-dev-web-00.oit.umn.edu/exclude-list"
+        response = requests.get(url, verify=False)
+        # Convert JSON response to a set of lines
+        exclude_list = set([line.rstrip() for line in os.linesep.join(response.json()).splitlines()])
+        logger.info("Successfully fetched pgc_exclude_list from sandwich database: dgarchive.mosaic.qa_scenes")
+    elif exclude_arg is not None:
+        if not os.path.isfile(exclude_arg):
+            logger.error("Value for option --exclude-list is not a valid file")
+        f = open(exclude_arg, 'r')
+        exclude_list = set([line.rstrip() for line in f.readlines()])
+        logger.debug("Exclude list: %s", str(exclude_list))
+    else:
+        exclude_list = set()
+    return exclude_list
