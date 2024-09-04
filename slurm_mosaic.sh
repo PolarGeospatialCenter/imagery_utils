@@ -6,6 +6,12 @@
 # number of cpus per task
 #SBATCH -c 24
 
+# memory
+#SBATCH --mem 48G
+
+# wallclock
+#SBATCH -t 2:00:00
+
 # job log path
 #SBATCH -o %x.o%j
 #SBATCH -e %x.o%j
@@ -40,9 +46,7 @@ echo ________________________________________________________
 echo
 
 # init gdal tools
-pwd
-ls /home/bakke557 -lah
-source /home/bakke557/.bashrc; conda activate pgc
+source ~/.bashrc; conda activate pgc
 
 echo $p1
 time eval $p1

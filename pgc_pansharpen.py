@@ -126,8 +126,8 @@ class ImagePair(object):
             src_image_name = os.path.basename(src_image).replace("_msi_", "_blu_")
             src_image = os.path.join(self.srcdir, src_image_name)
 
-        return ortho_functions.GetImageGeometryInfo(src_image, spatial_ref, args,
-                                                    return_type='extent_geom')
+        return ortho_functions.get_image_geometry_info(src_image, spatial_ref, args,
+                                                       return_type='extent_geom')
 
     def _check_datetime_dif(self):
         # parse date from pan_srcfn (a copy of mul_srcfp with 'M' replaced with 'P')
@@ -167,7 +167,7 @@ class ImagePair(object):
 def main():
 
     #### Set Up Arguments
-    parent_parser, pos_arg_keys = ortho_functions.buildParentArgumentParser()
+    parent_parser, pos_arg_keys = ortho_functions.build_parent_argument_parser()
     parser = argparse.ArgumentParser(
         parents=[parent_parser],
         description="Run/Submit batch pansharpening in parallel"
@@ -180,6 +180,12 @@ def main():
                         help="submit tasks to PBS")
     parser.add_argument("--slurm", action='store_true', default=False,
                         help="submit tasks to SLURM")
+    parser.add_argument("--slurm-log-dir", default=None,
+                        help="directory path for logs from slurm jobs on the cluster. "
+                             "Default is the parent directory of the output. "
+                             "To use the current working directory, use 'working_dir'")
+    parser.add_argument("--slurm-job-name", default=None,
+                        help="assign a name to the slurm job for easier job tracking")
     parser.add_argument("--tasks-per-job", type=int,
                         help="Number of tasks to bundle into a single job. (requires --pbs or --slurm option) (Warning:"
                              " a higher number of tasks per job may require modification of default wallclock limit.)")
@@ -193,7 +199,9 @@ def main():
     parser.add_argument("-l",
                         help="PBS resources requested (mimicks qsub syntax, PBS only)")
     parser.add_argument("--queue",
-                        help="PBS queue to submit jobs to")
+                        help="Cluster queue/partition to submit jobs to. Accepted slurm queues: batch (default "
+                             "partition, no need to specify it in this arg), big_mem (for large memory jobs), "
+                             "and low_priority (for background processes)")
     parser.add_argument("--dryrun", action="store_true", default=False,
                         help="print actions without executing")
 
@@ -232,6 +240,28 @@ def main():
         if not os.path.isfile(qsubpath):
             parser.error("qsub script path is not valid: {}".format(qsubpath))
 
+        # Parse slurm log location
+        if args.slurm:
+            # by default, the parent directory of the dst dir is used for saving slurm logs
+            if args.slurm_log_dir == None:
+                slurm_log_dir = os.path.abspath(os.path.join(dstdir, os.pardir))
+                print("slurm log dir: {}".format(slurm_log_dir))
+            # if "working_dir" is passed in the CLI, use the default slurm behavior which saves logs in working dir
+            elif args.slurm_log_dir == "working_dir":
+                slurm_log_dir = None
+            # otherwise, verify that the path for the logs is a valid path
+            else:
+                slurm_log_dir = os.path.abspath(args.slurm_log_dir)
+            # check that partition names are valid
+            if args.queue and not args.queue in ortho_functions.slurm_partitions:
+                parser.error("--queue argument '{}' is not a valid slurm partition. "
+                             "Valid partitions: {}".format(args.queue,
+                                                           ortho_functions.slurm_partitions))
+            # Verify slurm log path
+            if not os.path.isdir(slurm_log_dir):
+                parser.error("Error directory for slurm logs is not a valid file path: {}".format(slurm_log_dir))
+            logger.info("Slurm output and error log saved here: {}".format(slurm_log_dir))
+
     ## Verify processing options do not conflict
     requested_threads = ortho_functions.ARGDEF_CPUS_AVAIL if args.threads == "ALL_CPUS" else args.threads
     if args.pbs and args.slurm:
@@ -261,8 +291,8 @@ def main():
     if args.epsg is None:
         parser.error("--epsg argument is required")
     elif args.epsg in ('utm', 'auto'):
-        # EPSG code is automatically determined in ortho_functions.GetImageStats
-        # and ortho_functions.GetImageGeometryInfo functions.
+        # EPSG code is automatically determined in ortho_functions.get_image_stats
+        # and ortho_functions.get_image_geometry_info functions.
         pass
     else:
         try:
@@ -278,10 +308,12 @@ def main():
     if args.dem is not None and args.ortho_height is not None:
         parser.error("--dem and --ortho_height options are mutually exclusive.  Please choose only one.")
 
+    ## verify auto DEM
+    if args.dem == 'auto':
+        logger.info("DEM is auto default")
     #### Test if DEM exists
-    if args.dem:
-        if not os.path.isfile(args.dem):
-            parser.error("DEM does not exist: {}".format(args.dem))
+    elif args.dem is not None and not os.path.isfile(args.dem):
+        parser.error("DEM does not exist: {}".format(args.dem))
         if args.l is None:
             if args.dem.endswith('.vrt'):
                 total_dem_filesz_gb = 0.0
@@ -387,10 +419,14 @@ def main():
     i = 0
     pairs_to_process = []
     for image_pair in pair_list:
-
+        # args.epsg has been converted to an int type if possible already,
+        # Look up the correct epsg if it's still a string
         if type(args.epsg) is str:
-            img_epsg = ortho_functions.GetImageGeometryInfo(image_pair.mul_srcfp, spatial_ref, args,
-                                                            return_type='epsg_code')
+            img_epsg = ortho_functions.get_image_geometry_info(image_pair.mul_srcfp, spatial_ref, args,
+                                                               return_type='epsg_code')
+            ## If image cannot be opened, skip it
+            if img_epsg is None:
+                continue
         else:
             img_epsg = args.epsg
         
@@ -427,9 +463,14 @@ def main():
 
         if not tasklist_is_text_bundles:
             image_pair = task_item
+            # args.epsg has been converted to an int type if possible already,
+            # Look up the correct epsg if it's still a string
             if type(args.epsg) is str:
-                img_epsg = ortho_functions.GetImageGeometryInfo(image_pair.mul_srcfp, spatial_ref, args,
-                                                                return_type='epsg_code')
+                img_epsg = ortho_functions.get_image_geometry_info(image_pair.mul_srcfp, spatial_ref, args,
+                                                                   return_type='epsg_code')
+                ## If image cannot be opened, skip it
+                if img_epsg is None:
+                    continue
             else:
                 img_epsg = args.epsg
             pansh_dstfp = os.path.join(dstdir, "{}_{}{}{}_pansh.tif".format(
@@ -446,9 +487,15 @@ def main():
             task_item_srcfp = task_item
             task_item_srcdir, task_item_srcfn = os.path.split(task_item_srcfp)
 
+        # add a custom name to the job
+        if not args.slurm_job_name:
+            job_name = 'Psh{:04g}'.format(job_count)
+        else:
+            job_name = str(args.slurm_job_name)
+
         task = taskhandler.Task(
             task_item_srcfn,
-            'Psh{:04g}'.format(job_count),
+            job_name,
             'python',
             '{} {} {} {}'.format(
                 argval2str(scriptpath),
@@ -480,8 +527,18 @@ def main():
                     task_handler.run_tasks(task_queue, dryrun=args.dryrun)
                 
         elif args.slurm:
+            qsub_args = ""
+            if not slurm_log_dir == None:
+                qsub_args += '-o {}/%x.o%j '.format(slurm_log_dir)
+                qsub_args += '-e {}/%x.o%j '.format(slurm_log_dir)
+            # adjust wallclock if submitting multiple tasks ro be run in serial for a single slurm job
+            # default wallclock for pansharpen jobs is 1:00:00, refer to slurm_pansh.sh to verify
+            if args.tasks_per_job:
+                qsub_args += '-t {}:00:00 '.format(args.tasks_per_job)
+            if args.queue:
+                qsub_args += "-p {} ".format(args.queue)
             try:
-                task_handler = taskhandler.SLURMTaskHandler(qsubpath)
+                task_handler = taskhandler.SLURMTaskHandler(qsubpath, qsub_args)
             except RuntimeError as e:
                 logger.error(utils.capture_error_trace())
                 logger.error(e)
@@ -560,9 +617,11 @@ def exec_pansharpen(image_pair, pansh_dstfp, args):
     else:
         dem_arg = ""
 
+    # args.epsg has been converted to an int type if possible already,
+    # Look up the correct epsg if it's still a string
     if type(args.epsg) is str:
-        img_epsg = ortho_functions.GetImageGeometryInfo(image_pair.mul_srcfp, None, args,
-                                                        return_type='epsg_code')
+        img_epsg = ortho_functions.get_image_geometry_info(image_pair.mul_srcfp, None, args,
+                                                           return_type='epsg_code')
     else:
         img_epsg = args.epsg
 
@@ -605,9 +664,11 @@ def exec_pansharpen(image_pair, pansh_dstfp, args):
     ####  Pansharpen
     ## get system info for program extension
     if platform.system() == 'Windows':
-        py_ext = ''
+        py_ext = '.py'
+        conda_prefix = "python %CONDA_PREFIX%\\scripts\\"
     else:
         py_ext = '.py'
+        conda_prefix = ''
 
     pan_threading = ''
     if hasattr(args, 'threads'):
@@ -636,9 +697,14 @@ def exec_pansharpen(image_pair, pansh_dstfp, args):
     logger.info("Pansharpening multispectral image")
     if os.path.isfile(pan_local_dstfp) and os.path.isfile(mul_local_dstfp):
         if not os.path.isfile(pansh_local_dstfp):
-            cmd = 'gdal_pansharpen{} -of {} {} {} "{}" "{}" "{}"'.\
-                format(py_ext, args.format, pan_threading, co, pan_local_dstfp, mul_local_dstfp, pansh_local_dstfp)
-            taskhandler.exec_cmd(cmd)
+            cmd = '{}gdal_pansharpen{} -of {} {} {} "{}" "{}" "{}"'.\
+                format(conda_prefix, py_ext, args.format, pan_threading, co, pan_local_dstfp, mul_local_dstfp, pansh_local_dstfp)
+            try:
+                taskhandler.exec_cmd(cmd)
+            except Exception as e:
+                logger.warning("There was an error running gdal_pansharpen.py: {}".format(e))
+                logger.warning("Please run this script in the recommended mamba/conda environment with GDAL => 3.7.2")
+                logger.error(utils.capture_error_trace())
     else:
         logger.warning("Pan or Multi warped image does not exist\n\t{}\n\t{}".format(pan_local_dstfp, mul_local_dstfp))
 

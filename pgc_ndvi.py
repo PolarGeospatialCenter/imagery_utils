@@ -40,6 +40,12 @@ def main():
                         help="submit tasks to PBS")
     parser.add_argument("--slurm", action='store_true', default=False,
                         help="submit tasks to SLURM")
+    parser.add_argument("--slurm-log-dir", default=None,
+                        help="directory path for logs from slurm jobs on the cluster. "
+                             "Default is the parent directory of the output. "
+                             "To use the current working directory, use 'working_dir'")
+    parser.add_argument("--slurm-job-name", default=None,
+                        help="assign a name to the slurm job for easier job tracking")
     parser.add_argument("--parallel-processes", type=int, default=1,
                         help="number of parallel processes to spawn (default 1)")
     parser.add_argument("--qsubscript",
@@ -85,6 +91,23 @@ def main():
             qsubpath = os.path.abspath(args.qsubscript)
         if not os.path.isfile(qsubpath):
             parser.error("qsub script path is not valid: {}".format(qsubpath))
+
+    # Parse slurm log location
+    if args.slurm:
+        # by default, the parent directory of the dst dir is used for saving slurm logs
+        if args.slurm_log_dir == None:
+            slurm_log_dir = os.path.abspath(os.path.join(dstdir, os.pardir))
+            print("slurm log dir: {}".format(slurm_log_dir))
+        # if "working_dir" is passed in the CLI, use the default slurm behavior which saves logs in working dir
+        elif args.slurm_log_dir == "working_dir":
+            slurm_log_dir = None
+        # otherwise, verify that the path for the logs is a valid path
+        else:
+            slurm_log_dir = os.path.abspath(args.slurm_log_dir)
+        # Verify slurm log path
+        if not os.path.isdir(slurm_log_dir):
+            parser.error("Error directory for slurm logs is not a valid file path: {}".format(slurm_log_dir))
+        logger.info("Slurm output and error log saved here: {}".format(slurm_log_dir))
         
     ## Verify processing options do not conflict
     if args.pbs and args.slurm:
@@ -129,9 +152,16 @@ def main():
         
         if not os.path.isfile(dstfp):
             i += 1
+
+            # add a custom name to the job
+            if not args.slurm_job_name:
+                job_name = 'NDVI{:04g}'.format(i)
+            else:
+                job_name = str(args.slurm_job_name)
+
             task = taskhandler.Task(
                 srcfn,
-                'NDVI{:04g}'.format(i),
+                job_name,
                 'python',
                 '{} {} {} {}'.format(scriptpath, arg_str, srcfp, dstdir),
                 calc_ndvi,
@@ -156,8 +186,16 @@ def main():
                     task_handler.run_tasks(task_queue)
                 
         elif args.slurm:
+            qsub_args = ""
+            if not slurm_log_dir == None:
+                qsub_args += '-o {}/%x.o%j '.format(slurm_log_dir)
+                qsub_args += '-e {}/%x.o%j '.format(slurm_log_dir)
+            # adjust wallclock if submitting multiple tasks ro be run in serial for a single slurm job
+            # default wallclock for ortho jobs is 1:00:00, refer to slurm_ndvi.sh to verify
+            if args.tasks_per_job:
+                qsub_args += '-t {}:00:00 '.format(args.tasks_per_job)
             try:
-                task_handler = taskhandler.SLURMTaskHandler(qsubpath)
+                task_handler = taskhandler.SLURMTaskHandler(qsubpath, qsub_args)
             except RuntimeError as e:
                 logger.error(utils.capture_error_trace())
                 logger.error(e)
@@ -343,34 +381,34 @@ def calc_ndvi(srcfp, dstfp, args):
                 ## generate mask for red nodata, nir nodata, and 
                 ## (red+nir) less than tol away from zero
                 red_mask = (red_array == red_nodata)
-                if red_array[red_mask] != []:
+                if red_array[red_mask].size > 0:
                     nir_mask = (nir_array == nir_nodata)
-                    if nir_array[nir_mask] != []:
+                    if nir_array[nir_mask].size > 0:
                         divzero_mask = abs(nir_array + red_array) < tol
-                        if red_array[divzero_mask] != []:
+                        if red_array[divzero_mask].size > 0:
                             ndvi_mask = red_mask | nir_mask | divzero_mask
                         else:
                             ndvi_mask = red_mask | nir_mask
                     else:
                         divzero_mask = abs(nir_array + red_array) < tol
-                        if red_array[divzero_mask] != []:
+                        if red_array[divzero_mask].size > 0:
                             ndvi_mask = red_mask | divzero_mask
                         else:
                             ndvi_mask = red_mask
                 else:
                     nir_mask = (nir_array == nir_nodata)
-                    if nir_array[nir_mask] != []:
+                    if nir_array[nir_mask].size > 0:
                         divzero_mask = abs(nir_array + red_array) < tol
-                        if red_array[divzero_mask] != []:
+                        if red_array[divzero_mask].size > 0:
                             ndvi_mask = nir_mask | divzero_mask
                         else:
                             ndvi_mask = nir_mask
                     else:
                         divzero_mask = abs(nir_array + red_array) < tol
-                        if red_array[divzero_mask] != []:
+                        if red_array[divzero_mask].size > 0:
                             ndvi_mask = divzero_mask
                         else:
-                            ndvi_mask = numpy.full_like(red_array, fill_value=0, dtype=numpy.bool)
+                            ndvi_mask = numpy.full_like(red_array, fill_value=0, dtype=bool)
 
                 ## declare ndvi array, init to nodata value
                 ndvi_array = numpy.full_like(red_array, fill_value=ndvi_nodata, dtype=numpy.float32)

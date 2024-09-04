@@ -24,10 +24,10 @@ class TestConvertArgs(unittest.TestCase):
         positional_arg_keys = ['positional']
         arg_keys_to_remove = ['toremove', 'to_remove']
         arg_str = taskhandler.convert_optional_args_to_string(self.args, positional_arg_keys, arg_keys_to_remove)
-        self.assertIn('--tuple item1 item2', arg_str)
-        self.assertIn('--list item1 item2', arg_str)
+        self.assertIn('--tuple "item1" "item2"', arg_str)
+        self.assertIn('--list "item1" "item2"', arg_str)
         self.assertIn('--boolean', arg_str)
-        self.assertIn('--multi-word-key multi-word-key', arg_str)
+        self.assertIn('--multi-word-key "multi-word-key"', arg_str)
         self.assertNotIn('positional', arg_str)
         self.assertNotIn('toremove', arg_str)
         self.assertNotIn('to-remove', arg_str)

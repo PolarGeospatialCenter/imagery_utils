@@ -1,6 +1,7 @@
 
 import contextlib
 import copy
+import enum
 import glob
 import logging
 import math
@@ -90,6 +91,46 @@ class SpatialRef(object):
         self.epsg = epsgcode
 
 
+class OutputType(enum.Enum):
+    BYTE = "Byte"
+    UINT16 = "UInt16"
+    FLOAT32 = "Float32"
+
+class Vendor(enum.Enum):
+    DG = "DigitalGlobe"
+    GE = "GeoEye"
+
+class ImageType(enum.Enum):
+    MULTI = "Multispectral"
+    PAN = "Panchromatic"
+    PANSH = "Pansharpened"
+    SWIR = "Short-wave Infrared"
+    CAVIS = "CAVIS"
+
+
+BIT_DEPTH_DICT = {
+    OutputType.BYTE: "u08",
+    OutputType.UINT16: "u16",
+    OutputType.FLOAT32: "f32"
+}
+
+### Regex signatures to identify file vendor and sensor
+RAW_DG = r"(?P<ts>\d{2}[a-z]{3}\d{8})-(?P<prod>[a-z0-9]{4})_?(?P<tile>r\d+c\d+)?-(?P<onum>\d{12}_\d{2})_(?P<pnum>p\d{3})"
+RENAMED_DG = r"(?P<snsr>[a-z]{2}\d{2})_(?P<tstamp>\d{14})_(?P<catid>[a-f0-9]{16})_(?P<ts>\d{2}[a-z]{3}\d{8})-(?P<prod>[a-z0-9]{4})_?(?P<tile>r\d+c\d+)?-(?P<onum>\d{12}_\d{2})_(?P<pnum>p\d{3})"
+RENAMED_DG2 = r"(?P<snsr>\w\w\d\d)_(?P<ts>\d\d[a-z]{3}\d{9})-(?P<prod>[a-z0-9]{4})_?(?P<tile>r\d+c\d+)?-(?P<catid>[a-z0-9]{16})"
+
+RAW_GE = r"(?P<snsr>\d[a-z])(?P<ts>\d{6})(?P<band>[a-z])(?P<said>\d{9})(?P<prod>\d[a-z])(?P<pid>\d{3})(?P<siid>\d{8})(?P<ver>\d)(?P<mono>[a-z0-9])_(?P<pnum>\d{8,9})"
+RENAMED_GE = r"(?P<snsr>\w\w\d\d)_(?P<tstamp>\d{6})(?P<band>\w)(?P<said>\d{9})(?P<prod>\d\w)(?P<pid>\d{3})(?P<siid>\d{8})(?P<ver>\d)(?P<mono>\w)_(?P<pnum>\d{8,9})"
+
+RAW_IK = r"po_(?P<po>\d{5,7})_(?P<band>[a-z]+)_(?P<cmp>\d+)?"
+RENAMED_IK = r"(?P<snsr>[a-z]{2}\d\d)_(?P<catid>\d{28})_(?P<band>[a-z]+)_(?P<lat>\d{4}[ns])"
+RENAMED_IK2 = r"(?P<snsr>[a-z]{2}\d{2})_(?P<tstamp>\d{14})_(?P<catid>\d{28})_po_(?P<po>\d{5,7})_(?P<band>[a-z]+(?=_))?_?(?P<cmp>\d{7}(?=[_.]))?"
+
+DG_patterns = [RENAMED_DG, RENAMED_DG2, RAW_DG]
+GE_patterns = [RENAMED_GE, RAW_GE]
+IK_patterns = [RENAMED_IK, RENAMED_IK2, RAW_IK]
+
+
 def osr_srs_preserve_axis_order(osr_srs):
     try:
         # revert to GDAL 2.x axis conventions to maintain consistent results if GDAL 3+ used
@@ -99,68 +140,60 @@ def osr_srs_preserve_axis_order(osr_srs):
     return osr_srs
 
 
-def get_bit_depth(outtype):
-    if outtype == "Byte":
-        bitdepth = 'u08'
-    elif outtype == "UInt16":
-        bitdepth = "u16"
-    elif outtype == "Float32":
-        bitdepth = "f32"
-    else:
-        logger.error("Invalid bit depth '%s' supplied; must be 'Byte', 'UInt16', or 'Float32'.", outtype)
+def get_bit_depth(outtype_str):
+    try:
+        outtype = OutputType(outtype_str)
+    except ValueError:
         return None
-
-    return bitdepth
+    else:
+        return BIT_DEPTH_DICT[outtype]
 
 
 def get_sensor(srcfn):
 
-    ### Regex signatures to identify file vendor, mode, kind, and create the name_dict
-    RAW_DG = "(?P<ts>\d\d[a-z]{3}\d{8})-(?P<prod>\w{4})?(?P<tile>\w+)?-(?P<oid>\d{12}_\d\d)_(?P<pnum>p\d{3})"
-
-    RENAMED_DG = "(?P<snsr>\w\w\d\d)_(?P<ts>\d\d[a-z]{3}\d{9})-(?P<prod>\w{4})?(?P<tile>\w+)?-(?P<catid>[a-z0-9]+)"
-
-    RENAMED_DG2 = "(?P<snsr>\w\w\d\d)_(?P<ts>\d{14})_(?P<catid>[a-z0-9]{16})"
-
-    RAW_GE = "(?P<snsr>\d[a-z])(?P<ts>\d{6})(?P<band>[a-z])(?P<said>\d{9})(?P<prod>\d[a-z])(?P<pid>\d{3})(?P<siid>\d{8})(?P<ver>\d)(?P<mono>[a-z0-9])_(?P<pnum>\d{8,9})"
-
-    RENAMED_GE = "(?P<snsr>\w\w\d\d)_(?P<ts>\d{6})(?P<band>\w)(?P<said>\d{9})(?P<prod>\d\w)(?P<pid>\d{3})(?P<siid>\d{8})(?P<ver>\d)(?P<mono>\w)_(?P<pnum>\d{8,9})"
-
-    RAW_IK = "po_(?P<po>\d{5,7})_(?P<band>[a-z]+)_(?P<cmp>\d+)"
-
-    RENAMED_IK = "(?P<snsr>[a-z]{2}\d\d)_(?P<ts>\d{12})(?P<siid>\d+)_(?P<band>[a-z]+)_(?P<lat>\d{4}[ns])"
-
     sat = None
     vendor = None
-
-    DG_patterns = [RAW_DG, RENAMED_DG, RENAMED_DG2]
-    GE_patterns = [RAW_GE, RENAMED_GE]
-    IK_patterns = [RAW_IK, RENAMED_IK]
-
+    prod_code = None
+    band = None
+    tile = None
+    regex = None
     for pattern in DG_patterns:
         p = re.compile(pattern)
         m = p.search(srcfn.lower())
         if m is not None:
-            vendor = "DigitalGlobe"
+            vendor = Vendor.DG
             gd = m.groupdict()
             if 'snsr' in gd:
-                sat = gd['snsr']
+                sat = gd['snsr'].upper()
+            if 'tile' in gd and gd['tile'] is not None:
+                tile = gd['tile'].upper()
+            prod_code = m.group('prod').upper()
+            regex = m.re
+            break
 
-    for pattern in GE_patterns:
-        p = re.compile(pattern)
-        m = p.search(srcfn.lower())
-        if m is not None:
-            vendor = "GeoEye"
-            sat = "GE01"
+    if not vendor:
+        for pattern in GE_patterns:
+            p = re.compile(pattern)
+            m = p.search(srcfn.lower())
+            if m is not None:
+                vendor = Vendor.GE
+                sat = "GE01"
+                band = m.group('band').upper()
+                regex = m.re
+                break
 
-    for pattern in IK_patterns:
-        p = re.compile(pattern)
-        m = p.search(srcfn.lower())
-        if m is not None:
-            vendor = "GeoEye"
-            sat = "IK01"
+    if not vendor:
+        for pattern in IK_patterns:
+            p = re.compile(pattern, re.IGNORECASE)
+            m = p.search(srcfn.lower())
+            if m is not None:
+                vendor = Vendor.GE
+                sat = "IK01"
+                band = m.group('band').upper()
+                regex = m.re
+                break
 
-    return vendor, sat.upper()
+    return vendor, sat, prod_code, band, tile, regex
 
 
 def find_images(inpath, is_filelist, target_exts):
@@ -240,16 +273,33 @@ def delete_temp_files(names):
                     logger.warning('Could not remove %s: %s', os.path.basename(f), e)
 
 
-def getGEMetadataAsXml(metafile):
+def get_dg_metadata_as_xml(metafile):
+    """
+    Given DigitalGlobe metadata file, returns all the key/pair values as a
+    searchable XML tree
+    """
+    if os.path.isfile(metafile):
+        try:
+            metad = ET.parse(metafile)
+        except ET.ParseError as e:
+            raise InvalidMetadataError(f"Cannot parse metadata file: {metafile}: {e}")
+        return metad
+    else:
+        raise InvalidMetadataError(f"Metadata file does not exist: {metafile}")
+
+
+def get_ge_metadata_as_xml(metafile):
+    """
+    Given Geoeye-style metadata file, returns all the key/pair values as a
+    searchable XML tree
+    """
     if os.path.isfile(metafile):
         try:
             metaf = open(metafile, "r")
         except IOError as err:
-            logger.error("Could not open metadata file %s because %s", metafile, err)
-            raise
+            raise InvalidMetadataError(f"Cannot open metadata file: {metafile}: {err}")
     else:
-        logger.error("Metadata file %s not found", metafile)
-        return None
+        raise InvalidMetadataError(f"Metadata file does not exist: {metafile}")
 
     # Patterns to extract tag/value pairs and BEGIN/END group tags
     gepat1 = re.compile(r'(?P<tag>\w+) = "?(?P<data>.*?)"?;', re.I)
@@ -311,27 +361,21 @@ def getGEMetadataAsXml(metafile):
                 mlstr = True
 
     metaf.close()
-    #print(ET.ElementTree(root))
     return ET.ElementTree(root)
 
 
-def getIKMetadataAsXml(metafile):
+def get_ik_metadata_as_xml(metafile):
     """
-    Given the text of an IKONOS metadata file, returns all the key/pair values as a
+    Given IKONOS metadata file, returns all the key/pair values as a
     searchable XML tree
     """
-    if not metafile:
-        return ET.Element("root")  # No metadata provided, return an empty tree
-
-    # If metafile is a file, open it and read from it, otherwise assume a list of strings
-    if os.path.isfile(metafile) and os.path.getsize(metafile) > 0:
+    if os.path.isfile(metafile):
         try:
             metaf = open(metafile, "r")
         except IOError as err:
-            logger.error("Could not open metadata file %s because %s", metafile, err)
-            raise
+            raise InvalidMetadataError(f"Cannot open metadata file: {metafile}: {err}")
     else:
-        metaf = metafile
+        raise InvalidMetadataError(f"Metadata file does not exist: {metafile}")
 
     # Patterns to identify tag/value pairs and group tags
     ikpat1 = re.compile(r"(?P<tag>.+?): (?P<data>.+)?", re.I)
