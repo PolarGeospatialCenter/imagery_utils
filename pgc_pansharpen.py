@@ -3,6 +3,7 @@
 from __future__ import division
 
 import argparse
+import copy
 import glob
 import logging
 import math
@@ -492,7 +493,11 @@ def main():
             job_name = 'Psh{:04g}'.format(job_count)
         else:
             job_name = str(args.slurm_job_name)
-
+        # Make global variable for resolution if passed in on command line
+        if args.resolution:
+            orig_res = copy.deepcopy(args.resolution)
+        else:
+            orig_res = None
         task = taskhandler.Task(
             task_item_srcfn,
             job_name,
@@ -504,7 +509,7 @@ def main():
                 argval2str(dstdir)
             ),
             exec_pansharpen,
-            [image_pair, pansh_dstfp, args]
+            [image_pair, pansh_dstfp, args, orig_res]
         )
         task_queue.append(task)
 
@@ -562,7 +567,7 @@ def main():
             lfh = None
             for task in task_queue:
                            
-                src, dstfp, task_arg_obj = task.method_arg_list
+                src, dstfp, task_arg_obj, orig_res = task.method_arg_list
                 
                 #### Set up processing log handler
                 logfile = os.path.splitext(dstfp)[0] + ".log"
@@ -573,7 +578,7 @@ def main():
                 logger.addHandler(lfh)
                 
                 if not args.dryrun:
-                    results[task.name] = task.method(src, dstfp, task_arg_obj)
+                    results[task.name] = task.method(src, dstfp, task_arg_obj, orig_res)
                     
                 #### remove existing file handler
                 logger.removeHandler(lfh)
@@ -592,7 +597,7 @@ def main():
         logger.info("No images found to process")
 
 
-def exec_pansharpen(image_pair, pansh_dstfp, args):
+def exec_pansharpen(image_pair, pansh_dstfp, args, orig_res):
 
     dstdir = os.path.dirname(pansh_dstfp)
 
@@ -654,9 +659,12 @@ def exec_pansharpen(image_pair, pansh_dstfp, args):
     if not os.path.isfile(mul_dstfp) and not os.path.isfile(mul_local_dstfp):
         ## If resolution is specified in the command line, assume it's intended for the pansharpened image
         ##    and multiply the multi by 4
+        ##    Use the orig_res variable so that multiple passes over the args.resolution does not blow up recursively
         if args.resolution:
-            args.resolution = args.resolution * 4.0
+            args.resolution = orig_res * 4.0
         ortho_functions.process_image(image_pair.mul_srcfp, mul_dstfp, args, image_pair.intersection_geom)
+        # Reset resolution to CLI input
+        args.resolution = orig_res
 
     if not os.path.isfile(mul_local_dstfp) and os.path.isfile(mul_dstfp):
         shutil.copy2(mul_dstfp, mul_local_dstfp)
