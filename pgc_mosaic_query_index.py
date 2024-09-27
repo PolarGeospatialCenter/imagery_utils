@@ -502,10 +502,15 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
                         else:
                             otxt.write("{}\n".format(iinfo.srcfp))
 
-                        m_fn = "{0}_u08{1}{2}.tif".format(
+                        pansh_suf = ""
+                        if args.require_pan:
+                            pansh_suf = "_pansh"
+
+                        m_fn = "{0}_u08{1}{2}{3}.tif".format(
                             os.path.splitext(iinfo.srcfn)[0],
                             args.stretch,
-                            t.epsg
+                            t.epsg,
+                            pansh_suf
                         )
                         
                         mtxt.write(os.path.join(dstdir, 'ortho', t.name, m_fn) + "\n")
