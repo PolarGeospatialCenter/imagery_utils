@@ -1,0 +1,10 @@
+python <PGC_ORTHO_SCRIPT_LOCATION> <ARGLIST>_dup01.csv <DSTDIR>/test_01 -d <DEM> -f GTiff -t Byte -c ns --resample near --epsg auto --pbs --tasks-per-job 10 -l nodes=nunatak-07:ppn=2
+python <PGC_ORTHO_SCRIPT_LOCATION> <ARGLIST>_dup02.csv <DSTDIR>/test_02 -d <DEM> -f JP2OpenJPEG -t Byte -c ns --resample near --epsg auto --pbs --tasks-per-job 10 -l nodes=nunatak-08:ppn=2
+python <PGC_ORTHO_SCRIPT_LOCATION> <ARGLIST>_dup03.csv <DSTDIR>/test_03 -d <DEM> -f GTiff -t UInt16 -c ns --resample near --epsg auto --pbs --tasks-per-job 10 -l nodes=nunatak-09:ppn=2
+python <PGC_ORTHO_SCRIPT_LOCATION> <ARGLIST>_dup04.csv <DSTDIR>/test_04 -d <DEM> -f GTiff -t Byte -c rf --resample near --epsg auto --pbs --tasks-per-job 10 -l nodes=nunatak-10:ppn=2
+python <PGC_ORTHO_SCRIPT_LOCATION> <ARGLIST>_dup05.csv <DSTDIR>/test_05 -d <DEM> -f GTiff -t Byte -c rd --resample near --epsg auto --pbs --tasks-per-job 10 -l nodes=nunatak-11:ppn=2
+python <PGC_ORTHO_SCRIPT_LOCATION> <ARGLIST>_dup06.csv <DSTDIR>/test_06 -d <DEM> -f GTiff -t Byte -c mr --resample near --epsg auto --pbs --tasks-per-job 10 -l nodes=nunatak-12:ppn=2
+python <PGC_ORTHO_SCRIPT_LOCATION> <ARGLIST>_dup07.csv <DSTDIR>/test_07 -d <DEM> -f GTiff -t Byte -c ns --resample bilinear --epsg auto --pbs --tasks-per-job 10 -l nodes=nunatak-13:ppn=2
+python <PGC_ORTHO_SCRIPT_LOCATION> <ARGLIST>_dup08.csv <DSTDIR>/test_08 -d <DEM> -f GTiff -t Byte -c ns --resample cubic --epsg auto --pbs --tasks-per-job 10 -l nodes=nunatak-14:ppn=2
+python <PGC_ORTHO_SCRIPT_LOCATION> <ARGLIST>_dup09.csv <DSTDIR>/test_09 -d <DEM> -f GTiff -t Byte -c ns --resample near -r 5 --epsg auto --pbs --tasks-per-job 10 -l nodes=nunatak-15:ppn=2
+python <PGC_ORTHO_SCRIPT_LOCATION> <ARGLIST>_dup10.csv <DSTDIR>/test_10 -d <DEM> -f GTiff -t Byte -c ns --resample near -r 2 --epsg auto --pbs --tasks-per-job 10 -l nodes=nunatak-16:ppn=2
