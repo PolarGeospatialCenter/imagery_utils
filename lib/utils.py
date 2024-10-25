@@ -991,14 +991,3 @@ def subset_vrt_dem(csv_arg_data, csv_header_argname_list, script_args):
 
     return csv_arg_data_trimmed
 
-def write_input_command_txt(arg_str, dst_dir):
-    logger.info("Processing command: {}".format(arg_str))
-    now = datetime.now()
-    base_cmd = os.path.splitext(os.path.basename(arg_str.split()[0]))[0]
-    txt_fn = "{}_command_{}.txt".format(base_cmd, now.strftime("%Y%m%d_%H%M%S"))
-    txt_fp = os.path.join(os.path.abspath(os.path.join(dst_dir, os.pardir)),txt_fn)
-    try:
-        with open(txt_fp, 'w') as f:
-            f.write(arg_str)
-    except:
-        logger.error("Could not write command reference text file")

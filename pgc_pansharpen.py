@@ -352,12 +352,9 @@ def main():
                     "'ALL_CPUS'".format(requested_threads, ortho_functions.ARGDEF_CPUS_AVAIL))
         args.threads = 'ALL_CPUS'
 
-    # write input command to text file next to output folder for reference
+    # log input command for reference
     command_str = ' '.join(sys.argv)
     logger.info("Running command: {}".format(command_str))
-    if not args.skip_cmd_txt and not args.dryrun:
-        utils.write_input_command_txt(command_str,dstdir)
-        args.skip_cmd_txt = True
 
     #### Get args ready to pass to task handler
     arg_keys_to_remove = ('l', 'queue', 'qsubscript', 'dryrun', 'pbs', 'slurm', 'parallel_processes', 'tasks_per_job')

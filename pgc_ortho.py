@@ -87,6 +87,10 @@ def main():
     if not os.path.isdir(dstdir):
         parser.error("Error arg2 is not a valid file path: {}".format(dstdir))
 
+    # log input command for reference
+    command_str = ' '.join(sys.argv)
+    logger.info("Running command: {}".format(command_str))
+
     ## Verify qsubscript
     if args.pbs or args.slurm:
         if args.qsubscript is None:
@@ -104,7 +108,7 @@ def main():
         # by default, the parent directory of the dst dir is used for saving slurm logs
         if args.slurm_log_dir == None:
             slurm_log_dir = os.path.abspath(os.path.join(dstdir, os.pardir))
-            print("slurm log dir: {}".format(slurm_log_dir))
+            logger.info("slurm log dir: {}".format(slurm_log_dir))
         # if "working_dir" is passed in the CLI, use the default slurm behavior which saves logs in working dir
         elif args.slurm_log_dir == "working_dir":
             slurm_log_dir = None
@@ -192,12 +196,6 @@ def main():
         logger.info("threads requested ({0}) exceeds number available on system ({1}), setting thread count to "
                     "'ALL_CPUS'".format(requested_threads, ortho_functions.ARGDEF_CPUS_AVAIL))
         args.threads = 'ALL_CPUS'
-
-    # write input command to text file next to output folder for reference
-    command_str = ' '.join(sys.argv)
-    if not args.skip_cmd_txt and not args.dryrun:
-        utils.write_input_command_txt(command_str,dstdir)
-        args.skip_cmd_txt = True
 
     #### Get args ready to pass to task handler
     arg_keys_to_remove = ('l', 'queue', 'qsubscript', 'dryrun', 'pbs', 'slurm', 'parallel_processes', 'tasks_per_job')

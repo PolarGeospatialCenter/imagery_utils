@@ -52,8 +52,10 @@ def main():
                         help="submission script to use in PBS/SLURM submission (PBS default is qsub_ndvi.sh, SLURM "
                              "default is slurm_ndvi.py, in script root folder)")
     parser.add_argument("-l", help="PBS resources requested (mimicks qsub syntax, PBS only)")
-    parser.add_argument("--skip-cmd-txt", action='store_true', default=False,
-                        help='Skip writing the txt file containing the input command.')
+    parser.add_argument("--skip-cmd-txt", action='store_true', default=True,
+                        help='THIS OPTION IS DEPRECATED - '
+                             'By default this arg is True and the cmd text file will not be written. '
+                             'Input commands are written to the log for reference.')
     parser.add_argument("--dryrun", action="store_true", default=False,
                         help="print actions without executing")
     parser.add_argument("--version", action='version', version="imagery_utils v{}".format(VERSION))
@@ -115,12 +117,9 @@ def main():
     if (args.pbs or args.slurm) and args.parallel_processes > 1:
         parser.error("HPC Options (--pbs or --slurm) and --parallel-processes > 1 are mutually exclusive")
 
-    # write input command to text file next to output folder for reference
+    # log input command for reference
     command_str = ' '.join(sys.argv)
     logger.info("Running command: {}".format(command_str))
-    if not args.skip_cmd_txt and not args.dryrun:
-        utils.write_input_command_txt(command_str,dstdir)
-        args.skip_cmd_txt = True
 
     #### Set concole logging handler
     lso = logging.StreamHandler()

@@ -65,7 +65,7 @@ class TestOrthoFunc(unittest.TestCase):
             dstfp = os.path.join(self.dstdir, '{}_u08rf{}.tif'.format(
                 os.path.splitext(test_image)[0], epsg))
             print(srcfp)
-            cmd = r"""python "{}" -r 10 -p {} "{}" "{}" --skip-cmd-txt""".format(
+            cmd = r"""python "{}" -r 10 -p {} "{}" "{}" """.format(
                 self.scriptpath, epsg, srcfp, self.dstdir)
             p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
             se, so = p.communicate()
@@ -84,7 +84,7 @@ class TestOrthoFunc(unittest.TestCase):
             # gtiff compression: jpeg95
             # dem: gimpdem_v2_30m.tif
             ('QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.ntf',
-             f'-r 10 --skip-cmd-txt --epsg 3413 --stretch mr --resample cubic --format GTiff --outtype Byte --gtiff-compression jpeg95 --dem {self.gimpdem}',
+             f'-r 10 --epsg 3413 --stretch mr --resample cubic --format GTiff --outtype Byte --gtiff-compression jpeg95 --dem {self.gimpdem}',
              True,
              '.tif'),
 
@@ -94,7 +94,7 @@ class TestOrthoFunc(unittest.TestCase):
             # outtype: Byte
             # gtiff compression: jpeg95
             ('GE01_20110108171314_1016023_5V110108M0010160234A222000100252M_000500940.ntf',
-             '-r 10 --skip-cmd-txt --epsg 3413 --stretch mr --rgb --format GTiff --outtype Byte --gtiff-compression jpeg95',
+             '-r 10 --epsg 3413 --stretch mr --rgb --format GTiff --outtype Byte --gtiff-compression jpeg95',
              True,
              '.tif'),
 
@@ -104,7 +104,7 @@ class TestOrthoFunc(unittest.TestCase):
             # outtype: Byte
             # gtiff compression: jpeg95
             ('WV03_20190114103353_104C0100462B2500_19JAN14103353-C1BA-502817502010_01_P001.ntf',
-             '-r 10 --skip-cmd-txt --epsg auto --stretch ns --rgb --format GTiff --outtype Byte --gtiff-compression jpeg95',
+             '-r 10 --epsg auto --stretch ns --rgb --format GTiff --outtype Byte --gtiff-compression jpeg95',
              True,
              '.tif'),
 
@@ -112,7 +112,7 @@ class TestOrthoFunc(unittest.TestCase):
             # epsg: 3413
             # stretch: auto
             ('WV03_20150712212305_104A01000E7C1F00_15JUL12212305-A1BS-500802261010_01_P001.ntf',
-             '-r 10 --skip-cmd-txt --epsg 3413 --stretch au --rgb --format GTiff --outtype Byte --gtiff-compression jpeg95',
+             '-r 10 --epsg 3413 --stretch au --rgb --format GTiff --outtype Byte --gtiff-compression jpeg95',
              True,
              '.tif'),
 
@@ -124,7 +124,7 @@ class TestOrthoFunc(unittest.TestCase):
             # gtiff compression: lzw
             # dem: gimpdem_v2_30m.tif
             ('QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.ntf',
-             f'-r 10 --skip-cmd-txt --epsg 3413 --stretch rf --resample near --format ENVI --outtype Byte --gtiff-compression lzw --dem {self.gimpdem}',
+             f'-r 10 --epsg 3413 --stretch rf --resample near --format ENVI --outtype Byte --gtiff-compression lzw --dem {self.gimpdem}',
              True,
              '.envi'),
 
@@ -136,7 +136,7 @@ class TestOrthoFunc(unittest.TestCase):
             # gtiff compression: lzw
             # dem: Y:/private/elevation/dem/GIMP/GIMPv2/gimpdem_v2_30m.tif
             ('QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.ntf',
-             f'-r 10 --skip-cmd-txt --epsg 3413 --stretch rf --resample near --format HFA --outtype Float32 --gtiff-compression lzw --dem {self.gimpdem}',
+             f'-r 10 --epsg 3413 --stretch rf --resample near --format HFA --outtype Float32 --gtiff-compression lzw --dem {self.gimpdem}',
              True,
              '.img'),
 
@@ -145,14 +145,14 @@ class TestOrthoFunc(unittest.TestCase):
             # outtype: UInt16
             # format: .jp2
             ('QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.ntf',
-             '-r 10 --skip-cmd-txt --epsg 3413 --stretch rd --resample near --format JP2OpenJPEG --outtype UInt16 --gtiff-compression lzw',
+             '-r 10 --epsg 3413 --stretch rd --resample near --format JP2OpenJPEG --outtype UInt16 --gtiff-compression lzw',
              True,
              '.jp2'),
 
             # dem: Y:/private/elevation/dem/RAMP/RAMPv2/ RAMPv2_wgs84_200m.tif
             # should fail: the image is not contained within the DEM
             ('QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.ntf',
-             f'-r 10 --skip-cmd-txt --epsg 3413 --dem {self.rampdem}',
+             f'-r 10 --epsg 3413 --dem {self.rampdem}',
              False,
              '.tif'),
         ]
