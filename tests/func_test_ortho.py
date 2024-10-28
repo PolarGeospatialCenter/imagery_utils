@@ -156,6 +156,12 @@ class TestOrthoFunc(unittest.TestCase):
              f'-r 10 --skip-cmd-txt --epsg 3413 --dem {self.rampdem}',
              False,
              '.tif'),
+
+            # stretch, dem, and epsg: auto
+            ('WV02_20120719233558_103001001B998D00_12JUL19233558-M1BS-052754253040_01_P001.tif',
+             f'-r 10 --skip-cmd-txt --epsg auto --stretch au --dem auto',
+             True,
+             '.tif'),
         ]
 
         i = 0
