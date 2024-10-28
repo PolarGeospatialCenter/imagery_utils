@@ -57,6 +57,7 @@ class TestOrthoFunc(unittest.TestCase):
             ('WV02_20120719233558_103001001B998D00_12JUL19233558-M1BS-052754253040_01_P001.tif', 3413, True),
             ('WV02_20131005052802_10300100278D8500_13OCT05052802-P1BS-500099283010_01_P004.ntf', 3031, True),
             ('WV03_20140919212947_104001000227BF00_14SEP19212947-M1BS-500191821040_01_P002.ntf', 3413, True),
+            ('WV03_20190114103353_104C0100462B2500_19JAN14103353-C1BA-502817502010_01_P001.ntf', 3031, True)
         ]
         
         for test_image, epsg, result in test_images:
@@ -149,7 +150,7 @@ class TestOrthoFunc(unittest.TestCase):
              True,
              '.jp2'),
 
-            # dem: Y:/private/elevation/dem/RAMP/RAMPv2/ RAMPv2_wgs84_200m.tif
+            # dem: Y:/private/elevation/dem/RAMP/RAMPv2/RAMPv2_wgs84_200m.tif
             # should fail: the image is not contained within the DEM
             ('QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.ntf',
              f'-r 10 --skip-cmd-txt --epsg 3413 --dem {self.rampdem}',

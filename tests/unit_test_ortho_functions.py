@@ -56,20 +56,20 @@ class TestReadMetadata(unittest.TestCase):
             ('QB02_20050623212833_1010010004535800_05JUN23212833-P2AS-005511498020_01_P001.xml', True, False), # uses EARLIESTACQTIME instead of FIRSTLINETIME, but has no EFFECTIVEBANDWIDTH
             ('WV03_20150411220541_104A01000A704D00_15APR11220541-A1BS-500802194040_01_P001.xml', True, True), # SWIR
             ('WV03_20150526221639_104A01000C51A100_15MAY26221639-A1BS-500802200030_01_P001.xml', True, True), # SWIR
-            ('WV03_20190114103353_104C0100462B2500_19JAN14103353-C1BA-502817502010_01_P001.xml', True, False), # CAVIS A should not work yet
-            ('WV03_20190114103355_104C0100462B2500_19JAN14103355-C1BB-502817502010_01_P001.xml', True, False), # CAVIS B should not work yet
+            ('WV03_20190114103353_104C0100462B2500_19JAN14103353-C1BA-502817502010_01_P001.xml', True, True), # CAVIS A should not work yet
+            ('WV03_20190114103355_104C0100462B2500_19JAN14103355-C1BB-502817502010_01_P001.xml', True, True), # CAVIS B should not work yet
         )
 
         dg_valid_data_range = {
             'rf': {
-                'BAND_P': (Band_data_range(0.0005, 0.0015, -0.029, -0.0098)),  # pan
+                'BAND_P': (Band_data_range(0.0005, 0.0015, -0.036, 0)),  # pan
                 'BAND_B': (Band_data_range(0.000447, 0.0012, -0.1307, 0.0012)),  # blue
-                'BAND_S1': (Band_data_range(0.00005, 0.0015, -0.09, -0.05)),  # 1st SWIR band
+                'BAND_S1': (Band_data_range(0.00005, 0.0015, 0, 0)),  # 1st SWIR band
             },
             'rd': {
-                'BAND_P': (Band_data_range(0.08, 0.15, -4.5, -1.4)),
-                'BAND_B': (Band_data_range(0.17, 0.33,  -9.7, -2.8)),
-                'BAND_S1': (Band_data_range(0.005, 0.15, -5.6, -5.4)),
+                'BAND_P': (Band_data_range(0.08, 0.15, -5.55, 0)),
+                'BAND_B': (Band_data_range(0.17, 0.33,  -9.84, 0)),
+                'BAND_S1': (Band_data_range(0.0045, 0.15, 0, 0)),
             }
         }
 
@@ -309,8 +309,8 @@ class TestAutoStretchAndEpsg(unittest.TestCase):
     def test_auto_stretch_and_epsg(self):
         test_files = (
             # file name, expected stretch, expected epsg
-            ('WV03_20190114103353_104C0100462B2500_19JAN14103353-C1BA-502817502010_01_P001.ntf', 'ns', 3031),  # CAVIS
-            ('WV03_20190114103355_104C0100462B2500_19JAN14103355-C1BB-502817502010_01_P001.ntf', 'ns', 3031),  # CAVIS
+            ('WV03_20190114103353_104C0100462B2500_19JAN14103353-C1BA-502817502010_01_P001.ntf', 'rf', 3031),  # CAVIS
+            ('WV03_20190114103355_104C0100462B2500_19JAN14103355-C1BB-502817502010_01_P001.ntf', 'rf', 3031),  # CAVIS
             ('WV03_20150526221639_104A01000C51A100_15MAY26221639-A1BS-500802200030_01_P001.ntf', 'rf', 3413),  # SWIR
             ('GE01_20110307105821_1050410001518E00_11MAR07105821-M1BS-500657359080_01_P008.ntf', 'mr', 32630),  # Nonpolar
             ('WV03_20140919212947_104001000227BF00_14SEP19212947-M1BS-500191821040_01_P002.ntf', 'mr', 3413),  # Arctic
