@@ -8,6 +8,7 @@ import math
 import os
 import sys
 import xml.etree.ElementTree as ET
+import datetime
 
 import numpy as np
 
@@ -57,6 +58,8 @@ def main():
                         help="Cluster queue/partition to submit jobs to. Accepted slurm queues: batch (default "
                              "partition, no need to specify it in this arg), big_mem (for large memory jobs), "
                              "and low_priority (for background processes)")
+    parser.add_argument("--log", nargs='?', const="default",
+                        help="path to file to log progress (default is ortho_<timestamp>.log next to the <dst dir>")
     parser.add_argument("--dryrun", action='store_true', default=False,
                         help='print actions without executing')
     parser.add_argument("-v", "--verbose", action='store_true', default=False,
@@ -183,6 +186,22 @@ def main():
     formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s', '%m-%d-%Y %H:%M:%S')
     lso.setFormatter(formatter)
     logger.addHandler(lso)
+
+    #### Configure file handler if --log is passed to CLI
+    if args.log is not None:
+        if args.log == "default":
+            log_fn = "ortho_{}.log".format(datetime.datetime.now().strftime("%Y%m%d_%H%M%S"))
+            logfile = os.path.join(os.path.abspath(os.path.join(args.dst, os.pardir)), log_fn)
+        else:
+            logfile = os.path.abspath(args.log)
+            if not os.path.isdir(os.path.pardir(logfile)):
+                parser.warning("Output location for log file does not exist: {}".format(os.path.isdir(os.path.pardir(logfile))))
+
+        lfh = logging.FileHandler(logfile)
+        lfh.setLevel(logging.DEBUG)
+        formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s', '%m-%d-%Y %H:%M:%S')
+        lfh.setFormatter(formatter)
+        logger.addHandler(lfh)
 
     # log input command for reference
     command_str = ' '.join(sys.argv)

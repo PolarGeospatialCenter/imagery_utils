@@ -202,6 +202,8 @@ def main():
                         help="Cluster queue/partition to submit jobs to. Accepted slurm queues: batch (default "
                              "partition, no need to specify it in this arg), big_mem (for large memory jobs), "
                              "and low_priority (for background processes)")
+    parser.add_argument("--log", nargs='?', const="default",
+                        help="path to file to log progress (default is ortho_<timestamp>.log next to the <dst dir>")
     parser.add_argument("--dryrun", action="store_true", default=False,
                         help="print actions without executing")
 
@@ -345,15 +347,31 @@ def main():
     lso.setFormatter(formatter)
     logger.addHandler(lso)
 
+    #### Configure file handler if --log is passed to CLI
+    if args.log is not None:
+        if args.log == "default":
+            log_fn = "pansharpen_{}.log".format(datetime.now().strftime("%Y%m%d_%H%M%S"))
+            logfile = os.path.join(os.path.abspath(os.path.join(args.dst, os.pardir)), log_fn)
+        else:
+            logfile = os.path.abspath(args.log)
+            if not os.path.isdir(os.path.pardir(logfile)):
+                parser.warning("Output location for log file does not exist: {}".format(os.path.isdir(os.path.pardir(logfile))))
+
+        lfh = logging.FileHandler(logfile)
+        lfh.setLevel(logging.DEBUG)
+        formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s', '%m-%d-%Y %H:%M:%S')
+        lfh.setFormatter(formatter)
+        logger.addHandler(lfh)
+
+    # log input command for reference
+    command_str = ' '.join(sys.argv)
+    logger.info("Running command: {}".format(command_str))
+
     #### Handle thread count that exceeds system limits
     if requested_threads > ortho_functions.ARGDEF_CPUS_AVAIL:
         logger.info("threads requested ({0}) exceeds number available on system ({1}), setting thread count to "
                     "'ALL_CPUS'".format(requested_threads, ortho_functions.ARGDEF_CPUS_AVAIL))
         args.threads = 'ALL_CPUS'
-
-    # log input command for reference
-    command_str = ' '.join(sys.argv)
-    logger.info("Running command: {}".format(command_str))
 
     if args.slurm:
         logger.info("Slurm output and error log saved here: {}".format(slurm_log_dir))

@@ -6,6 +6,7 @@ import math
 import os
 import shutil
 import sys
+import datetime
 
 import numpy
 from osgeo import gdal
@@ -52,6 +53,8 @@ def main():
                         help="submission script to use in PBS/SLURM submission (PBS default is qsub_ndvi.sh, SLURM "
                              "default is slurm_ndvi.py, in script root folder)")
     parser.add_argument("-l", help="PBS resources requested (mimicks qsub syntax, PBS only)")
+    parser.add_argument("--log", nargs='?', const="default",
+                        help="path to file to log progress (default is ortho_<timestamp>.log next to the <dst dir>")
     parser.add_argument("--skip-cmd-txt", action='store_true', default=True,
                         help='THIS OPTION IS DEPRECATED - '
                              'By default this arg is True and the cmd text file will not be written. '
@@ -121,6 +124,22 @@ def main():
     formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s', '%m-%d-%Y %H:%M:%S')
     lso.setFormatter(formatter)
     logger.addHandler(lso)
+
+    #### Configure file handler if --log is passed to CLI
+    if args.log is not None:
+        if args.log == "default":
+            log_fn = "ndvi_{}.log".format(datetime.now().strftime("%Y%m%d_%H%M%S"))
+            logfile = os.path.join(os.path.abspath(os.path.join(args.dst, os.pardir)), log_fn)
+        else:
+            logfile = os.path.abspath(args.log)
+            if not os.path.isdir(os.path.pardir(logfile)):
+                parser.warning("Output location for log file does not exist: {}".format(os.path.isdir(os.path.pardir(logfile))))
+
+        lfh = logging.FileHandler(logfile)
+        lfh.setLevel(logging.DEBUG)
+        formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s', '%m-%d-%Y %H:%M:%S')
+        lfh.setFormatter(formatter)
+        logger.addHandler(lfh)
 
     # log input command for reference
     command_str = ' '.join(sys.argv)
