@@ -245,7 +245,6 @@ def main():
             # by default, the parent directory of the dst dir is used for saving slurm logs
             if args.slurm_log_dir == None:
                 slurm_log_dir = os.path.abspath(os.path.join(dstdir, os.pardir))
-                print("slurm log dir: {}".format(slurm_log_dir))
             # if "working_dir" is passed in the CLI, use the default slurm behavior which saves logs in working dir
             elif args.slurm_log_dir == "working_dir":
                 slurm_log_dir = None
@@ -260,7 +259,6 @@ def main():
             # Verify slurm log path
             if not os.path.isdir(slurm_log_dir):
                 parser.error("Error directory for slurm logs is not a valid file path: {}".format(slurm_log_dir))
-            logger.info("Slurm output and error log saved here: {}".format(slurm_log_dir))
 
     ## Verify processing options do not conflict
     requested_threads = ortho_functions.ARGDEF_CPUS_AVAIL if args.threads == "ALL_CPUS" else args.threads
@@ -308,28 +306,28 @@ def main():
     if args.dem is not None and args.ortho_height is not None:
         parser.error("--dem and --ortho_height options are mutually exclusive.  Please choose only one.")
 
-    ## verify auto DEM
-    if args.dem == 'auto':
-        logger.info("DEM is auto default")
     #### Test if DEM exists
-    elif args.dem is not None and not os.path.isfile(args.dem):
-        parser.error("DEM does not exist: {}".format(args.dem))
-        if args.l is None:
-            if args.dem.endswith('.vrt'):
-                total_dem_filesz_gb = 0.0
-                tree = ET.parse(args.dem)
-                root = tree.getroot()
-                for sourceFilename in root.iter('SourceFilename'):
-                    dem_filename = sourceFilename.text
-                    if not os.path.isfile(dem_filename):
-                        parser.error("VRT DEM component raster does not exist: {}".format(dem_filename))
-                    dem_filesz_gb = os.path.getsize(dem_filename) / 1024.0 / 1024 / 1024
-                    total_dem_filesz_gb += dem_filesz_gb
-                dem_filesz_gb = total_dem_filesz_gb
-            else:
-                dem_filesz_gb = os.path.getsize(args.dem) / 1024.0 / 1024 / 1024
-            pbs_req_mem_gb = int(min(50, max(8, math.ceil(dem_filesz_gb) + 2)))
-            args.l = 'mem={}gb'.format(pbs_req_mem_gb)
+    if not args.dem == 'auto':
+        if args.dem is not None and not os.path.isfile(args.dem):
+            parser.error("DEM does not exist: {}".format(args.dem))
+
+    #### check memory requirements for pbs when using VRT reference dem
+    if args.l is None:
+        if args.dem.endswith('.vrt'):
+            total_dem_filesz_gb = 0.0
+            tree = ET.parse(args.dem)
+            root = tree.getroot()
+            for sourceFilename in root.iter('SourceFilename'):
+                dem_filename = sourceFilename.text
+                if not os.path.isfile(dem_filename):
+                    parser.error("VRT DEM component raster does not exist: {}".format(dem_filename))
+                dem_filesz_gb = os.path.getsize(dem_filename) / 1024.0 / 1024 / 1024
+                total_dem_filesz_gb += dem_filesz_gb
+            dem_filesz_gb = total_dem_filesz_gb
+        else:
+            dem_filesz_gb = os.path.getsize(args.dem) / 1024.0 / 1024 / 1024
+        pbs_req_mem_gb = int(min(50, max(8, math.ceil(dem_filesz_gb) + 2)))
+        args.l = 'mem={}gb'.format(pbs_req_mem_gb)
         
     ## Check GDAL version (2.1.0 minimum)
     gdal_version = gdal.VersionInfo()
@@ -355,6 +353,9 @@ def main():
     # log input command for reference
     command_str = ' '.join(sys.argv)
     logger.info("Running command: {}".format(command_str))
+
+    if args.slurm:
+        logger.info("Slurm output and error log saved here: {}".format(slurm_log_dir))
 
     #### Get args ready to pass to task handler
     arg_keys_to_remove = ('l', 'queue', 'qsubscript', 'dryrun', 'pbs', 'slurm', 'parallel_processes', 'tasks_per_job')

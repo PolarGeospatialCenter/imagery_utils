@@ -99,7 +99,6 @@ def main():
         # by default, the parent directory of the dst dir is used for saving slurm logs
         if args.slurm_log_dir == None:
             slurm_log_dir = os.path.abspath(os.path.join(dstdir, os.pardir))
-            print("slurm log dir: {}".format(slurm_log_dir))
         # if "working_dir" is passed in the CLI, use the default slurm behavior which saves logs in working dir
         elif args.slurm_log_dir == "working_dir":
             slurm_log_dir = None
@@ -109,7 +108,6 @@ def main():
         # Verify slurm log path
         if not os.path.isdir(slurm_log_dir):
             parser.error("Error directory for slurm logs is not a valid file path: {}".format(slurm_log_dir))
-        logger.info("Slurm output and error log saved here: {}".format(slurm_log_dir))
         
     ## Verify processing options do not conflict
     if args.pbs and args.slurm:
@@ -117,16 +115,19 @@ def main():
     if (args.pbs or args.slurm) and args.parallel_processes > 1:
         parser.error("HPC Options (--pbs or --slurm) and --parallel-processes > 1 are mutually exclusive")
 
-    # log input command for reference
-    command_str = ' '.join(sys.argv)
-    logger.info("Running command: {}".format(command_str))
-
     #### Set concole logging handler
     lso = logging.StreamHandler()
     lso.setLevel(logging.DEBUG)
     formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s', '%m-%d-%Y %H:%M:%S')
     lso.setFormatter(formatter)
     logger.addHandler(lso)
+
+    # log input command for reference
+    command_str = ' '.join(sys.argv)
+    logger.info("Running command: {}".format(command_str))
+
+    if args.slurm:
+        logger.info("Slurm output and error log saved here: {}".format(slurm_log_dir))
 
     #### Get args ready to pass to task handler
     arg_keys_to_remove = ('l', 'qsubscript', 'pbs', 'slurm', 'parallel_processes', 'dryrun')

@@ -140,10 +140,6 @@ def main():
                          "year (e.g., 2017), eight digits and dash for range (e.g., 2015-2017)".format(args.tyear))
             sys.exit(1)
 
-    # log input command for reference
-    command_str = ' '.join(sys.argv)
-    logger.info("Running command: {}".format(command_str))
-
     ##### Configure Logger
     if args.log is not None:
         logfile = os.path.abspath(args.log)
@@ -160,7 +156,11 @@ def main():
     lsh.setLevel(logging.INFO)
     lsh.setFormatter(formatter)
     logger.addHandler(lsh)
-    
+
+    # log input command for reference
+    command_str = ' '.join(sys.argv)
+    logger.info("Running command: {}".format(command_str))
+
     #### Get exclude_list if specified
     exclude_list = mosaic.getExcludeList(args.exclude)
 

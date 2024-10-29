@@ -87,9 +87,6 @@ def main():
     if not os.path.isdir(dstdir):
         parser.error("Error arg2 is not a valid file path: {}".format(dstdir))
 
-    # log input command for reference
-    command_str = ' '.join(sys.argv)
-    logger.info("Running command: {}".format(command_str))
 
     ## Verify qsubscript
     if args.pbs or args.slurm:
@@ -108,7 +105,6 @@ def main():
         # by default, the parent directory of the dst dir is used for saving slurm logs
         if args.slurm_log_dir == None:
             slurm_log_dir = os.path.abspath(os.path.join(dstdir, os.pardir))
-            logger.info("slurm log dir: {}".format(slurm_log_dir))
         # if "working_dir" is passed in the CLI, use the default slurm behavior which saves logs in working dir
         elif args.slurm_log_dir == "working_dir":
             slurm_log_dir = None
@@ -123,7 +119,6 @@ def main():
         # Verify slurm log path
         if not os.path.isdir(slurm_log_dir):
             parser.error("Error directory for slurm logs is not a valid file path: {}".format(slurm_log_dir))
-        logger.info("Slurm output and error log saved here: {}".format(slurm_log_dir))
 
     ## Verify processing options do not conflict
     requested_threads = ortho_functions.ARGDEF_CPUS_AVAIL if args.threads == "ALL_CPUS" else args.threads
@@ -173,12 +168,10 @@ def main():
     if args.dem is not None and args.ortho_height is not None:
         parser.error("--dem and --ortho_height options are mutually exclusive.  Please choose only one.")
 
-    ## verify auto DEM
-    if args.dem == 'auto':
-        logger.info("DEM is auto default")
     #### Test if DEM exists
-    elif args.dem is not None and not os.path.isfile(args.dem):
-        parser.error("DEM does not exist: {}".format(args.dem))
+    if not args.dem == "auto":
+        if args.dem is not None and not os.path.isfile(args.dem):
+            parser.error("DEM does not exist: {}".format(args.dem))
 
     #### Set up console logging handler
     if args.verbose:
@@ -190,6 +183,13 @@ def main():
     formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s', '%m-%d-%Y %H:%M:%S')
     lso.setFormatter(formatter)
     logger.addHandler(lso)
+
+    # log input command for reference
+    command_str = ' '.join(sys.argv)
+    logger.info("Running command: {}".format(command_str))
+
+    if args.slurm:
+        logger.info("Slurm output and error log saved here: {}".format(slurm_log_dir))
 
     #### Handle thread count that exceeds system limits
     if requested_threads > ortho_functions.ARGDEF_CPUS_AVAIL:
