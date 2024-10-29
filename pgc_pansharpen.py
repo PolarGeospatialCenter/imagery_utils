@@ -312,22 +312,23 @@ def main():
             parser.error("DEM does not exist: {}".format(args.dem))
 
     #### check memory requirements for pbs when using VRT reference dem
-    if args.l is None:
-        if args.dem.endswith('.vrt'):
-            total_dem_filesz_gb = 0.0
-            tree = ET.parse(args.dem)
-            root = tree.getroot()
-            for sourceFilename in root.iter('SourceFilename'):
-                dem_filename = sourceFilename.text
-                if not os.path.isfile(dem_filename):
-                    parser.error("VRT DEM component raster does not exist: {}".format(dem_filename))
-                dem_filesz_gb = os.path.getsize(dem_filename) / 1024.0 / 1024 / 1024
-                total_dem_filesz_gb += dem_filesz_gb
-            dem_filesz_gb = total_dem_filesz_gb
-        else:
-            dem_filesz_gb = os.path.getsize(args.dem) / 1024.0 / 1024 / 1024
-        pbs_req_mem_gb = int(min(50, max(8, math.ceil(dem_filesz_gb) + 2)))
-        args.l = 'mem={}gb'.format(pbs_req_mem_gb)
+    if args.pbs:
+        if args.l is None:
+            if args.dem.endswith('.vrt'):
+                total_dem_filesz_gb = 0.0
+                tree = ET.parse(args.dem)
+                root = tree.getroot()
+                for sourceFilename in root.iter('SourceFilename'):
+                    dem_filename = sourceFilename.text
+                    if not os.path.isfile(dem_filename):
+                        parser.error("VRT DEM component raster does not exist: {}".format(dem_filename))
+                    dem_filesz_gb = os.path.getsize(dem_filename) / 1024.0 / 1024 / 1024
+                    total_dem_filesz_gb += dem_filesz_gb
+                dem_filesz_gb = total_dem_filesz_gb
+            else:
+                dem_filesz_gb = os.path.getsize(args.dem) / 1024.0 / 1024 / 1024
+            pbs_req_mem_gb = int(min(50, max(8, math.ceil(dem_filesz_gb) + 2)))
+            args.l = 'mem={}gb'.format(pbs_req_mem_gb)
         
     ## Check GDAL version (2.1.0 minimum)
     gdal_version = gdal.VersionInfo()
