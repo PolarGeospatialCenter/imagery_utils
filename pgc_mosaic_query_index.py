@@ -496,15 +496,20 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
                             tape_ct += 1
                             ttxt.write("{0},{1},{2},{3},{4}\n".format(iinfo.scene_id, iinfo.strip_id, iinfo.catid, iinfo.srcfp, iinfo.status))
                             # get srcfp with file extension
-                            srcfp_file = os.path.basename(iinfo.srcfp)
+                            srcfp_file = os.path.basename(iinfo.srcfn)
                             otxt.write("{}\n".format(os.path.join(rn_fromtape_path, srcfp_file)))
 
                         else:
                             otxt.write("{}\n".format(iinfo.srcfp))
 
+                        # add "_pansh" to the files name written to ortho.txt if running pansharpened
                         pansh_suf = ""
                         if args.require_pan:
                             pansh_suf = "_pansh"
+                            # skip P1BS images since pansharpened outputs use M1BS in the name
+                            if "P1BS" in iinfo.srcfp:
+                                continue
+
 
                         m_fn = "{0}_u08{1}{2}{3}.tif".format(
                             os.path.splitext(iinfo.srcfn)[0],

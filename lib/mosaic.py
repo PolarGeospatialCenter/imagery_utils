@@ -119,6 +119,10 @@ class ImageInfo:
             
         self.srcfp = srcfp
         self.srcdir, self.srcfn = os.path.split(srcfp)
+
+        i = feat.GetFieldIndex("S_FILENAME")
+        if i != -1:
+            self.srcfn = feat.GetFieldAsString(i)
         
         i = feat.GetFieldIndex("COLUMNS")
         if i != -1:
