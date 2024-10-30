@@ -54,7 +54,9 @@ def main():
                              "default is slurm_ndvi.py, in script root folder)")
     parser.add_argument("-l", help="PBS resources requested (mimicks qsub syntax, PBS only)")
     parser.add_argument("--log", nargs='?', const="default",
-                        help="path to file to log progress (default is ortho_<timestamp>.log next to the <dst dir>")
+                        help="output log file -- top level log is not written without this arg. "
+                             "when this flag is used, log will be written to ndvi_<timestamp>.log next to the <dst dir>) "
+                             "unless a specific file path is provided here")
     parser.add_argument("--skip-cmd-txt", action='store_true', default=True,
                         help='THIS OPTION IS DEPRECATED - '
                              'By default this arg is True and the cmd text file will not be written. '

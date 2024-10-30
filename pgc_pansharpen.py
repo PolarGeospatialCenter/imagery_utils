@@ -203,7 +203,9 @@ def main():
                              "partition, no need to specify it in this arg), big_mem (for large memory jobs), "
                              "and low_priority (for background processes)")
     parser.add_argument("--log", nargs='?', const="default",
-                        help="path to file to log progress (default is ortho_<timestamp>.log next to the <dst dir>")
+                        help="output log file -- top level log is not written without this arg. "
+                             "when this flag is used, log will be written to pansharpen_<timestamp>.log next to the <dst dir>) "
+                             "unless a specific file path is provided here")
     parser.add_argument("--dryrun", action="store_true", default=False,
                         help="print actions without executing")
 
