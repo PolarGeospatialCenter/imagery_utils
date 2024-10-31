@@ -5,7 +5,7 @@ import math
 import os
 import shutil
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 from xml.etree import cElementTree as ET
 
 import numpy
@@ -61,6 +61,28 @@ class ImageInfo:
     #"date":None,
     #"tdi":None
 
+    def _get_pan_id_datetime_dif(self):
+        # parse date from mul str to datetime object and str format to lookup in fn
+        mul_date_parse = datetime.strptime(self.scene_id[5:19], '%Y%m%d%H%M%S')
+        mul_date_form_1 = datetime.strftime(mul_date_parse, '%Y%m%d%H%M%S')
+
+        # reset pan scene_ID as 1 second prior to mul time stamp (Pan is usually 1 sec prior if there is dif)
+        time_dif = -1
+        # add 1 second time difference to datetime obj and format it to str
+        mul_date_parse_dif_1 = mul_date_parse + timedelta(seconds=time_dif)
+        mul_date_form_dif_1 = datetime.strftime(mul_date_parse_dif_1, '%Y%m%d%H%M%S')
+
+        # get format for 2nd date str in fn for original time and dif time
+        mul_date_2 = datetime.strftime(mul_date_parse, '%y%b%d%H%M%S').upper()
+        mul_date_2_dif_1 = datetime.strftime(mul_date_parse_dif_1, '%y%b%d%H%M%S').upper()
+
+        # construct filename with updated time stamp
+        # some scenes do not have the second time stamp. the second .replace() will have no effect
+        pan_scene_id_dif_1 = self.pan_scene_id.replace(mul_date_form_1, mul_date_form_dif_1).replace(mul_date_2,
+                                                                                                     mul_date_2_dif_1)
+
+        return pan_scene_id_dif_1
+
     def get_attributes_from_record(self, feat, srs):
         
         i = feat.GetFieldIndex("S_FILEPATH")
@@ -97,6 +119,10 @@ class ImageInfo:
             
         self.srcfp = srcfp
         self.srcdir, self.srcfn = os.path.split(srcfp)
+
+        i = feat.GetFieldIndex("S_FILENAME")
+        if i != -1:
+            self.srcfn = feat.GetFieldAsString(i)
         
         i = feat.GetFieldIndex("COLUMNS")
         if i != -1:
@@ -143,6 +169,34 @@ class ImageInfo:
         i = feat.GetFieldIndex("STRIP_ID")
         if i != -1:
             self.strip_id = feat.GetFieldAsString(i)
+        i = feat.GetFieldIndex("PROD_CODE")
+        if i != -1:
+            self.prod_code = feat.GetFieldAsString(i)
+        i = feat.GetFieldIndex("SPEC_TYPE")
+        if i != -1:
+            self.spec_type = feat.GetFieldAsString(i)
+
+        # define panchromatic component for multispectral images
+        if self.spec_type == "Multispectral":
+            if self.sensor in ["WV02", "WV03", "QB02"]:
+                self.pan_scene_id = self.scene_id.replace("-M", "-P")
+            elif self.sensor == "GE01":
+                if "_5V" in self.scene_id:
+                    self.pan_scene_id = self.scene_id.replace("M0", "P0")
+                else:
+                    self.pan_scene_id = self.scene_id.replace("-M", "-P")
+            elif self.sensor == "IK01":
+                self.pan_scene_id = self.scene_id.replace("blu", "pan")
+                self.pan_scene_id = self.scene_id.replace("msi", "pan")
+                self.pan_scene_id = self.scene_id.replace("bgrn", "pan")
+            else:
+                logger.info("Image has non-standard scene_ID, cannot parse pan scene_id component: {}".format(self.scene_id))
+                self.pan_scene_id = self.scene_id
+        else:
+            self.pan_scene_id = self.scene_id
+
+        # define panchromatic scene_id for cases when the panchromatic image was taken 1-second sooner
+        self.pan_scene_id_datetime_dif = self._get_pan_id_datetime_dif()
         
         i = feat.GetFieldIndex("TDI")
         if i != -1:
@@ -1260,7 +1314,7 @@ def copyall(srcfile, dstdir):
         fpo = os.path.join(dstdir, os.path.basename(fpi))
         try:
             shutil.copy2(fpi, fpo)
-        except WindowsError as e:
+        except Exception as e:
             logger.warning(e)
 
 def getExcludeList(exclude_arg):

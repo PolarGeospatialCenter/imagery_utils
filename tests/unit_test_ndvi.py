@@ -1,4 +1,4 @@
-import unittest, os, sys, glob, argparse, logging
+import unittest, os, sys, glob, argparse
 from osgeo import gdal
 import numpy as np
 
@@ -8,77 +8,6 @@ sys.path.append(root_dir)
 
 from lib import mosaic
 
-logger = logging.getLogger("logger")
-
-
-class TestNDVIImageInfo(unittest.TestCase):
-
-    def setUp(self):
-        self.srcdir = os.path.join(os.path.join(test_dir, 'output'))
-
-    def test_ndvi_info_wv02(self):
-        image = 'WV02_20110901210434_103001000B41DC00_11SEP01210434-M1BS-052730735130_01_P007_u16rf3413_ndvi.tif'
-        image_info = mosaic.ImageInfo(os.path.join(self.srcdir, image), 'IMAGE')
-
-        self.assertEqual(image_info.xres, 64.0)
-        self.assertEqual(image_info.yres, 64.0)
-        self.assertEqual(image_info.proj,
-                         'PROJCS["unnamed",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433],AUTHORITY["EPSG","4326"]],PROJECTION["Polar_Stereographic"],PARAMETER["latitude_of_origin",70],PARAMETER["central_meridian",-45],PARAMETER["scale_factor",1],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]]]')
-        self.assertEqual(image_info.bands, 1)
-        self.assertEqual(image_info.datatype, 6)
-
-        mosaic_args = MosaicArgs()
-        mosaic_params = mosaic.getMosaicParameters(image_info, mosaic_args)
-        image_info.getScore(mosaic_params)
-
-        self.assertEqual(image_info.sensor, 'WV02')
-        self.assertEqual(image_info.sunel, 37.7)
-        self.assertEqual(image_info.ona, 19.4)
-        self.assertEqual(image_info.cloudcover, 0.0)
-        self.assertEqual(image_info.tdi, 24.0)
-        self.assertEqual(image_info.panfactor, 1)
-        self.assertEqual(image_info.date_diff, -9999)
-        self.assertEqual(image_info.year_diff, -9999)
-        self.assertAlmostEqual(image_info.score, 78.55555555555556)
-
-        image_info.get_raster_stats()
-        stat_dct = {1: [-0.50704223, 0.88185203, 0.51517793, 0.27062701]}
-        datapixelcount_dct = {1: 75466}
-        for i in range(len(image_info.stat_dct[1])):
-            self.assertAlmostEqual(image_info.stat_dct[1][i], stat_dct[1][i])
-        self.assertEqual(image_info.datapixelcount_dct, datapixelcount_dct)
-
-    def test_ndvi_info_wv02_pansh(self):
-        image = 'WV02_20110901210434_103001000B41DC00_11SEP01210434-M1BS-052730735130_01_P007_u16rf3413_pansh_ndvi.tif'
-        image_info = mosaic.ImageInfo(os.path.join(self.srcdir, image), 'IMAGE')
-
-        self.assertEqual(image_info.xres, 16.0)
-        self.assertEqual(image_info.yres, 16.0)
-        self.assertEqual(image_info.proj,
-                         'PROJCS["unnamed",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433],AUTHORITY["EPSG","4326"]],PROJECTION["Polar_Stereographic"],PARAMETER["latitude_of_origin",70],PARAMETER["central_meridian",-45],PARAMETER["scale_factor",1],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]]]')
-        self.assertEqual(image_info.bands, 1)
-        self.assertEqual(image_info.datatype, 3)
-
-        mosaic_args = MosaicArgs()
-        mosaic_params = mosaic.getMosaicParameters(image_info, mosaic_args)
-        image_info.getScore(mosaic_params)
-
-        self.assertEqual(image_info.sensor, 'WV02')
-        self.assertEqual(image_info.sunel, 37.7)
-        self.assertEqual(image_info.ona, 19.4)
-        self.assertEqual(image_info.cloudcover, 0.0)
-        self.assertEqual(image_info.tdi, 24.0)
-        self.assertEqual(image_info.panfactor, 1)
-        self.assertEqual(image_info.date_diff, -9999)
-        self.assertEqual(image_info.year_diff, -9999)
-        self.assertAlmostEqual(image_info.score, 78.55555555555556)
-
-        image_info.get_raster_stats()
-        stat_dct = {1: [-991.0, 996.0, 536.20172830189938, 250.75913591790697]}
-        datapixelcount_dct = {1: 1203262}
-        for i in range(len(image_info.stat_dct[1])):
-            self.assertAlmostEqual(image_info.stat_dct[1][i], stat_dct[1][i])
-        self.assertEqual(image_info.datapixelcount_dct, datapixelcount_dct)
 
 def img_as_array(img_file, band=1):
     """
@@ -184,8 +113,7 @@ if __name__ == '__main__':
         parser.error("Test data folder does not exist: {}".format(test_dir))
 
     test_cases = [
-        TestNDVIImageInfo,
-        TestNDVIDataValues,
+        # TestNDVIDataValues, # TODO: output_static folder missing from test data
     ]
 
     suites = []

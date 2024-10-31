@@ -291,15 +291,18 @@ def calc_ndvi(srcfp, dstfp, args):
             nir_band_num = 4
         else:
             logger.error("Cannot calculate NDVI from a %i band image: %s", bands, srcfp_local)
+            clean_up([srcfp_local])
             return 1
     else:
         logger.error("Cannot open target image: %s", srcfp_local)
+        clean_up([srcfp_local])
         return 1
 
     ## check for input data type - must be float or int
     datatype = ds.GetRasterBand(1).DataType
     if datatype not in [1, 2, 3, 4, 5, 6, 7]:
         logger.error("Invalid input data type %s", datatype)
+        clean_up([srcfp_local])
         return 1 
 
     ## get the raster dimensions
@@ -319,6 +322,7 @@ def calc_ndvi(srcfp, dstfp, args):
             ndvi_band.SetNoDataValue(float(ndvi_nodata))
         else:
             logger.error("Couldn't open for write: %s", dstfp_local)
+            clean_up([srcfp_local])
             return 1
 
         ## for red and nir bands, get band data, nodata values, and natural block size
@@ -326,6 +330,7 @@ def calc_ndvi(srcfp, dstfp, args):
         red_band = ds.GetRasterBand(red_band_num)
         if red_band is None:
             logger.error("Can't load band %i from %s", red_band_num, srcfp_local)
+            clean_up([srcfp_local])
             return 1
         red_nodata = red_band.GetNoDataValue()
         if red_nodata is None:
@@ -336,6 +341,7 @@ def calc_ndvi(srcfp, dstfp, args):
         nir_band = ds.GetRasterBand(nir_band_num)
         if nir_band is None:
             logger.error("Can't load band %i from %s", nir_band_num, srcfp_local)
+            clean_up([srcfp_local])
             return 1
         nir_nodata = nir_band.GetNoDataValue()
         if nir_nodata is None:
@@ -419,18 +425,18 @@ def calc_ndvi(srcfp, dstfp, args):
                 nir_array = None
 
                 ## calculate ndvi
-                if ndvi_array[~ndvi_mask] != []:
+                if ndvi_array[~ndvi_mask].size > 0:
                     ndvi_array[~ndvi_mask] = numpy.divide(numpy.subtract(nir_asfloat[~ndvi_mask],
                                                                          red_asfloat[~ndvi_mask]),
                                                           numpy.add(nir_asfloat[~ndvi_mask],
                                                                     red_asfloat[~ndvi_mask]))
                 red_asfloat = None
                 nir_asfloat = None
- 
+
                 ## scale and cast to int if outtype integer
                 if args.outtype == 'Int16':
                     ndvi_scaled = numpy.full_like(ndvi_array, fill_value=ndvi_nodata, dtype=numpy.int16)
-                    if ndvi_scaled[~ndvi_mask] != []:
+                    if ndvi_scaled[~ndvi_mask].size > 0:
                         ndvi_scaled[~ndvi_mask] = numpy.array(ndvi_array[~ndvi_mask]*1000.0, dtype=numpy.int16)
                     ndvi_array = ndvi_scaled
                     ndvi_scaled = None
@@ -463,19 +469,9 @@ def calc_ndvi(srcfp, dstfp, args):
             temp_files = [srcfp_local]
             wd_files = [dstfp_local]
             if not args.save_temps:
-                for f in temp_files:
-                    try:
-                        os.remove(f)
-                    except Exception as e:
-                        logger.error(utils.capture_error_trace())
-                        logger.warning('Could not remove %s: %s', os.path.basename(f), e)
+                clean_up(temp_files)
             if wd != dstdir:
-                for f in wd_files:
-                    try:
-                        os.remove(f)
-                    except Exception as e:
-                        logger.error(utils.capture_error_trace())
-                        logger.warning('Could not remove %s: %s', os.path.basename(f), e)
+                clean_up(wd_files)
         else:
             logger.error("pgc_ndvi.py: %s was not created", dstfp_local)
             return 1 
@@ -488,6 +484,14 @@ def calc_ndvi(srcfp, dstfp, args):
             shutil.copy2(src_xml, dst_xml)
             
     return 0
+
+def clean_up(filelist):
+    for f in filelist:
+        try:
+            os.remove(f)
+        except Exception as e:
+            logger.error(utils.capture_error_trace())
+            logger.warning('Could not remove %s: %s', os.path.basename(f), e)
 
 
 if __name__ == '__main__':
