@@ -1314,7 +1314,7 @@ def copyall(srcfile, dstdir):
         fpo = os.path.join(dstdir, os.path.basename(fpi))
         try:
             shutil.copy2(fpi, fpo)
-        except WindowsError as e:
+        except Exception as e:
             logger.warning(e)
 
 def getExcludeList(exclude_arg):
