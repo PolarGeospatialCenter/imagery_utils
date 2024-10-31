@@ -676,8 +676,10 @@ def build_parent_argument_parser():
                              '--pbs/--slurm will only accept 1 thread.'
                         .format(ARGDEF_THREADS, ARGDEF_CPUS_AVAIL),
                         default=ARGDEF_THREADS)
-    parser.add_argument("--skip-cmd-txt", action='store_true', default=False,
-                        help='Skip writing the txt file containing the input command.')
+    parser.add_argument("--skip-cmd-txt", action='store_true', default=True,
+                        help='THIS OPTION IS DEPRECATED - '
+                             'By default this arg is True and the cmd text file will not be written. '
+                             'Input commands are written to the log for reference.')
     parser.add_argument("--version", action='version', version="imagery_utils v{}".format(VERSION))
 
     return parser, pos_arg_keys

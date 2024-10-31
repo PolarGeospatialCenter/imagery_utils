@@ -70,8 +70,10 @@ def main():
                         help="build shapefile of intersecting images (only invoked if --no_sort is not used)")
     parser.add_argument("--require-pan", action='store_true', default=False,
                         help="limit search to imagery with both a multispectral and a panchromatic component")
-    parser.add_argument("--skip-cmd-txt", action='store_true', default=False,
-                        help='Skip writing the txt file containing the input command.')
+    parser.add_argument("--skip-cmd-txt", action='store_true', default=True,
+                        help='THIS OPTION IS DEPRECATED - '
+                             'By default this arg is True and the cmd text file will not be written. '
+                             'Input commands are written to the log for reference.')
     parser.add_argument("--version", action='version', version="imagery_utils v{}".format(VERSION))
 
  
@@ -138,13 +140,6 @@ def main():
                          "year (e.g., 2017), eight digits and dash for range (e.g., 2015-2017)".format(args.tyear))
             sys.exit(1)
 
-    # write input command to text file next to output folder for reference
-    command_str = ' '.join(sys.argv)
-    logger.info("Running command: {}".format(command_str))
-    if not args.skip_cmd_txt:
-        utils.write_input_command_txt(command_str,dstdir)
-        args.skip_cmd_txt = True
-
     ##### Configure Logger
     if args.log is not None:
         logfile = os.path.abspath(args.log)
@@ -161,7 +156,11 @@ def main():
     lsh.setLevel(logging.INFO)
     lsh.setFormatter(formatter)
     logger.addHandler(lsh)
-    
+
+    # log input command for reference
+    command_str = ' '.join(sys.argv)
+    logger.info("Running command: {}".format(command_str))
+
     #### Get exclude_list if specified
     exclude_list = mosaic.getExcludeList(args.exclude)
 

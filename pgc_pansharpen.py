@@ -203,6 +203,10 @@ def main():
                         help="Cluster queue/partition to submit jobs to. Accepted slurm queues: batch (default "
                              "partition, no need to specify it in this arg), big_mem (for large memory jobs), "
                              "and low_priority (for background processes)")
+    parser.add_argument("--log", nargs='?', const="default",
+                        help="output log file -- top level log is not written without this arg. "
+                             "when this flag is used, log will be written to pansharpen_<timestamp>.log next to the <dst dir>) "
+                             "unless a specific file path is provided here")
     parser.add_argument("--dryrun", action="store_true", default=False,
                         help="print actions without executing")
 
@@ -246,7 +250,6 @@ def main():
             # by default, the parent directory of the dst dir is used for saving slurm logs
             if args.slurm_log_dir == None:
                 slurm_log_dir = os.path.abspath(os.path.join(dstdir, os.pardir))
-                print("slurm log dir: {}".format(slurm_log_dir))
             # if "working_dir" is passed in the CLI, use the default slurm behavior which saves logs in working dir
             elif args.slurm_log_dir == "working_dir":
                 slurm_log_dir = None
@@ -261,7 +264,6 @@ def main():
             # Verify slurm log path
             if not os.path.isdir(slurm_log_dir):
                 parser.error("Error directory for slurm logs is not a valid file path: {}".format(slurm_log_dir))
-            logger.info("Slurm output and error log saved here: {}".format(slurm_log_dir))
 
     ## Verify processing options do not conflict
     requested_threads = ortho_functions.ARGDEF_CPUS_AVAIL if args.threads == "ALL_CPUS" else args.threads
@@ -309,12 +311,13 @@ def main():
     if args.dem is not None and args.ortho_height is not None:
         parser.error("--dem and --ortho_height options are mutually exclusive.  Please choose only one.")
 
-    ## verify auto DEM
-    if args.dem == 'auto':
-        logger.info("DEM is auto default")
     #### Test if DEM exists
-    elif args.dem is not None and not os.path.isfile(args.dem):
-        parser.error("DEM does not exist: {}".format(args.dem))
+    if not args.dem == 'auto':
+        if args.dem is not None and not os.path.isfile(args.dem):
+            parser.error("DEM does not exist: {}".format(args.dem))
+
+    #### check memory requirements for pbs when using VRT reference dem
+    if args.pbs:
         if args.l is None:
             if args.dem.endswith('.vrt'):
                 total_dem_filesz_gb = 0.0
@@ -347,18 +350,34 @@ def main():
     lso.setFormatter(formatter)
     logger.addHandler(lso)
 
+    #### Configure file handler if --log is passed to CLI
+    if args.log is not None:
+        if args.log == "default":
+            log_fn = "pansharpen_{}.log".format(datetime.now().strftime("%Y%m%d_%H%M%S"))
+            logfile = os.path.join(os.path.abspath(os.path.join(args.dst, os.pardir)), log_fn)
+        else:
+            logfile = os.path.abspath(args.log)
+            if not os.path.isdir(os.path.pardir(logfile)):
+                parser.warning("Output location for log file does not exist: {}".format(os.path.isdir(os.path.pardir(logfile))))
+
+        lfh = logging.FileHandler(logfile)
+        lfh.setLevel(logging.DEBUG)
+        formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s', '%m-%d-%Y %H:%M:%S')
+        lfh.setFormatter(formatter)
+        logger.addHandler(lfh)
+
+    # log input command for reference
+    command_str = ' '.join(sys.argv)
+    logger.info("Running command: {}".format(command_str))
+
     #### Handle thread count that exceeds system limits
     if requested_threads > ortho_functions.ARGDEF_CPUS_AVAIL:
         logger.info("threads requested ({0}) exceeds number available on system ({1}), setting thread count to "
                     "'ALL_CPUS'".format(requested_threads, ortho_functions.ARGDEF_CPUS_AVAIL))
         args.threads = 'ALL_CPUS'
 
-    # write input command to text file next to output folder for reference
-    command_str = ' '.join(sys.argv)
-    logger.info("Running command: {}".format(command_str))
-    if not args.skip_cmd_txt and not args.dryrun:
-        utils.write_input_command_txt(command_str,dstdir)
-        args.skip_cmd_txt = True
+    if args.slurm:
+        logger.info("Slurm output and error log saved here: {}".format(slurm_log_dir))
 
     #### Get args ready to pass to task handler
     arg_keys_to_remove = ('l', 'queue', 'qsubscript', 'dryrun', 'pbs', 'slurm', 'parallel_processes', 'tasks_per_job')
