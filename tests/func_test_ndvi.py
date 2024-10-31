@@ -1,4 +1,5 @@
-import unittest, os, sys, argparse, logging, subprocess
+import shutil
+import unittest, os, sys, argparse, subprocess
 from osgeo import gdal
 
 script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
@@ -24,12 +25,12 @@ class TestNdviFunc(unittest.TestCase):
         if not os.path.isdir(self.dstdir):
             os.makedirs(self.dstdir)
 
-    #@unittest.skip("skipping")
+    # @unittest.skip("skipping")
     def test_ndvi(self):
         
         srcdir = os.path.join(os.path.join(test_dir, 'ndvi', 'ortho'))
         
-        cmd = 'python {} {} {}'.format(
+        cmd = 'python {} {} {} --skip-cmd-txt '.format(
             self.scriptpath,
             srcdir,
             self.dstdir,
@@ -50,12 +51,12 @@ class TestNdviFunc(unittest.TestCase):
                 self.assertEqual(dt, 6)
                 ds = None
                 
-    #@unittest.skip("skipping")
+    # @unittest.skip("skipping")
     def test_ndvi_int16(self):
         
         srcdir = os.path.join(os.path.join(test_dir, 'ndvi', 'ortho'))
         
-        cmd = 'python {} {} {} -t Int16'.format(
+        cmd = 'python {} {} {} --skip-cmd-txt -t Int16'.format(
             self.scriptpath,
             srcdir,
             self.dstdir,
@@ -73,15 +74,15 @@ class TestNdviFunc(unittest.TestCase):
                 self.assertTrue(os.path.isfile(dstfp_xml))
                 ds = gdal.Open(dstfp)
                 dt = ds.GetRasterBand(1).DataType
-                self.assertEqual(dt, 6)
+                self.assertEqual(dt, 3)
                 ds = None
                 
-    #@unittest.skip("skipping")
+    # @unittest.skip("skipping")
     def test_ndvi_from_pansharp(self):
         
         srcdir = os.path.join(os.path.join(test_dir, 'ndvi', 'pansh'))
         
-        cmd = 'python {} {} {} -t Int16'.format(
+        cmd = 'python {} {} {} -t Int16 --skip-cmd-txt'.format(
             self.scriptpath,
             srcdir,
             self.dstdir,
@@ -97,9 +98,12 @@ class TestNdviFunc(unittest.TestCase):
                 dstfp_xml = os.path.join(self.dstdir, f[:-4] + '_ndvi.xml')
                 self.assertTrue(os.path.isfile(dstfp))
                 self.assertTrue(os.path.isfile(dstfp_xml))
+                ds = gdal.Open(dstfp)
+                dt = ds.GetRasterBand(1).DataType
+                self.assertEqual(dt, 3)
     
-    #def tearDown(self):
-    #    shutil.rmtree(self.dstdir)
+    def tearDown(self):
+       shutil.rmtree(self.dstdir)
 
 
 if __name__ == '__main__':
