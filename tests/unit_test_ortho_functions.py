@@ -56,20 +56,20 @@ class TestReadMetadata(unittest.TestCase):
             ('QB02_20050623212833_1010010004535800_05JUN23212833-P2AS-005511498020_01_P001.xml', True, False), # uses EARLIESTACQTIME instead of FIRSTLINETIME, but has no EFFECTIVEBANDWIDTH
             ('WV03_20150411220541_104A01000A704D00_15APR11220541-A1BS-500802194040_01_P001.xml', True, True), # SWIR
             ('WV03_20150526221639_104A01000C51A100_15MAY26221639-A1BS-500802200030_01_P001.xml', True, True), # SWIR
-            ('WV03_20190114103353_104C0100462B2500_19JAN14103353-C1BA-502817502010_01_P001.xml', True, False), # CAVIS A should not work yet
-            ('WV03_20190114103355_104C0100462B2500_19JAN14103355-C1BB-502817502010_01_P001.xml', True, False), # CAVIS B should not work yet
+            ('WV03_20190114103353_104C0100462B2500_19JAN14103353-C1BA-502817502010_01_P001.xml', True, True), # CAVIS A
+            ('WV03_20190114103355_104C0100462B2500_19JAN14103355-C1BB-502817502010_01_P001.xml', True, True), # CAVIS B
         )
 
         dg_valid_data_range = {
             'rf': {
-                'BAND_P': (Band_data_range(0.0005, 0.0015, -0.029, -0.0098)),  # pan
+                'BAND_P': (Band_data_range(0.0005, 0.0015, -0.036, 0)),  # pan
                 'BAND_B': (Band_data_range(0.000447, 0.0012, -0.1307, 0.0012)),  # blue
-                'BAND_S1': (Band_data_range(0.00005, 0.0015, -0.09, -0.05)),  # 1st SWIR band
+                'BAND_S1': (Band_data_range(0.00005, 0.0015, 0, 0)),  # 1st SWIR band
             },
             'rd': {
-                'BAND_P': (Band_data_range(0.08, 0.15, -4.5, -1.4)),
-                'BAND_B': (Band_data_range(0.17, 0.33,  -9.7, -2.8)),
-                'BAND_S1': (Band_data_range(0.005, 0.15, -5.6, -5.4)),
+                'BAND_P': (Band_data_range(0.08, 0.15, -5.55, 0)),
+                'BAND_B': (Band_data_range(0.17, 0.33,  -9.84, 0)),
+                'BAND_S1': (Band_data_range(0.0045, 0.15, 0, 0)),
             }
         }
 
@@ -275,11 +275,12 @@ class TestAutoDEMOverlap(unittest.TestCase):
         image_geom_wkts = [
             ('POLYGON ((-52.23 70.843333, -51.735 70.844444, -51.736667 70.760556, -52.23 70.759722, -52.23 70.843333))','/mnt/pgc/data/elev/dem/gimp/GrIMPv2/data/grimp_v02.0_30m_dem.tif'), #greenland
             ('POLYGON ((-52.23 -80.843333, -51.735 -80.844444, -51.736667 -80.760556, -52.23 -80.759722, -52.23 -80.843333))', '/mnt/pgc/data/elev/dem/tandem-x/90m/mosaic/TanDEM-X_Antarctica_90m/TanDEMX_PolarDEM_90m.tif'), #antarctic
-            ('POLYGON ((-52.23 -50.843333, -51.735 -50.844444, -51.736667 -50.760556, -52.23 -50.759722, -52.23 -50.843333))','/mnt/pgc/data/elev/dem/copernicus-dem-30m/mosaic/global/cop30_tiles_global_wgs84-height_nunatak.vrt'), #other
+            ('POLYGON ((-52.23 -50.843333, -51.735 -50.844444, -51.736667 -50.760556, -52.23 -50.759722, -52.23 -50.843333))', None), # ocean
             ('POLYGON ((-49.23 61.910556, -47.735 58.844444, -47.735 61.910556, -49.23 58.844444,-49.23 61.910556))', '/mnt/pgc/data/elev/dem/gimp/GrIMPv2/data/grimp_v02.0_30m_dem.tif'), # greenland centroid
             ('POLYGON ((11 -68.5, 11 -70, 12 -70, 12 -68.5, 11 -68.5))', '/mnt/pgc/data/elev/dem/tandem-x/90m/mosaic/TanDEM-X_Antarctica_90m/TanDEMX_PolarDEM_90m.tif'), # antarctic centroid
-            ('POLYGON ((-49.23 59.7, -48.23 59.7,-47.23 58.7, -49.23 58.7,-49.23 59.7))','/mnt/pgc/data/elev/dem/copernicus-dem-30m/mosaic/global/cop30_tiles_global_wgs84-height_nunatak.vrt'), # other than greenland centroid
-            ('POLYGON ((-56 -61, -55 -61, -55 -60,-56 -60, -56 -61))','/mnt/pgc/data/elev/dem/copernicus-dem-30m/mosaic/global/cop30_tiles_global_wgs84-height_nunatak.vrt') # other than antarctic centroid
+            ('POLYGON ((-49.23 59.7, -48.23 59.7,-47.23 58.7, -49.23 58.7,-49.23 59.7))', '/mnt/pgc/data/elev/dem/gimp/GrIMPv2/data/grimp_v02.0_30m_dem.tif'), # greenland, but not contained
+            ('POLYGON ((-56 -61, -55 -61, -55 -60,-56 -60, -56 -61))','/mnt/pgc/data/elev/dem/tandem-x/90m/mosaic/TanDEM-X_Antarctica_90m/TanDEMX_PolarDEM_90m.tif') # antarctic, but not contained
+            #TODO add a test that overlaps two DEM source layers
         ]
 
         for wkt, result in image_geom_wkts:
@@ -309,8 +310,8 @@ class TestAutoStretchAndEpsg(unittest.TestCase):
     def test_auto_stretch_and_epsg(self):
         test_files = (
             # file name, expected stretch, expected epsg
-            ('WV03_20190114103353_104C0100462B2500_19JAN14103353-C1BA-502817502010_01_P001.ntf', 'ns', 3031),  # CAVIS
-            ('WV03_20190114103355_104C0100462B2500_19JAN14103355-C1BB-502817502010_01_P001.ntf', 'ns', 3031),  # CAVIS
+            ('WV03_20190114103353_104C0100462B2500_19JAN14103353-C1BA-502817502010_01_P001.ntf', 'rf', 3031),  # CAVIS
+            ('WV03_20190114103355_104C0100462B2500_19JAN14103355-C1BB-502817502010_01_P001.ntf', 'rf', 3031),  # CAVIS
             ('WV03_20150526221639_104A01000C51A100_15MAY26221639-A1BS-500802200030_01_P001.ntf', 'rf', 3413),  # SWIR
             ('GE01_20110307105821_1050410001518E00_11MAR07105821-M1BS-500657359080_01_P008.ntf', 'mr', 32630),  # Nonpolar
             ('WV03_20140919212947_104001000227BF00_14SEP19212947-M1BS-500191821040_01_P002.ntf', 'mr', 3413),  # Arctic

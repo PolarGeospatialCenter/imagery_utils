@@ -31,9 +31,8 @@ DGbandList = ['BAND_P', 'BAND_C', 'BAND_B',  # Pan, Visible, NIR, Pansharpened: 
               'BAND_G', 'BAND_Y', 'BAND_R', 'BAND_RE', 'BAND_N', 'BAND_N2',
               'BAND_S1', 'BAND_S2', 'BAND_S3', 'BAND_S4', 'BAND_S5',  # SWIR: A* product codes
               'BAND_S6', 'BAND_S7', 'BAND_S8',
-              ## CAVIS band radiometric correction not yet supported. Need irradiance, gain, and bias info.
-              # 'BAND_DC', 'BAND_CG', 'BAND_W2', 'BAND_CRS', 'BAND_SNO',  # CAVIS: C* product codes
-              # 'BAND_A31', 'BAND_A1', 'BAND_A2',  'BAND_W1', 'BAND_W3', 'BAND_NDVI', 'BAND_A32',
+              'BAND_DC', 'BAND_CG', 'BAND_W2', 'BAND_CRS', 'BAND_SNO',  # CAVIS: C* product codes
+              'BAND_A31', 'BAND_A1', 'BAND_A2',  'BAND_W1', 'BAND_W3', 'BAND_NDVI', 'BAND_A32',
               ]
 formats = {'GTiff': '.tif', 'JP2OpenJPEG': '.jp2', 'ENVI': '.envi', 'HFA': '.img', 'JPEG': '.jpg'}
 stretches = ["ns", "rf", "mr", "rd", "au"]
@@ -60,8 +59,9 @@ formatVRT = "VRT"
 VRTdriver = gdal.GetDriverByName(formatVRT)
 ikMsiBands = ['blu', 'grn', 'red', 'nir']
 
-EsunDict = {  # Spectral Irradiance in W/m2/um (from Thuillier 2003 -
-    # used by DG calibration team as of 2016v2)
+# Calibration factors taken from https://resources.maxar.com/white-papers/absolute-radiometric-calibration-white-paper
+# IKONOS and QuickBird factors from https://dg-cms-uploads-production.s3.amazonaws.com/uploads/document/file/209/ABSRADCAL_FLEET_2016v0_Rel20170606.pdf
+EsunDict = {  # Spectral Irradiance in W/m2/um
     'QB02_BAND_P': 1370.92,
     'QB02_BAND_B': 1949.59,
     'QB02_BAND_G': 1823.64,
@@ -97,6 +97,18 @@ EsunDict = {  # Spectral Irradiance in W/m2/um (from Thuillier 2003 -
     'WV03_BAND_S6': 85.0642,
     'WV03_BAND_S7': 76.9507,
     'WV03_BAND_S8': 68.0988,
+    'WV03_BAND_DC': 1718.25,
+    'WV03_BAND_A1': 2001.13,
+    'WV03_BAND_CG': 1831.3,
+    'WV03_BAND_A2': 1537.38,
+    'WV03_BAND_W1': 955.658,
+    'WV03_BAND_W2': 866.791,
+    'WV03_BAND_W3': 807.875,
+    'WV03_BAND_NDVI': 460.196,
+    'WV03_BAND_CRS': 361.412,
+    'WV03_BAND_SNO': 230.349,
+    'WV03_BAND_A31': 89.1345,
+    'WV03_BAND_A32': 89.1345,
 
     'GE01_BAND_P': 1610.73,
     'GE01_BAND_B': 1993.18,
@@ -120,39 +132,51 @@ GainDict = {
 
     'WV01_BAND_P': 1.016,
 
-    'WV02_BAND_P': 0.942,
-    'WV02_BAND_C': 1.151,
-    'WV02_BAND_B': 0.988,
-    'WV02_BAND_G': 0.936,
-    'WV02_BAND_Y': 0.949,
-    'WV02_BAND_R': 0.952,
-    'WV02_BAND_RE': 0.974,
-    'WV02_BAND_N': 0.961,
-    'WV02_BAND_N2': 1.002,
+    'WV02_BAND_P': 0.949,
+    'WV02_BAND_C': 1.203,
+    'WV02_BAND_B': 1.002,
+    'WV02_BAND_G': 0.953,
+    'WV02_BAND_Y': 0.946,
+    'WV02_BAND_R': 0.955,
+    'WV02_BAND_RE': 0.980,
+    'WV02_BAND_N': 0.966,
+    'WV02_BAND_N2': 1.010,
 
-    'WV03_BAND_P': 0.950,
-    'WV03_BAND_C': 0.905,
-    'WV03_BAND_B': 0.940,
-    'WV03_BAND_G': 0.938,
-    'WV03_BAND_Y': 0.962,
-    'WV03_BAND_R': 0.964,
-    'WV03_BAND_RE': 1.000,
-    'WV03_BAND_N': 0.961,
-    'WV03_BAND_N2': 0.978,
-    'WV03_BAND_S1': 1.200,
-    'WV03_BAND_S2': 1.227,
-    'WV03_BAND_S3': 1.199,
-    'WV03_BAND_S4': 1.196,
-    'WV03_BAND_S5': 1.262,
-    'WV03_BAND_S6': 1.314,
-    'WV03_BAND_S7': 1.346,
-    'WV03_BAND_S8': 1.376,
+    'WV03_BAND_P': 0.955,
+    'WV03_BAND_C': 0.938,
+    'WV03_BAND_B': 0.946,
+    'WV03_BAND_G': 0.958,
+    'WV03_BAND_Y': 0.979,
+    'WV03_BAND_R': 0.969,
+    'WV03_BAND_RE': 1.027,
+    'WV03_BAND_N': 0.977,
+    'WV03_BAND_N2': 1.007,
+    'WV03_BAND_S1': 1.030,
+    'WV03_BAND_S2': 1.052,
+    'WV03_BAND_S3': 0.992,
+    'WV03_BAND_S4': 1.014,
+    'WV03_BAND_S5': 1.012,
+    'WV03_BAND_S6': 1.082,
+    'WV03_BAND_S7': 1.056,
+    'WV03_BAND_S8': 1.101,
+    'WV03_BAND_DC': 1.377,
+    'WV03_BAND_A1': 1.051,
+    'WV03_BAND_CG': 0.816,
+    'WV03_BAND_A2': 0.869,
+    'WV03_BAND_W1': 0.849,
+    'WV03_BAND_W2': 0.677,
+    'WV03_BAND_W3': 0.819,
+    'WV03_BAND_NDVI': 0.842,
+    'WV03_BAND_CRS': 1,
+    'WV03_BAND_SNO': 0.897,
+    'WV03_BAND_A31': 1.081,
+    'WV03_BAND_A32': 1.076,
 
-    'GE01_BAND_P': 0.970,
-    'GE01_BAND_B': 1.053,
-    'GE01_BAND_G': 0.994,
-    'GE01_BAND_R': 0.998,
-    'GE01_BAND_N': 0.994,
+    'GE01_BAND_P': 1.001,
+    'GE01_BAND_B': 1.041,
+    'GE01_BAND_G': 0.972,
+    'GE01_BAND_R': 0.979,
+    'GE01_BAND_N': 0.951,
 
     'IK01_BAND_P': 0.907,
     'IK01_BAND_B': 1.073,
@@ -170,39 +194,51 @@ BiasDict = {
 
     'WV01_BAND_P': -1.824,
 
-    'WV02_BAND_P': -2.704,
-    'WV02_BAND_C': -7.478,
-    'WV02_BAND_B': -5.736,
-    'WV02_BAND_G': -3.546,
-    'WV02_BAND_Y': -3.564,
-    'WV02_BAND_R': -2.512,
-    'WV02_BAND_RE': -4.120,
-    'WV02_BAND_N': -3.300,
-    'WV02_BAND_N2': -2.891,
+    'WV02_BAND_P': -5.523,
+    'WV02_BAND_C': -11.839,
+    'WV02_BAND_B': -9.835,
+    'WV02_BAND_G': -7.218,
+    'WV02_BAND_Y': -5.675,
+    'WV02_BAND_R': -5.046,
+    'WV02_BAND_RE': -6.114,
+    'WV02_BAND_N': -5.096,
+    'WV02_BAND_N2': -4.059,
 
-    'WV03_BAND_P': -3.629,
-    'WV03_BAND_C': -8.604,
-    'WV03_BAND_B': -5.809,
-    'WV03_BAND_G': -4.996,
-    'WV03_BAND_Y': -3.649,
-    'WV03_BAND_R': -3.021,
-    'WV03_BAND_RE': -4.521,
-    'WV03_BAND_N': -5.522,
-    'WV03_BAND_N2': -2.992,
-    'WV03_BAND_S1': -5.546,
-    'WV03_BAND_S2': -2.600,
-    'WV03_BAND_S3': -2.309,
-    'WV03_BAND_S4': -1.676,
-    'WV03_BAND_S5': -0.705,
-    'WV03_BAND_S6': -0.669,
-    'WV03_BAND_S7': -0.512,
-    'WV03_BAND_S8': -0.372,
+    'WV03_BAND_P': -5.505,
+    'WV03_BAND_C': -13.099,
+    'WV03_BAND_B': -9.409,
+    'WV03_BAND_G': -7.771,
+    'WV03_BAND_Y': -5.489,
+    'WV03_BAND_R': -4.579,
+    'WV03_BAND_RE': -5.552,
+    'WV03_BAND_N': -6.508,
+    'WV03_BAND_N2': -3.699,
+    'WV03_BAND_S1': 0,
+    'WV03_BAND_S2': 0,
+    'WV03_BAND_S3': 0,
+    'WV03_BAND_S4': 0,
+    'WV03_BAND_S5': 0,
+    'WV03_BAND_S6': 0,
+    'WV03_BAND_S7': 0,
+    'WV03_BAND_S8': 0,
+    'WV03_BAND_DC': 0,
+    'WV03_BAND_A1': 0,
+    'WV03_BAND_CG': 0,
+    'WV03_BAND_A2': 0,
+    'WV03_BAND_W1': 0,
+    'WV03_BAND_W2': 0,
+    'WV03_BAND_W3': 0,
+    'WV03_BAND_NDVI': 0,
+    'WV03_BAND_CRS': 0,
+    'WV03_BAND_SNO': 0,
+    'WV03_BAND_A31': 0,
+    'WV03_BAND_A32': 0,
 
-    'GE01_BAND_P': -1.926,
-    'GE01_BAND_B': -4.537,
-    'GE01_BAND_G': -4.175,
-    'GE01_BAND_R': -3.754,
-    'GE01_BAND_N': -3.870,
+    'GE01_BAND_P': 0,
+    'GE01_BAND_B': 0,
+    'GE01_BAND_G': 0,
+    'GE01_BAND_R': 0,
+    'GE01_BAND_N': 0,
 
     'IK01_BAND_P': -4.461,
     'IK01_BAND_B': -9.699,
@@ -529,13 +565,10 @@ class ImageInfo:
                             rc = 1
 
                     if self.stretch == 'au':
-                        # SWIR should never use the mr stretch
-                        if self.vendor == Vendor.DG and self.image_type == ImageType.SWIR:
+                        # SWIR AND CAVIS should use the rf stretch
+                        if self.vendor == Vendor.DG and self.image_type in [ImageType.SWIR, ImageType.CAVIS]:
                             self.stretch = 'rf'
-                        # CAVIS can't yet be radiometrically corrected
-                        elif self.vendor == Vendor.DG and self.image_type == ImageType.CAVIS:
-                            self.stretch = 'ns'
-                        # Antarctic visible imagery should be rf
+                        # Antarctic visible imagery should use the rf stretch
                         elif ((self.maxlat + self.minlat) / 2) <= -60:
                             self.stretch = 'rf'
                         # Non-antarctic visible imagery should be mr
@@ -791,13 +824,6 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
             if (args.stretch == 'mr') and info.image_type in SWIR_CAVIS_IMAGE_TYPES:
                 logger.error(
                     f"The modified reflectance (mr) stretch is not valid for this image type: {info.image_type.value}")
-                err = 1
-
-            ## Until we have spectral response curves from Maxar that give irradiance and any gain and bias corrections,
-            # we cannot do any radiometric correction on CAVIS
-            if (args.stretch != 'ns') and info.image_type == ImageType.CAVIS:
-                logger.error(
-                    'Radiometric correction parameters not yet available for CAVIS bands. Use the "ns" stretch.')
                 err = 1
 
         ## Check If Image is IKONOS msi that does not exist, if so, stack to dstdir, else, copy srcfn to dstdir
