@@ -70,8 +70,10 @@ def main():
                         help="build shapefile of intersecting images (only invoked if --no_sort is not used)")
     parser.add_argument("--require-pan", action='store_true', default=False,
                         help="limit search to imagery with both a multispectral and a panchromatic component")
-    parser.add_argument("--skip-cmd-txt", action='store_true', default=False,
-                        help='Skip writing the txt file containing the input command.')
+    parser.add_argument("--skip-cmd-txt", action='store_true', default=True,
+                        help='THIS OPTION IS DEPRECATED - '
+                             'By default this arg is True and the cmd text file will not be written. '
+                             'Input commands are written to the log for reference.')
     parser.add_argument("--version", action='version', version="imagery_utils v{}".format(VERSION))
 
  
@@ -138,13 +140,6 @@ def main():
                          "year (e.g., 2017), eight digits and dash for range (e.g., 2015-2017)".format(args.tyear))
             sys.exit(1)
 
-    # write input command to text file next to output folder for reference
-    command_str = ' '.join(sys.argv)
-    logger.info("Running command: {}".format(command_str))
-    if not args.skip_cmd_txt:
-        utils.write_input_command_txt(command_str,dstdir)
-        args.skip_cmd_txt = True
-
     ##### Configure Logger
     if args.log is not None:
         logfile = os.path.abspath(args.log)
@@ -161,7 +156,11 @@ def main():
     lsh.setLevel(logging.INFO)
     lsh.setFormatter(formatter)
     logger.addHandler(lsh)
-    
+
+    # log input command for reference
+    command_str = ' '.join(sys.argv)
+    logger.info("Running command: {}".format(command_str))
+
     #### Get exclude_list if specified
     exclude_list = mosaic.getExcludeList(args.exclude)
 
@@ -261,6 +260,32 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
                     logger.debug("tile_geom_in_s_srs crosses 180 meridian; splitting to multiple polygons...")
                     tile_geom_in_s_srs = utils.getWrappedGeometry(tile_geom_in_s_srs)
 
+                # if running the pansharpen process, check if the multispectral images have a panchromatic component
+                if args.require_pan:
+                    lyr.ResetReading()
+                    lyr.SetSpatialFilter(tile_geom_in_s_srs)
+                    # uncomment to review the fields in the input mfp layer
+                    # layerDef = lyr.GetLayerDefn()
+                    # logger.info([layerDef.GetFieldDefn(i).GetName() for i in range(layerDef.GetFieldCount())])
+                    logger.info("Total input feature count with spatial filter: {}".format(len(lyr)))
+                    lyr.SetAttributeFilter("prod_code = 'P1BS'")
+                    logger.info("P1BS feature count: {}".format(len(lyr)))
+
+                    # when looping through features below, if args.require_pan: check if iinfo.pair_scene_id in scene_ids list,
+                    # add it to pairs list, then loop through pairs list to add those images to
+                    pansh_pair_lookup = set()
+                    pansh_pair_matches = []
+                    # feat = lyr.GetNextFeature()
+                    logger.info("Starting panchromatic lookup process")
+                    for feat in lyr:
+                        pansh_pair_lookup.add(feat.GetField("scene_id"))
+
+                    logger.info("scene IDs in pansh pair lookup list: {}".format(len(pansh_pair_lookup)))
+                    if len(pansh_pair_lookup) == 0:
+                        logger.warning("No panchromatic images were found, check the input MFP layer you are using")
+
+                # reset the OGR object
+                lyr.SetAttributeFilter("")
                 lyr.ResetReading()
                 lyr.SetSpatialFilter(tile_geom_in_s_srs)
                 feat = lyr.GetNextFeature()
@@ -270,6 +295,14 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
                 while feat:
                     
                     iinfo = mosaic.ImageInfo(feat, "RECORD", srs=s_srs)
+                    # skip panchromatic if require_pan
+                    # evaluate multispectral images for mosaic coverage
+                    # panchromatic component will be pulled from look up list when writing .txt files below
+                    if args.require_pan:
+                        # logger.info("require-pan arg passed in: only evaluating multispectral images with pan component")
+                        if not iinfo.spec_type == "Multispectral":
+                            feat = lyr.GetNextFeature()
+                            continue
                     
                     if iinfo.geom is not None and iinfo.geom.GetGeometryType() in (ogr.wkbPolygon, ogr.wkbMultiPolygon):
                         if not t_srs.IsSame(s_srs):
@@ -287,37 +320,25 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
                                 #logger.info("iinfo.status != tape: {0}".format(iinfo.status != "tape"))
                                 logger.warning("Scene path is invalid, excluding %s (path = %s) (status = %s)",
                                                iinfo.scene_id, iinfo.srcfp, iinfo.status)
+
                             elif args.require_pan:
-                                srcfp = iinfo.srcfp
-                                srcdir, mul_name = os.path.split(srcfp)
-                                if iinfo.sensor in ["WV02", "WV03", "QB02"]:
-                                    pan_name = mul_name.replace("-M", "-P")
-                                elif iinfo.sensor == "GE01":
-                                    if "_5V" in mul_name:
-                                        pan_name_base = srcfp[:-24].replace("M0", "P0")
-                                        candidates = glob.glob(pan_name_base + "*")
-                                        candidates2 = [f for f in candidates if f.endswith(('.ntf', '.NTF', '.tif',
-                                                                                            '.TIF'))]
-                                        if len(candidates2) == 0:
-                                            pan_name = ''
-                                        elif len(candidates2) == 1:
-                                            pan_name = os.path.basename(candidates2[0])
-                                        else:
-                                            pan_name = ''
-                                            logger.error('%i panchromatic images match the multispectral image name '
-                                                         '%s', len(candidates2), mul_name)
+                                # check that mul has pan component
+                                logger.debug("Checking for panchromatic component")
+                                if not iinfo.pan_scene_id in pansh_pair_lookup:
+                                    # check if the pan component has a 1-second time difference
+                                    if iinfo.pan_scene_id_datetime_dif in pansh_pair_lookup:
+                                        logger.debug("Image panchromatic component has 1-second time dif")
+                                        logger.debug("Intersect %s, %s: %s", iinfo.scene_id, iinfo.srcfp,
+                                                     str(iinfo.geom))
+                                        iinfo.pan_scene_id = iinfo.pan_scene_id_datetime_dif
+                                        pansh_pair_matches.append(iinfo.pan_scene_id)
+                                        imginfo_list1.append(iinfo)
                                     else:
-                                        pan_name = mul_name.replace("-M", "-P")
-                                elif iinfo.sensor == "IK01":
-                                    pan_name = mul_name.replace("blu", "pan")
-                                    pan_name = mul_name.replace("msi", "pan")
-                                    pan_name = mul_name.replace("bgrn", "pan")
-                                pan_srcfp = os.path.join(srcdir, pan_name)
-                                if not os.path.isfile(pan_srcfp):
-                                    logger.debug("Image does not have a panchromatic component, excluding: %s",
+                                        logger.debug("Image does not have a panchromatic component, excluding: %s",
                                                  iinfo.srcfp)
                                 else:
                                     logger.debug("Intersect %s, %s: %s", iinfo.scene_id, iinfo.srcfp, str(iinfo.geom))
+                                    pansh_pair_matches.append(iinfo.pan_scene_id)
                                     imginfo_list1.append(iinfo)
                                 
                             else:
@@ -441,7 +462,30 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
                     ttxt.write("{0},{1},{2},{3},{4}\n".format("SCENE_ID", "STRIP_ID", "CATALOG_ID", "S_FILEPATH", "STATUS"))
 
                     tape_ct = 0
-                    
+
+                    if args.require_pan:
+                        # add pan component to contribs
+                        pan_contribs = []
+                        ds = ogr.Open(dsp)
+                        lyr = ds.GetLayerByName(lyrn)
+                        lyr.ResetReading()
+                        lyr.SetSpatialFilter(tile_geom_in_s_srs)
+                        lyr.SetAttributeFilter("")
+                        empty_geom = None
+                        logger.info("Adding panchromatic component images to output files")
+
+                        for iinfo, geom in contribs:
+                            # TODO: speed this part up
+                            pan_component_id = iinfo.pan_scene_id
+                            lyr.SetAttributeFilter("SCENE_ID = '{}'".format(pan_component_id))
+                            pan_feat = lyr.GetNextFeature()
+                            pan_iinfo = mosaic.ImageInfo(pan_feat, "RECORD", srs=s_srs)
+                            pan_contribs.append([pan_iinfo, empty_geom])
+
+                        logger.info("Found {} pan components to go with {} multispectral images".format(
+                            len(pan_contribs), len(contribs)))
+                        contribs = contribs + pan_contribs
+
                     for iinfo, geom in contribs:
                         
                         if not os.path.isfile(iinfo.srcfp) and iinfo.status != "tape":
@@ -451,16 +495,26 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
                             tape_ct += 1
                             ttxt.write("{0},{1},{2},{3},{4}\n".format(iinfo.scene_id, iinfo.strip_id, iinfo.catid, iinfo.srcfp, iinfo.status))
                             # get srcfp with file extension
-                            srcfp_file = os.path.basename(iinfo.srcfp)
+                            srcfp_file = os.path.basename(iinfo.srcfn)
                             otxt.write("{}\n".format(os.path.join(rn_fromtape_path, srcfp_file)))
 
                         else:
                             otxt.write("{}\n".format(iinfo.srcfp))
 
-                        m_fn = "{0}_u08{1}{2}.tif".format(
+                        # add "_pansh" to the files name written to ortho.txt if running pansharpened
+                        pansh_suf = ""
+                        if args.require_pan:
+                            pansh_suf = "_pansh"
+                            # skip P1BS images since pansharpened outputs use M1BS in the name
+                            if "P1BS" in iinfo.srcfp:
+                                continue
+
+
+                        m_fn = "{0}_u08{1}{2}{3}.tif".format(
                             os.path.splitext(iinfo.srcfn)[0],
                             args.stretch,
-                            t.epsg
+                            t.epsg,
+                            pansh_suf
                         )
                         
                         mtxt.write(os.path.join(dstdir, 'ortho', t.name, m_fn) + "\n")

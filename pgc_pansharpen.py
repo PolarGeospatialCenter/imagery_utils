@@ -3,6 +3,7 @@
 from __future__ import division
 
 import argparse
+import copy
 import glob
 import logging
 import math
@@ -202,6 +203,10 @@ def main():
                         help="Cluster queue/partition to submit jobs to. Accepted slurm queues: batch (default "
                              "partition, no need to specify it in this arg), big_mem (for large memory jobs), "
                              "and low_priority (for background processes)")
+    parser.add_argument("--log", nargs='?', const="default",
+                        help="output log file -- top level log is not written without this arg. "
+                             "when this flag is used, log will be written to pansharpen_<timestamp>.log next to the <dst dir>) "
+                             "unless a specific file path is provided here")
     parser.add_argument("--dryrun", action="store_true", default=False,
                         help="print actions without executing")
 
@@ -245,7 +250,6 @@ def main():
             # by default, the parent directory of the dst dir is used for saving slurm logs
             if args.slurm_log_dir == None:
                 slurm_log_dir = os.path.abspath(os.path.join(dstdir, os.pardir))
-                print("slurm log dir: {}".format(slurm_log_dir))
             # if "working_dir" is passed in the CLI, use the default slurm behavior which saves logs in working dir
             elif args.slurm_log_dir == "working_dir":
                 slurm_log_dir = None
@@ -260,7 +264,6 @@ def main():
             # Verify slurm log path
             if not os.path.isdir(slurm_log_dir):
                 parser.error("Error directory for slurm logs is not a valid file path: {}".format(slurm_log_dir))
-            logger.info("Slurm output and error log saved here: {}".format(slurm_log_dir))
 
     ## Verify processing options do not conflict
     requested_threads = ortho_functions.ARGDEF_CPUS_AVAIL if args.threads == "ALL_CPUS" else args.threads
@@ -308,12 +311,13 @@ def main():
     if args.dem is not None and args.ortho_height is not None:
         parser.error("--dem and --ortho_height options are mutually exclusive.  Please choose only one.")
 
-    ## verify auto DEM
-    if args.dem == 'auto':
-        logger.info("DEM is auto default")
     #### Test if DEM exists
-    elif args.dem is not None and not os.path.isfile(args.dem):
-        parser.error("DEM does not exist: {}".format(args.dem))
+    if not args.dem == 'auto':
+        if args.dem is not None and not os.path.isfile(args.dem):
+            parser.error("DEM does not exist: {}".format(args.dem))
+
+    #### check memory requirements for pbs when using VRT reference dem
+    if args.pbs:
         if args.l is None:
             if args.dem.endswith('.vrt'):
                 total_dem_filesz_gb = 0.0
@@ -341,10 +345,30 @@ def main():
 
     #### Set up console logging handler
     lso = logging.StreamHandler()
-    lso.setLevel(logging.DEBUG)
+    lso.setLevel(logging.INFO)
     formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s', '%m-%d-%Y %H:%M:%S')
     lso.setFormatter(formatter)
     logger.addHandler(lso)
+
+    #### Configure file handler if --log is passed to CLI
+    if args.log is not None:
+        if args.log == "default":
+            log_fn = "pansharpen_{}.log".format(datetime.now().strftime("%Y%m%d_%H%M%S"))
+            logfile = os.path.join(os.path.abspath(os.path.join(args.dst, os.pardir)), log_fn)
+        else:
+            logfile = os.path.abspath(args.log)
+            if not os.path.isdir(os.path.pardir(logfile)):
+                parser.warning("Output location for log file does not exist: {}".format(os.path.isdir(os.path.pardir(logfile))))
+
+        lfh = logging.FileHandler(logfile)
+        lfh.setLevel(logging.DEBUG)
+        formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s', '%m-%d-%Y %H:%M:%S')
+        lfh.setFormatter(formatter)
+        logger.addHandler(lfh)
+
+    # log input command for reference
+    command_str = ' '.join(sys.argv)
+    logger.info("Running command: {}".format(command_str))
 
     #### Handle thread count that exceeds system limits
     if requested_threads > ortho_functions.ARGDEF_CPUS_AVAIL:
@@ -352,12 +376,8 @@ def main():
                     "'ALL_CPUS'".format(requested_threads, ortho_functions.ARGDEF_CPUS_AVAIL))
         args.threads = 'ALL_CPUS'
 
-    # write input command to text file next to output folder for reference
-    command_str = ' '.join(sys.argv)
-    logger.info("Running command: {}".format(command_str))
-    if not args.skip_cmd_txt and not args.dryrun:
-        utils.write_input_command_txt(command_str,dstdir)
-        args.skip_cmd_txt = True
+    if args.slurm:
+        logger.info("Slurm output and error log saved here: {}".format(slurm_log_dir))
 
     #### Get args ready to pass to task handler
     arg_keys_to_remove = ('l', 'queue', 'qsubscript', 'dryrun', 'pbs', 'slurm', 'parallel_processes', 'tasks_per_job')
@@ -492,7 +512,11 @@ def main():
             job_name = 'Psh{:04g}'.format(job_count)
         else:
             job_name = str(args.slurm_job_name)
-
+        # Make global variable for resolution if passed in on command line
+        if args.resolution:
+            orig_res = copy.deepcopy(args.resolution)
+        else:
+            orig_res = None
         task = taskhandler.Task(
             task_item_srcfn,
             job_name,
@@ -504,7 +528,7 @@ def main():
                 argval2str(dstdir)
             ),
             exec_pansharpen,
-            [image_pair, pansh_dstfp, args]
+            [image_pair, pansh_dstfp, args, orig_res]
         )
         task_queue.append(task)
 
@@ -562,7 +586,7 @@ def main():
             lfh = None
             for task in task_queue:
                            
-                src, dstfp, task_arg_obj = task.method_arg_list
+                src, dstfp, task_arg_obj, orig_res = task.method_arg_list
                 
                 #### Set up processing log handler
                 logfile = os.path.splitext(dstfp)[0] + ".log"
@@ -573,7 +597,7 @@ def main():
                 logger.addHandler(lfh)
                 
                 if not args.dryrun:
-                    results[task.name] = task.method(src, dstfp, task_arg_obj)
+                    results[task.name] = task.method(src, dstfp, task_arg_obj, orig_res)
                     
                 #### remove existing file handler
                 logger.removeHandler(lfh)
@@ -592,7 +616,7 @@ def main():
         logger.info("No images found to process")
 
 
-def exec_pansharpen(image_pair, pansh_dstfp, args):
+def exec_pansharpen(image_pair, pansh_dstfp, args, orig_res):
 
     dstdir = os.path.dirname(pansh_dstfp)
 
@@ -654,9 +678,12 @@ def exec_pansharpen(image_pair, pansh_dstfp, args):
     if not os.path.isfile(mul_dstfp) and not os.path.isfile(mul_local_dstfp):
         ## If resolution is specified in the command line, assume it's intended for the pansharpened image
         ##    and multiply the multi by 4
+        ##    Use the orig_res variable so that multiple passes over the args.resolution does not blow up recursively
         if args.resolution:
-            args.resolution = args.resolution * 4.0
+            args.resolution = orig_res * 4.0
         ortho_functions.process_image(image_pair.mul_srcfp, mul_dstfp, args, image_pair.intersection_geom)
+        # Reset resolution to CLI input
+        args.resolution = orig_res
 
     if not os.path.isfile(mul_local_dstfp) and os.path.isfile(mul_dstfp):
         shutil.copy2(mul_dstfp, mul_local_dstfp)

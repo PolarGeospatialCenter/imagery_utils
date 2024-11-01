@@ -1,17 +1,9 @@
-import unittest, os, sys, argparse, logging, subprocess
+import shutil
+import unittest, os, sys, argparse, subprocess
 
 script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
 root_dir = os.path.dirname(script_dir)
 sys.path.append(root_dir)
-
-from lib import mosaic
-
-logger = logging.getLogger("logger")
-# lso = logging.StreamHandler()
-# lso.setLevel(logging.ERROR)
-# formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s','%m-%d-%Y %H:%M:%S')
-# lso.setFormatter(formatter)
-# logger.addHandler(lso)
 
 
 class TestMosaicFunc(unittest.TestCase):
@@ -31,7 +23,7 @@ class TestMosaicFunc(unittest.TestCase):
         # tilesize = 10000, 10000
         # bands = 1
         mosaicname = os.path.join(self.dstdir, 'testmosaic1')
-        args = '--component-shp -e -820000.0 -800000.0 -2420000.0 -2400000.0 -t 10000 10000 -b 1'
+        args = '--skip-cmd-txt --component-shp -e -820000.0 -800000.0 -2420000.0 -2400000.0 -t 10000 10000 -b 1'
         cmd = 'python {} {} {} {}'.format(
             self.scriptpath,
             self.srcdir,
@@ -72,7 +64,7 @@ class TestMosaicFunc(unittest.TestCase):
         # tilesize = 10000, 10000
         # bands = 4
         mosaicname = os.path.join(self.dstdir, 'testmosaic2')
-        args = '--component-shp -e -3260000 -3240000 520000 540000 -t 10000 10000 -b 4 --calc-stats --median-remove'
+        args = '--skip-cmd-txt --component-shp -e -3260000 -3240000 520000 540000 -t 10000 10000 -b 4 --calc-stats --median-remove'
         cmd = 'python {} {} {} {}'.format(
             self.scriptpath,
             self.srcdir,
@@ -94,14 +86,14 @@ class TestMosaicFunc(unittest.TestCase):
         
         ## TODO test if culines has stats and median
     
-    #@unittest.skip("skipping")    
+    # @unittest.skip("skipping")
     def test_ndvi_pansh_mosaic(self):   
         # extent = -3260000, -3240000, 520000, 540000
         # tilesize = 10000, 10000
         # bands = 1
         srcdir = os.path.join(os.path.join(test_dir, 'mosaic', 'pansh_ndvi'))
         mosaicname = os.path.join(self.dstdir, 'testmosaic3')
-        args = '--component-shp -e -3260000 -3240000 520000 540000 -t 10000 10000 -b 1'
+        args = '--skip-cmd-txt --component-shp -e -3260000 -3240000 520000 540000 -t 10000 10000 -b 1'
         cmd = 'python {} {} {} {}'.format(
             self.scriptpath,
             srcdir,
@@ -121,14 +113,14 @@ class TestMosaicFunc(unittest.TestCase):
         self.assertTrue(os.path.isfile(mosaicname + '_components.shp'))
         self.assertTrue(os.path.isfile(mosaicname + '_tiles.shp'))
 
-    #@unittest.skip("skipping")    
+    # @unittest.skip("skipping")
     def test_ndvi_pansh_mosaic_with_stats(self):   
         # extent = -3260000, -3240000, 520000, 540000
         # tilesize = 10000, 10000
         # bands = 1
         srcdir = os.path.join(os.path.join(test_dir, 'mosaic', 'pansh_ndvi'))
         mosaicname = os.path.join(self.dstdir, 'testmosaic4')
-        args = '--component-shp -e -3260000 -3240000 520000 540000 -t 10000 10000 -b 1 --calc-stats --median-remove'
+        args = '--skip-cmd-txt --component-shp -e -3260000 -3240000 520000 540000 -t 10000 10000 -b 1 --calc-stats --median-remove'
         cmd = 'python {} {} {} {}'.format(
             self.scriptpath,
             srcdir,
@@ -148,10 +140,8 @@ class TestMosaicFunc(unittest.TestCase):
         self.assertTrue(os.path.isfile(mosaicname + '_components.shp'))
         self.assertTrue(os.path.isfile(mosaicname + '_tiles.shp'))
 
-    # def tearDown(self):
-    #     shutil.rmtree(self.dstdir)
-
-    ## test_mosaic_pbs
+    def tearDown(self):
+        shutil.rmtree(self.dstdir)
 
 
 if __name__ == '__main__':

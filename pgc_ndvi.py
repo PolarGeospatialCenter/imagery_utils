@@ -6,6 +6,7 @@ import math
 import os
 import shutil
 import sys
+import datetime
 
 import numpy
 from osgeo import gdal
@@ -52,8 +53,14 @@ def main():
                         help="submission script to use in PBS/SLURM submission (PBS default is qsub_ndvi.sh, SLURM "
                              "default is slurm_ndvi.py, in script root folder)")
     parser.add_argument("-l", help="PBS resources requested (mimicks qsub syntax, PBS only)")
-    parser.add_argument("--skip-cmd-txt", action='store_true', default=False,
-                        help='Skip writing the txt file containing the input command.')
+    parser.add_argument("--log", nargs='?', const="default",
+                        help="output log file -- top level log is not written without this arg. "
+                             "when this flag is used, log will be written to ndvi_<timestamp>.log next to the <dst dir>) "
+                             "unless a specific file path is provided here")
+    parser.add_argument("--skip-cmd-txt", action='store_true', default=True,
+                        help='THIS OPTION IS DEPRECATED - '
+                             'By default this arg is True and the cmd text file will not be written. '
+                             'Input commands are written to the log for reference.')
     parser.add_argument("--dryrun", action="store_true", default=False,
                         help="print actions without executing")
     parser.add_argument("--version", action='version', version="imagery_utils v{}".format(VERSION))
@@ -97,7 +104,6 @@ def main():
         # by default, the parent directory of the dst dir is used for saving slurm logs
         if args.slurm_log_dir == None:
             slurm_log_dir = os.path.abspath(os.path.join(dstdir, os.pardir))
-            print("slurm log dir: {}".format(slurm_log_dir))
         # if "working_dir" is passed in the CLI, use the default slurm behavior which saves logs in working dir
         elif args.slurm_log_dir == "working_dir":
             slurm_log_dir = None
@@ -107,7 +113,6 @@ def main():
         # Verify slurm log path
         if not os.path.isdir(slurm_log_dir):
             parser.error("Error directory for slurm logs is not a valid file path: {}".format(slurm_log_dir))
-        logger.info("Slurm output and error log saved here: {}".format(slurm_log_dir))
         
     ## Verify processing options do not conflict
     if args.pbs and args.slurm:
@@ -115,19 +120,35 @@ def main():
     if (args.pbs or args.slurm) and args.parallel_processes > 1:
         parser.error("HPC Options (--pbs or --slurm) and --parallel-processes > 1 are mutually exclusive")
 
-    # write input command to text file next to output folder for reference
-    command_str = ' '.join(sys.argv)
-    logger.info("Running command: {}".format(command_str))
-    if not args.skip_cmd_txt and not args.dryrun:
-        utils.write_input_command_txt(command_str,dstdir)
-        args.skip_cmd_txt = True
-
     #### Set concole logging handler
     lso = logging.StreamHandler()
     lso.setLevel(logging.DEBUG)
     formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s', '%m-%d-%Y %H:%M:%S')
     lso.setFormatter(formatter)
     logger.addHandler(lso)
+
+    #### Configure file handler if --log is passed to CLI
+    if args.log is not None:
+        if args.log == "default":
+            log_fn = "ndvi_{}.log".format(datetime.now().strftime("%Y%m%d_%H%M%S"))
+            logfile = os.path.join(os.path.abspath(os.path.join(args.dst, os.pardir)), log_fn)
+        else:
+            logfile = os.path.abspath(args.log)
+            if not os.path.isdir(os.path.pardir(logfile)):
+                parser.warning("Output location for log file does not exist: {}".format(os.path.isdir(os.path.pardir(logfile))))
+
+        lfh = logging.FileHandler(logfile)
+        lfh.setLevel(logging.DEBUG)
+        formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s', '%m-%d-%Y %H:%M:%S')
+        lfh.setFormatter(formatter)
+        logger.addHandler(lfh)
+
+    # log input command for reference
+    command_str = ' '.join(sys.argv)
+    logger.info("Running command: {}".format(command_str))
+
+    if args.slurm:
+        logger.info("Slurm output and error log saved here: {}".format(slurm_log_dir))
 
     #### Get args ready to pass to task handler
     arg_keys_to_remove = ('l', 'qsubscript', 'pbs', 'slurm', 'parallel_processes', 'dryrun')
@@ -291,15 +312,18 @@ def calc_ndvi(srcfp, dstfp, args):
             nir_band_num = 4
         else:
             logger.error("Cannot calculate NDVI from a %i band image: %s", bands, srcfp_local)
+            clean_up([srcfp_local])
             return 1
     else:
         logger.error("Cannot open target image: %s", srcfp_local)
+        clean_up([srcfp_local])
         return 1
 
     ## check for input data type - must be float or int
     datatype = ds.GetRasterBand(1).DataType
     if datatype not in [1, 2, 3, 4, 5, 6, 7]:
         logger.error("Invalid input data type %s", datatype)
+        clean_up([srcfp_local])
         return 1 
 
     ## get the raster dimensions
@@ -319,6 +343,7 @@ def calc_ndvi(srcfp, dstfp, args):
             ndvi_band.SetNoDataValue(float(ndvi_nodata))
         else:
             logger.error("Couldn't open for write: %s", dstfp_local)
+            clean_up([srcfp_local])
             return 1
 
         ## for red and nir bands, get band data, nodata values, and natural block size
@@ -326,6 +351,7 @@ def calc_ndvi(srcfp, dstfp, args):
         red_band = ds.GetRasterBand(red_band_num)
         if red_band is None:
             logger.error("Can't load band %i from %s", red_band_num, srcfp_local)
+            clean_up([srcfp_local])
             return 1
         red_nodata = red_band.GetNoDataValue()
         if red_nodata is None:
@@ -336,6 +362,7 @@ def calc_ndvi(srcfp, dstfp, args):
         nir_band = ds.GetRasterBand(nir_band_num)
         if nir_band is None:
             logger.error("Can't load band %i from %s", nir_band_num, srcfp_local)
+            clean_up([srcfp_local])
             return 1
         nir_nodata = nir_band.GetNoDataValue()
         if nir_nodata is None:
@@ -419,18 +446,18 @@ def calc_ndvi(srcfp, dstfp, args):
                 nir_array = None
 
                 ## calculate ndvi
-                if ndvi_array[~ndvi_mask] != []:
+                if ndvi_array[~ndvi_mask].size > 0:
                     ndvi_array[~ndvi_mask] = numpy.divide(numpy.subtract(nir_asfloat[~ndvi_mask],
                                                                          red_asfloat[~ndvi_mask]),
                                                           numpy.add(nir_asfloat[~ndvi_mask],
                                                                     red_asfloat[~ndvi_mask]))
                 red_asfloat = None
                 nir_asfloat = None
- 
+
                 ## scale and cast to int if outtype integer
                 if args.outtype == 'Int16':
                     ndvi_scaled = numpy.full_like(ndvi_array, fill_value=ndvi_nodata, dtype=numpy.int16)
-                    if ndvi_scaled[~ndvi_mask] != []:
+                    if ndvi_scaled[~ndvi_mask].size > 0:
                         ndvi_scaled[~ndvi_mask] = numpy.array(ndvi_array[~ndvi_mask]*1000.0, dtype=numpy.int16)
                     ndvi_array = ndvi_scaled
                     ndvi_scaled = None
@@ -463,19 +490,9 @@ def calc_ndvi(srcfp, dstfp, args):
             temp_files = [srcfp_local]
             wd_files = [dstfp_local]
             if not args.save_temps:
-                for f in temp_files:
-                    try:
-                        os.remove(f)
-                    except Exception as e:
-                        logger.error(utils.capture_error_trace())
-                        logger.warning('Could not remove %s: %s', os.path.basename(f), e)
+                clean_up(temp_files)
             if wd != dstdir:
-                for f in wd_files:
-                    try:
-                        os.remove(f)
-                    except Exception as e:
-                        logger.error(utils.capture_error_trace())
-                        logger.warning('Could not remove %s: %s', os.path.basename(f), e)
+                clean_up(wd_files)
         else:
             logger.error("pgc_ndvi.py: %s was not created", dstfp_local)
             return 1 
@@ -488,6 +505,14 @@ def calc_ndvi(srcfp, dstfp, args):
             shutil.copy2(src_xml, dst_xml)
             
     return 0
+
+def clean_up(filelist):
+    for f in filelist:
+        try:
+            os.remove(f)
+        except Exception as e:
+            logger.error(utils.capture_error_trace())
+            logger.warning('Could not remove %s: %s', os.path.basename(f), e)
 
 
 if __name__ == '__main__':

@@ -1,25 +1,17 @@
-import unittest, os, sys, argparse, logging, subprocess
+import shutil
+import unittest, os, sys, argparse, subprocess
 from osgeo import gdal
-
 
 script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
 root_dir = os.path.dirname(script_dir)
 sys.path.append(root_dir)
-
-logger = logging.getLogger("logger")
-# lso = logging.StreamHandler()
-# lso.setLevel(logging.ERROR)
-# formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s','%m-%d-%Y %H:%M:%S')
-# lso.setFormatter(formatter)
-# logger.addHandler(lso)
-
 
 class TestPanshFunc(unittest.TestCase):
 
     def setUp(self):
 
         self.scriptpath = os.path.join(root_dir, "pgc_pansharpen.py")
-        self.srcdir = os.path.join(script_dir, 'testdata', 'pansharpen_subset')
+        self.srcdir = os.path.join(script_dir, 'testdata', 'pansharpen', 'src')
         self.dstdir = os.path.join(script_dir, 'testdata', 'output')
         # if os.path.isdir(self.dstdir):
         #     shutil.rmtree(self.dstdir)
@@ -28,9 +20,10 @@ class TestPanshFunc(unittest.TestCase):
 
     def test_pansharpen(self):
 
-        cmd = 'python {} {} {} -p 3413'.format(
+        src = os.path.join(self.srcdir, 'WV02_20110901210502_103001000D52C800_11SEP01210502-M1BS-052560788010_01_P008.ntf')
+        cmd = 'python {} {} {} -r 10 --skip-cmd-txt -p 3413'.format(
             self.scriptpath,
-            self.srcdir,
+            src,
             self.dstdir,
         )
 
@@ -51,6 +44,9 @@ class TestPanshFunc(unittest.TestCase):
         dt = ds.GetRasterBand(1).DataType
         self.assertEqual(dt, 1)
         ds = None
+
+    def tearDown(self):
+       shutil.rmtree(self.dstdir)
 
 
 if __name__ == '__main__':
