@@ -6,13 +6,6 @@ script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
 root_dir = os.path.dirname(script_dir)
 sys.path.append(root_dir)
 
-logger = logging.getLogger("logger")
-# lso = logging.StreamHandler()
-# lso.setLevel(logging.ERROR)
-# formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s','%m-%d-%Y %H:%M:%S')
-# lso.setFormatter(formatter)
-# logger.addHandler(lso)
-
 
 class TestNdviFunc(unittest.TestCase):
     
