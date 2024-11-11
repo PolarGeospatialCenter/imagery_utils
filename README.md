@@ -37,6 +37,26 @@ This example will take all the nitf or tif files in the input_dir and orthorecti
 will be written to output_dir and be 16 bit (like the original image) GeoTiffs with no stretch applied with a spatial 
 reference of EPSG 3031, or Antarctic Polar Stereographic -71.
 
+#### DEM Auto-Selection Configuration (when using `--dem auto`)
+
+When using the `--dem auto` setting in `pgc_ortho.py`, the script will automatically attempt to select an appropriate DEM based on image location and geometry. For this to work, a configuration file must be specified using the `--config` option. This configuration file should contain a valid `gpkg_path` entry, which points to the GeoPackage file that holds DEM coverage information.
+
+**Configuration Requirements**
+
+The config file should point to a file path for checking image overlap with reference dems. This path should locate a geopackage file which includes geometries of a list of reference DEMs.
+Each feature in each layer of the geopackage file should have a field named 'dempath' pointing to the corresponding reference DEM
+
+1. **Config File Path**: Ensure that the config file exists at the specified path provided to the `--config` argument.
+2. **`gpkg_path` Setting**: The config file should have a `gpkg_path` entry under the `[default]` section. This path should point to a GeoPackage file containing a 'dempath' field to the corresponding DEM.
+3. **Valid DEM File**: The path specified by `dempath` should be accessible and valid.
+
+**Example Configuration File (`config.ini`)**
+
+```ini
+[default]
+gpkg_path = /path/to/dem_list.gpkg
+```
+
 ### pgc_mosaic
 
 The mosaicking toolset mosaics multiple input images into a set of non-overlapping output tile images.  It can sort the 

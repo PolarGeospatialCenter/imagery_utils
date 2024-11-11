@@ -246,17 +246,16 @@ class TestCollectFiles(unittest.TestCase):
 class TestDEMOverlap(unittest.TestCase):
     
     def setUp(self):
-        self.dem = os.path.join(os.path.join(test_dir, 'dem', 'ramp_lowres.tif'))
+        self.dem = '/mnt/pgc/data/elev/dem/gimp/GrIMPv2/data/grimp_v02.0_30m_dem.tif' # dem for greenland
         self.srs = utils.SpatialRef(4326)
     
     def test_dem_overlap(self):
         image_geom_wkts = [
-            ('POLYGON ((-52.23 70.843333,-51.735 70.844444,-51.736667 70.760556,-52.23 70.759722,-52.23 70.843333))',
+            ('POLYGON ((-52.23 -80.843333, -51.735 -80.844444, -51.736667 -80.760556, -52.23 -80.759722, -52.23 -80.843333))',
              False),  # False
-            ('POLYGON ((-64.23 -70.843333,-63.735 -70.844444,-63.736667 -70.760556,-64.23 -70.759722,-64.23 -70.843333))',
+            ('POLYGON ((-52.23 70.843333, -51.735 70.844444, -51.736667 70.760556, -52.23 70.759722, -52.23 70.843333))',
             True),  # True
-            (
-            'POLYGON ((-52.23 -50.843333,-51.735 -50.844444,-51.736667 -50.760556,-52.23 -50.759722,-52.23 -50.843333))',
+            ('POLYGON ((-52.23 -50.843333, -51.735 -50.844444, -51.736667 -50.760556, -52.23 -50.759722, -52.23 -50.843333))',
             False)  # False
         ]
         
@@ -279,8 +278,8 @@ class TestAutoDEMOverlap(unittest.TestCase):
             ('POLYGON ((-49.23 61.910556, -47.735 58.844444, -47.735 61.910556, -49.23 58.844444,-49.23 61.910556))', '/mnt/pgc/data/elev/dem/gimp/GrIMPv2/data/grimp_v02.0_30m_dem.tif'), # greenland centroid
             ('POLYGON ((11 -68.5, 11 -70, 12 -70, 12 -68.5, 11 -68.5))', '/mnt/pgc/data/elev/dem/tandem-x/90m/mosaic/TanDEM-X_Antarctica_90m/TanDEMX_PolarDEM_90m.tif'), # antarctic centroid
             ('POLYGON ((-49.23 59.7, -48.23 59.7,-47.23 58.7, -49.23 58.7,-49.23 59.7))', '/mnt/pgc/data/elev/dem/gimp/GrIMPv2/data/grimp_v02.0_30m_dem.tif'), # greenland, but not contained
-            ('POLYGON ((-56 -61, -55 -61, -55 -60,-56 -60, -56 -61))','/mnt/pgc/data/elev/dem/tandem-x/90m/mosaic/TanDEM-X_Antarctica_90m/TanDEMX_PolarDEM_90m.tif') # antarctic, but not contained
-            #TODO add a test that overlaps two DEM source layers
+            ('POLYGON ((-56 -61, -55 -61, -55 -60,-56 -60, -56 -61))','/mnt/pgc/data/elev/dem/tandem-x/90m/mosaic/TanDEM-X_Antarctica_90m/TanDEMX_PolarDEM_90m.tif'), # antarctic, but not contained
+            ('POLYGON ((-89.43 81.53, -88.94 81.53, -88.94 81.33, -89.43 81.33, -89.43 81.53))','/mnt/pgc/data/elev/dem/copernicus-dem-30m/mosaic/global/cop30_tiles_global_wgs84-height_nunatak.vrt'), #Centroid in copernicus layer which overlaps greenland layer
         ]
 
         for wkt, result in image_geom_wkts:
@@ -516,11 +515,11 @@ if __name__ == '__main__':
         TestReadMetadata,
         TestWriteMetadata,
         TestCollectFiles,
-        # TestDEMOverlap,  # TODO: Test DEM is corrupt. Replace it.
+        TestDEMOverlap,
         TestAutoDEMOverlap,
         TestTargetExtent,
         TestAutoStretchAndEpsg,
-        # TestOutputDataValues,  # TODO: output_static folder missing from test data
+        TestOutputDataValues,  # TODO: output_static folder missing from test data
         TestRPCHeight,
         TestCalcEarthSunDist,
     ]
