@@ -130,7 +130,7 @@ def main():
     #### Configure file handler if --log is passed to CLI
     if args.log is not None:
         if args.log == "default":
-            log_fn = "ndvi_{}.log".format(datetime.now().strftime("%Y%m%d_%H%M%S"))
+            log_fn = "ndvi_{}.log".format(datetime.datetime.now().strftime("%Y%m%d_%H%M%S"))
             logfile = os.path.join(os.path.abspath(os.path.join(args.dst, os.pardir)), log_fn)
         else:
             logfile = os.path.abspath(args.log)
