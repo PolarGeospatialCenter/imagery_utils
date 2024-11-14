@@ -877,26 +877,41 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
                 err = 1
                 logger.error("Error in stats calculation")
 
-    # Check if DEM is 'auto'
+    # Check if DEM is set to 'auto'
     if args.dem == 'auto':
         try:
-            # Read the config file
+            # Attempt to read the config file
             config = configparser.ConfigParser()
-            config.read(convert_windows_path(args.config_file))
-            # Get the path from the config file
-            gpkg_path = convert_windows_path(config.get("default", "gpkg_path"))
-            if not os.path.isfile(gpkg_path):
-                logger.error("The gpkg file does not exist in expected location: {}".format(gpkg_path))
-                gpkg_path = None
-        except (FileNotFoundError, configparser.NoSectionError) as e:
-            logger.info("Error reading config file: %s", e)
-            gpkg_path = None
-        logger.debug("gpkg_path: %s",gpkg_path)
-        if gpkg_path is not None:
-            args.dem = check_image_auto_dem(info.geometry_wkt, info.spatial_ref, gpkg_path)
-            if args.dem is None:
-                logger.error("dem is None")
+            config_file_path = convert_windows_path(args.config_file)
+
+            if not os.path.isfile(config_file_path):
+                logger.error("Config file not found: {}".format(config_file_path))
+                logger.error("Please provide a valid config file path for 'auto' DEM setting.")
                 err = 1
+            else:
+                config.read(config_file_path)
+                gpkg_path = convert_windows_path(config.get("default", "gpkg_path", fallback=None))
+
+                if gpkg_path is None:
+                    logger.error("gpkg_path not found in config file. Please check the config file format.")
+                    err = 1
+                elif not os.path.isfile(gpkg_path):
+                    logger.error("The gpkg file does not exist at the expected location: {}".format(gpkg_path))
+                    gpkg_path = None
+                    err = 1
+                # Proceed with 'auto' DEM processing if no errors
+                if gpkg_path is not None:
+                    args.dem = check_image_auto_dem(info.geometry_wkt, info.spatial_ref, gpkg_path)
+                    if args.dem is None:
+                        logger.error("Automatic DEM selection failed: DEM could not be determined.")
+                        err = 1
+        except (configparser.NoSectionError, configparser.Error) as e:
+            logger.error("Error reading config file: %s", e)
+            logger.error("Please ensure the config file exists and is correctly formatted for 'auto' DEM.")
+            err = 1
+        except Exception as e:
+            logger.error("Unexpected error during 'auto' DEM processing: %s", e)
+            err = 1
 
     if not err == 1:
         ## Check if image overlaps reference DEM
