@@ -246,7 +246,7 @@ class TestCollectFiles(unittest.TestCase):
 class TestDEMOverlap(unittest.TestCase):
     
     def setUp(self):
-        self.dem = '/mnt/pgc/data/elev/dem/gimp/GrIMPv2/data/grimp_v02.0_30m_dem.tif' # dem for greenland
+        self.dem = os.path.join(os.path.join(test_dir, 'dem', 'grimp_200m.tif')) # dem for greenland
         self.srs = utils.SpatialRef(4326)
     
     def test_dem_overlap(self):
