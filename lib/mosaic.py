@@ -18,7 +18,7 @@ logger = logging.getLogger("logger")
 logger.setLevel(logging.DEBUG)
 
 MODES = ["ALL", "MOSAIC", "SHP", "TEST"]
-EXTS = [".tif", ".ntf"]
+EXTS = [".tif", ".ntf", ".vrt"]
 GTIFF_COMPRESSIONS = ["jpeg95", "lzw"]
 
 #class Attribs:
