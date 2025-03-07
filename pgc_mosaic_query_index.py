@@ -70,6 +70,8 @@ def main():
                         help="build shapefile of intersecting images (only invoked if --no_sort is not used)")
     parser.add_argument("--require-pan", action='store_true', default=False,
                         help="limit search to imagery with both a multispectral and a panchromatic component")
+    parser.add_argument("--bit-depth", default="Byte",
+                        help="bit depth for batch mosaic processing, default is Byte (u08), other option is UInt16 (u16)")
     parser.add_argument("--skip-cmd-txt", action='store_true', default=True,
                         help='THIS OPTION IS DEPRECATED - '
                              'By default this arg is True and the cmd text file will not be written. '
@@ -139,6 +141,15 @@ def main():
             parser.error("Supplied year {0} is not valid, or its format is incorrect; should be 4 digits for single "
                          "year (e.g., 2017), eight digits and dash for range (e.g., 2015-2017)".format(args.tyear))
             sys.exit(1)
+
+    ## validate bit depth options
+    bit_depth_options = {"Byte":"u08",
+                         "UInt16":"u16"}
+    if args.bit_depth in bit_depth_options.keys():
+        args.bit_depth = bit_depth_options[args.bit_depth]
+    else:
+        parser.error("Supplied bit depth {0} is not valid; "
+                     "should be one of the following {1}".format(args.bit_depth, bit_depth_options.keys()))
 
     ##### Configure Logger
     if args.log is not None:
@@ -510,11 +521,12 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
                                 continue
 
 
-                        m_fn = "{0}_u08{1}{2}{3}.tif".format(
+                        m_fn = "{0}_{4}{1}{2}{3}.tif".format(
                             os.path.splitext(iinfo.srcfn)[0],
                             args.stretch,
                             t.epsg,
-                            pansh_suf
+                            pansh_suf,
+                            args.bit_depth
                         )
                         
                         mtxt.write(os.path.join(dstdir, 'ortho', t.name, m_fn) + "\n")
