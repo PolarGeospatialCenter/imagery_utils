@@ -10,11 +10,13 @@
 #SBATCH --mem 48G
 
 # wallclock
-#SBATCH -t 5:00:00
+#SBATCH -t 8:00:00
 
 # job log path
 #SBATCH -o %x.o%j
 #SBATCH -e %x.o%j
+
+#SBATCH --licenses=vida:400
 
 echo ________________________________________
 echo
