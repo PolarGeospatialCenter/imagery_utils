@@ -16,7 +16,7 @@
 #SBATCH -o %x.o%j
 #SBATCH -e %x.o%j
 
-#SBATCH --licenses=vida:400
+#SBATCH --licenses=vida:500
 
 echo ________________________________________
 echo
