@@ -16,6 +16,8 @@
 #SBATCH -o %x.o%j
 #SBATCH -e %x.o%j
 
+#SBATCH --licenses=vida:50
+
 echo ________________________________________
 echo
 echo SLURM Job Log

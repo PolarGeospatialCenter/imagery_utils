@@ -18,7 +18,7 @@ logger = logging.getLogger("logger")
 logger.setLevel(logging.DEBUG)
 
 MODES = ["ALL", "MOSAIC", "SHP", "TEST"]
-EXTS = [".tif", ".ntf"]
+EXTS = [".tif", ".ntf", ".vrt"]
 GTIFF_COMPRESSIONS = ["jpeg95", "lzw"]
 
 #class Attribs:
@@ -612,7 +612,12 @@ class ImageInfo:
                         self.year_diff = ydeltas[0]
 
                 #### Assign weight
-                yeardiffwt = 55
+                #### if both target date and target year are used, share the weight value instead of double counting it
+                if params.m != 0:
+                    yeardiffwt = 55
+                else:
+                    yeardiffwt = 28
+                    datediffwt = 28
             else:
                 self.year_diff = -9999
                 yeardiffwt = 0
