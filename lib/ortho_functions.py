@@ -532,7 +532,13 @@ class ImageInfo:
 
                     ####  Make a string for Pixel Size Specification
                     if args.resolution is not None:
-                        self.res = "-tr {} {} ".format(args.resolution, args.resolution)
+                        if len(args.resolution) == 1:
+                            self.res = "-tr {} {} ".format(args.resolution[0], args.resolution[0])
+                        elif len(args.resolution) == 2:
+                            self.res = "-tr {} {} ".format(args.resolution[0], args.resolution[1])
+                        else: # this should already be checked in the argument parser validation
+                            logger.error(f'--resolution argument has the wrong number of values: {len(args.resolution)}')
+                            rc = 1
                     else:
                         self.res = "-tr {0:.12f} {1:.12f} ".format(resx, resy)
                     if args.tap:
@@ -672,8 +678,8 @@ def build_parent_argument_parser():
                         default=default_config)
     parser.add_argument("-t", "--outtype", choices=[output_type.value for output_type in OutputType], default=OutputType.BYTE.value,
                         help=f"output data type (default={OutputType.BYTE.value})")
-    parser.add_argument("-r", "--resolution", type=float,
-                        help="output pixel resolution in units of the projection")
+    parser.add_argument("-r", "--resolution", type=float, nargs='*',
+                        help="output pixel resolution in units of the projection (<xres> <yres>|square)")
     parser.add_argument("-c", "--stretch", choices=stretches, default="rf",
                         help="stretch type [ns: nostretch, rf: reflectance (default), mr: modified reflectance, rd: "
                              "absolute radiance, au: automatically set (rf for images below 60S latitude, "

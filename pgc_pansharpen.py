@@ -315,6 +315,10 @@ def main():
     if not args.dem == 'auto':
         if args.dem is not None and not os.path.isfile(args.dem):
             parser.error("DEM does not exist: {}".format(args.dem))
+
+    ## Check the correct number of values are supplied for --resolution
+    if args.resolution and len(args.resolution) > 2:
+        parser.error("--resolution option requires one or two values")
         
     ## Check GDAL version (2.1.0 minimum)
     gdal_version = gdal.VersionInfo()
@@ -661,10 +665,10 @@ def exec_pansharpen(image_pair, pansh_dstfp, args, orig_res):
         ##    and multiply the multi by 4
         ##    Use the orig_res variable so that multiple passes over the args.resolution does not blow up recursively
         if args.resolution:
-            args.resolution = orig_res * 4.0
+            args.resolution = [res * 4.0 for res in orig_res]
         ortho_functions.process_image(image_pair.mul_srcfp, mul_dstfp, args, image_pair.intersection_geom)
         # Reset resolution to CLI input
-        args.resolution = orig_res
+        args.resolution = [orig_res]
 
     if not os.path.isfile(mul_local_dstfp) and os.path.isfile(mul_dstfp):
         shutil.copy2(mul_dstfp, mul_local_dstfp)

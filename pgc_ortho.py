@@ -178,6 +178,10 @@ def main():
         if args.dem is not None and not os.path.isfile(args.dem):
             parser.error("DEM does not exist: {}".format(args.dem))
 
+    ## Check the correct number of values are supplied for --resolution
+    if args.resolution and len(args.resolution) > 2:
+        parser.error("--resolution option requires one or two values")
+
     #### Set up console logging handler
     if args.verbose:
         lso_log_level = logging.DEBUG
