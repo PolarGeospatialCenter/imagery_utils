@@ -1,28 +1,21 @@
 """Runs pgc_ortho with a variety of images and input parameters to achieve test coverage."""
 import shutil
-import unittest, os, sys, argparse, logging, subprocess
+import unittest, os, subprocess
 import platform
 
 from setuptools import glob
 
-script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
-root_dir = os.path.dirname(script_dir)
-sys.path.append(root_dir)
-
-logger = logging.getLogger("logger")
-# lso = logging.StreamHandler()
-# lso.setLevel(logging.ERROR)
-# formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s', '%m-%d-%Y %H:%M:%S')
-# lso.setFormatter(formatter)
-# logger.addHandler(lso)
+__test_dir__ = os.path.dirname(os.path.abspath(__file__))
+__app_dir__ = os.path.dirname(__test_dir__)
+testdata_dir = os.path.join(__test_dir__, 'testdata')
 
 
 class TestOrthoFunc(unittest.TestCase):
 
     def setUp(self):
-        self.srcdir = os.path.join(os.path.join(test_dir, 'ortho'))
-        self.scriptpath = os.path.join(root_dir, "pgc_ortho.py")
-        self.dstdir = os.path.join(script_dir, 'testdata', 'output')
+        self.srcdir = os.path.join(os.path.join(testdata_dir, 'ortho'))
+        self.scriptpath = os.path.join(__app_dir__, "pgc_ortho.py")
+        self.dstdir = os.path.join(__test_dir__, 'tmp_output')
 
         if platform.system() == 'Windows':
             self.gimpdem = r'V:\pgc\data\elev\dem\gimp\GIMPv1\gimpdem_v1_30m.tif'
@@ -183,26 +176,6 @@ class TestOrthoFunc(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    
-    #### Set Up Arguments
-    parser = argparse.ArgumentParser(
-        description="Test imagery_utils ortho package"
-        )
-
-    parser.add_argument('--testdata',
-                        help="test data directory (default is testdata folder within script directory)")
-
-    #### Parse Arguments
-    args = parser.parse_args()
-    global test_dir
-    
-    if args.testdata:
-        test_dir = os.path.abspath(args.testdata)
-    else:
-        test_dir = os.path.join(script_dir, 'testdata')
-    
-    if not os.path.isdir(test_dir):
-        parser.error("Test data folder does not exist: {}".format(test_dir))
         
     test_cases = [
         TestOrthoFunc

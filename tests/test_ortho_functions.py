@@ -1,23 +1,15 @@
-import unittest, os, sys, glob, argparse
+import unittest, os, sys
 from osgeo import gdal, ogr
-import numpy as np
+from collections import namedtuple
 
-script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
-root_dir = os.path.dirname(script_dir)
-sys.path.append(root_dir)
+__test_dir__ = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.dirname(__test_dir__))
+testdata_dir = os.path.join(__test_dir__, 'testdata')
 
 from lib import ortho_functions, utils
 from lib import VERSION
-from collections import namedtuple
 
 Band_data_range = namedtuple('Band_data_range', ['factor_min', 'factor_max', 'offset_min', 'offset_max'])
-
-#logger = logging.getLogger("logger")
-# lso = logging.StreamHandler()
-# lso.setLevel(logging.ERROR)
-# formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s', '%m-%d-%Y %H:%M:%S')
-# lso.setFormatter(formatter)
-# logger.addHandler(lso)
 
 
 class TestReadMetadata(unittest.TestCase):
@@ -25,7 +17,7 @@ class TestReadMetadata(unittest.TestCase):
     def setUp(self):
         self.stretch = 'rf'
         self.rd_stretch = 'rd'
-        self.srcdir = os.path.join(test_dir, 'metadata_files')
+        self.srcdir = os.path.join(testdata_dir, 'metadata_files')
     
     # @unittest.skip("skipping")
     def test_parse_DG_md_files(self):
@@ -76,8 +68,8 @@ class TestReadMetadata(unittest.TestCase):
         dg_test_bands = ['BAND_P', 'BAND_B', 'BAND_S1', 'BAND_DC', 'BAND_A1']
 
         for stretch in [self.stretch, self.rd_stretch]:
-            test_stretch_params(self, dg_files, stretch, dg_valid_data_range, dg_test_bands,
-                                utils.get_dg_metadata_as_xml, ortho_functions.get_dg_calib_dict, )
+            stretch_params_method(self, dg_files, stretch, dg_valid_data_range, dg_test_bands,
+                                  utils.get_dg_metadata_as_xml, ortho_functions.get_dg_calib_dict, )
 
     def test_parse_GE_md_files(self):
         ge_files = (
@@ -98,8 +90,8 @@ class TestReadMetadata(unittest.TestCase):
         ge_test_bands = None
 
         for stretch in [self.stretch, self.rd_stretch]:
-            test_stretch_params(self, ge_files, stretch, ge_valid_data_range, ge_test_bands,
-                                utils.get_ge_metadata_as_xml, ortho_functions.get_ge_calib_dict)
+            stretch_params_method(self, ge_files, stretch, ge_valid_data_range, ge_test_bands,
+                                  utils.get_ge_metadata_as_xml, ortho_functions.get_ge_calib_dict)
 
     def test_parse_IK_md_files(self):
         
@@ -125,11 +117,11 @@ class TestReadMetadata(unittest.TestCase):
         ik_test_bands = None
 
         for stretch in [self.stretch, self.rd_stretch]:
-            test_stretch_params(self, ik_files, stretch, ik_valid_data_range, ik_test_bands,
-                                utils.get_ik_metadata_as_xml, ortho_functions.get_ik_calib_dict)
+            stretch_params_method(self, ik_files, stretch, ik_valid_data_range, ik_test_bands,
+                                  utils.get_ik_metadata_as_xml, ortho_functions.get_ik_calib_dict)
 
 
-def test_stretch_params(test_obj, file_list, stretch, valid_data_range, test_bands, meta_function, calib_function):
+def stretch_params_method(test_obj, file_list, stretch, valid_data_range, test_bands, meta_function, calib_function):
     # Test stretch factor and offset
     metadata_files = [(os.path.join(test_obj.srcdir, m), r1, r2) for m, r1, r2 in file_list]
     for mdf, is_readable, is_usable in metadata_files:
@@ -176,8 +168,8 @@ class TestWriteMetadata(unittest.TestCase):
         self.epsg = '4326'
         self.stretch = 'rf'
         self.srcfn = 'WV03_20140919212947_104001000227BF00_14SEP19212947-M1BS-500191821040_01_P002.ntf'
-        self.srcfp = os.path.join(test_dir, 'ortho', self.srcfn)
-        self.dstdir = os.path.join(test_dir, 'output')
+        self.srcfp = os.path.join(testdata_dir, 'ortho', self.srcfn)
+        self.dstdir = os.path.join(__test_dir__, 'tmp_output')
         self.dstfp = os.path.join(self.dstdir, '{}_u08{}{}.tif'.format(
             os.path.splitext(self.srcfn)[0],
             self.stretch,
@@ -223,14 +215,14 @@ class TestCollectFiles(unittest.TestCase):
                 '01JAN08QB020800008JAN01102125-P1BS-005590467020_01_P001_________AAE_0AAAAABAABA0.ntf' # tar has an issue
             ]
 
-        for root, dirs, files in os.walk(os.path.join(test_dir, 'ortho')):
+        for root, dirs, files in os.walk(os.path.join(testdata_dir, 'ortho')):
             for f in files:
                 if (f.lower().endswith(".ntf") or f.lower().endswith(".tif")) and f not in skip_list:
                     #### Find metadata file
                     stretch = 'rf'
                     epsg = '4326'
                     srcfp = os.path.join(root, f)
-                    dstdir = os.path.join(test_dir, 'output')
+                    dstdir = os.path.join(__test_dir__, 'tmp_output')
                     dstfp = os.path.join(dstdir, '{}_u08{}{}.tif'.format(
                         os.path.splitext(f)[0],
                         stretch,
@@ -246,7 +238,7 @@ class TestCollectFiles(unittest.TestCase):
 class TestDEMOverlap(unittest.TestCase):
     
     def setUp(self):
-        self.dem = os.path.join(os.path.join(test_dir, 'dem', 'grimp_200m.tif')) # dem for greenland
+        self.dem = os.path.join(os.path.join(testdata_dir, 'dem', 'grimp_200m.tif')) # dem for greenland
         self.srs = utils.SpatialRef(4326)
     
     def test_dem_overlap(self):
@@ -267,7 +259,7 @@ class TestDEMOverlap(unittest.TestCase):
 class TestAutoDEMOverlap(unittest.TestCase):
 
     def setUp(self):
-        self.gpkg = os.path.join(os.path.join(test_dir, 'auto_dem', 'dems_list.gpkg'))
+        self.gpkg = os.path.join(os.path.join(testdata_dir, 'auto_dem', 'dems_list.gpkg'))
         self.srs = utils.SpatialRef(4326)
 
     def test_auto_dem_overlap(self):
@@ -293,8 +285,8 @@ class TestTargetExtent(unittest.TestCase):
         stretch = 'rf'
         wkt = 'POLYGON ((810287 2505832,811661 2487415,807201 2487233,805772 2505802,810287 2505832))'
         fn = 'GE01_20110307105821_1050410001518E00_11MAR07105821-M1BS-500657359080_01_P008.ntf'
-        srcfp = os.path.join(test_dir, 'ortho', fn)
-        dstdir = os.path.join(test_dir, 'output')
+        srcfp = os.path.join(testdata_dir, 'ortho', fn)
+        dstdir = os.path.join(__test_dir__, 'tmp_output')
         target_extent_geom = ogr.CreateGeometryFromWkt(wkt)
         test_args = ProcessArgs(epsg, stretch)
         info = ortho_functions.ImageInfo(srcfp, dstdir, dstdir, test_args)
@@ -320,8 +312,8 @@ class TestAutoStretchAndEpsg(unittest.TestCase):
         for fn, out_stretch, out_epsg in test_files:
             in_epsg = 'auto'
             in_stretch = 'au'
-            srcfp = os.path.join(test_dir, 'ortho', fn)
-            dstdir = os.path.join(test_dir, 'output')
+            srcfp = os.path.join(testdata_dir, 'ortho', fn)
+            dstdir = os.path.join(__test_dir__, 'tmp_output')
             test_args = ProcessArgs(in_epsg, in_stretch)
             info = ortho_functions.ImageInfo(srcfp, dstdir, dstdir, test_args)
             self.assertEqual(info.stretch, out_stretch)
@@ -360,79 +352,6 @@ def get_images(img_list, img_target):
     return img_target_path[0]
 
 
-class TestOutputDataValues(unittest.TestCase):
-
-    def setUp(self):
-        image_new = os.path.join(test_dir, 'output')
-        image_old = os.path.join(test_dir, 'output_static')
-
-        # find images
-        self.new_imgs = sorted(glob.glob(os.path.join(image_new, "*.tif")))
-        self.old_imgs = sorted(glob.glob(os.path.join(image_old, "*.tif")))
-
-        # if no images found, explain why
-        if not self.new_imgs:
-            raise Exception("No images in self.new_imgs; run 'func_test_ortho.py' to generate images")
-        if not self.old_imgs:
-            raise Exception("No images in self.old_imgs; create or populate 'output_static' directory with mosaics "
-                            "using previous version of the codebase")
-
-    # GE01
-    def test_GE01_rf_image_equivalence(self):
-        # select images
-        target_image = 'GE01_11OCT122053047-P1BS-10504100009FD100_u08rf3031.tif'
-        new = get_images(self.new_imgs, target_image)
-        old = get_images(self.old_imgs, target_image)
-
-        self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
-
-    # IK01
-    def test_IK01_rf_image_equivalence(self):
-        # select images
-        target_image = 'IK01_20050319201700_2005031920171340000011627450_po_333838_msi_0000000_u08rf3413.tif'
-        new = get_images(self.new_imgs, target_image)
-        old = get_images(self.old_imgs, target_image)
-
-        self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
-
-    # QB02
-    def test_QB02_rf_image_equivalence(self):
-        # select images
-        target_image = 'QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006_u08rf3413.tif'
-        new = get_images(self.new_imgs, target_image)
-        old = get_images(self.old_imgs, target_image)
-
-        self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
-
-    # WV01
-    def test_WV01_rf_image_equivalence(self):
-        # select images
-        target_image = 'WV01_20120326222942_102001001B02FA00_12MAR26222942-P1BS-052596100010_03_P007_u08rf3413.tif'
-        new = get_images(self.new_imgs, target_image)
-        old = get_images(self.old_imgs, target_image)
-
-        self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
-
-    # WV02
-    def test_WV02_rf_image_equivalence(self):
-        # select images
-        target_image = \
-            'WV02_20100423190859_1030010005C7AF00_10APR23190859-M2AS_R1C1-052462689010_01_P001_u08rf26910.tif'
-        new = get_images(self.new_imgs, target_image)
-        old = get_images(self.old_imgs, target_image)
-
-        self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
-
-    # WV03
-    def test_WV03_rf_image_equivalence(self):
-        # select images
-        target_image = 'WV03_20140919212947_104001000227BF00_14SEP19212947-M1BS-500191821040_01_P002_u08rf3413.tif'
-        new = get_images(self.new_imgs, target_image)
-        old = get_images(self.old_imgs, target_image)
-
-        self.assertEqual(True, np.all(img_as_array(old) == img_as_array(new)))
-
-
 class TestCalcEarthSunDist(unittest.TestCase):
     def setUp(self):
         self.year = 2010
@@ -451,8 +370,8 @@ class TestRPCHeight(unittest.TestCase):
     def setUp(self):
         self.epsg = 4326  # also test epsg as an integer
         self.stretch = 'rf'
-        self.srcdir = os.path.join(test_dir, 'ortho')
-        self.dstdir = os.path.join(test_dir, 'output')
+        self.srcdir = os.path.join(testdata_dir, 'ortho')
+        self.dstdir = os.path.join(__test_dir__, 'tmp_output')
         self.test_args = ProcessArgs(self.epsg, self.stretch)
         self.srcfns = [
             ('WV01_20091004222215_1020010009B33500_09OCT04222215-P1BS-052532098020_01_P019.ntf', 2568.0),
@@ -491,26 +410,7 @@ class ProcessArgs(object):
 
 
 if __name__ == '__main__':
-    
-    #### Set Up Arguments
-    parser = argparse.ArgumentParser(
-        description="Test imagery_utils ortho_functions package"
-        )
 
-    parser.add_argument('--testdata', help="test data directory (default is testdata folder within script directory)")
-
-    #### Parse Arguments
-    args = parser.parse_args()
-    global test_dir
-    
-    if args.testdata:
-        test_dir = os.path.abspath(args.testdata)
-    else:
-        test_dir = os.path.join(script_dir, 'testdata')
-    
-    if not os.path.isdir(test_dir):
-        parser.error("Test data folder does not exist: {}".format(test_dir))
-        
     test_cases = [
         TestReadMetadata,
         TestWriteMetadata,
@@ -519,7 +419,6 @@ if __name__ == '__main__':
         TestAutoDEMOverlap,
         TestTargetExtent,
         TestAutoStretchAndEpsg,
-        #TestOutputDataValues,  # TODO: output_static folder missing from test data
         TestRPCHeight,
         TestCalcEarthSunDist,
     ]

@@ -1,7 +1,11 @@
 **/*.pyc
+__pycache__/
 /mosaic_bash_scripts
 /tests/testdata
 *.pyc
+.pytest_cache/
 .idea/
 .coverage
 htmlcov/
+tests/tmp_output/
+tests/tmp_pytest/

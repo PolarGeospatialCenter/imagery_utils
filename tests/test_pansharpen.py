@@ -1,18 +1,18 @@
 import shutil
-import unittest, os, sys, argparse, subprocess
+import unittest, os, subprocess
 from osgeo import gdal
 
-script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
-root_dir = os.path.dirname(script_dir)
-sys.path.append(root_dir)
+__test_dir__ = os.path.dirname(os.path.abspath(__file__))
+__app_dir__ = os.path.dirname(__test_dir__)
+testdata_dir = os.path.join(__test_dir__, 'testdata')
 
 class TestPanshFunc(unittest.TestCase):
 
     def setUp(self):
 
-        self.scriptpath = os.path.join(root_dir, "pgc_pansharpen.py")
-        self.srcdir = os.path.join(script_dir, 'testdata', 'pansharpen', 'src')
-        self.dstdir = os.path.join(script_dir, 'testdata', 'output')
+        self.scriptpath = os.path.join(__app_dir__, "pgc_pansharpen.py")
+        self.srcdir = os.path.join(testdata_dir, 'pansharpen', 'src')
+        self.dstdir = os.path.join(__test_dir__, 'tmp_output')
         # if os.path.isdir(self.dstdir):
         #     shutil.rmtree(self.dstdir)
         if not os.path.isdir(self.dstdir):
@@ -50,23 +50,6 @@ class TestPanshFunc(unittest.TestCase):
 
 
 if __name__ == '__main__':
-
-    # Set Up Arguments
-    parser = argparse.ArgumentParser(description="Test pgc_pansharpen.py")
-
-    parser.add_argument('--testdata', help="test data directory (default is testdata folder within script directory)")
-
-    # Parse Arguments
-    args = parser.parse_args()
-    global test_dir
-
-    if args.testdata:
-        test_dir = os.path.abspath(args.testdata)
-    else:
-        test_dir = os.path.join(script_dir, 'testdata')
-
-    if not os.path.isdir(test_dir):
-        parser.error("Test data folder does not exist: {}".format(test_dir))
 
     test_cases = [
         TestPanshFunc

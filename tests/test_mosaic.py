@@ -1,19 +1,17 @@
 import shutil
-import unittest, os, sys, argparse, subprocess
+import unittest, os, subprocess
 
-script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
-root_dir = os.path.dirname(script_dir)
-sys.path.append(root_dir)
+__test_dir__ = os.path.dirname(os.path.abspath(__file__))
+__app_dir__ = os.path.dirname(__test_dir__)
+testdata_dir = os.path.join(__test_dir__, 'testdata')
 
 
 class TestMosaicFunc(unittest.TestCase):
     
     def setUp(self):
-        self.srcdir = os.path.join(os.path.join(test_dir, 'mosaic', 'ortho'))
-        self.scriptpath = os.path.join(root_dir, "pgc_mosaic.py")
-        self.dstdir = os.path.join(script_dir, 'testdata', 'output')
-        # if os.path.isdir(self.dstdir):
-        #     shutil.rmtree(self.dstdir)
+        self.srcdir = os.path.join(os.path.join(testdata_dir, 'mosaic', 'ortho'))
+        self.scriptpath = os.path.join(__app_dir__, "pgc_mosaic.py")
+        self.dstdir = os.path.join(__test_dir__, 'tmp_output')
         if not os.path.isdir(self.dstdir):
             os.makedirs(self.dstdir)
 
@@ -91,7 +89,7 @@ class TestMosaicFunc(unittest.TestCase):
         # extent = -3260000, -3240000, 520000, 540000
         # tilesize = 10000, 10000
         # bands = 1
-        srcdir = os.path.join(os.path.join(test_dir, 'mosaic', 'pansh_ndvi'))
+        srcdir = os.path.join(os.path.join(testdata_dir, 'mosaic', 'pansh_ndvi'))
         mosaicname = os.path.join(self.dstdir, 'testmosaic3')
         args = '--skip-cmd-txt --component-shp -e -3260000 -3240000 520000 540000 -t 10000 10000 -b 1'
         cmd = 'python {} {} {} {}'.format(
@@ -118,7 +116,7 @@ class TestMosaicFunc(unittest.TestCase):
         # extent = -3260000, -3240000, 520000, 540000
         # tilesize = 10000, 10000
         # bands = 1
-        srcdir = os.path.join(os.path.join(test_dir, 'mosaic', 'pansh_ndvi'))
+        srcdir = os.path.join(os.path.join(testdata_dir, 'mosaic', 'pansh_ndvi'))
         mosaicname = os.path.join(self.dstdir, 'testmosaic4')
         args = '--skip-cmd-txt --component-shp -e -3260000 -3240000 520000 540000 -t 10000 10000 -b 1 --calc-stats --median-remove'
         cmd = 'python {} {} {} {}'.format(
@@ -145,26 +143,7 @@ class TestMosaicFunc(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    
-    #### Set Up Arguments
-    parser = argparse.ArgumentParser(
-        description="Test imagery_utils mosaic package"
-        )
 
-    parser.add_argument('--testdata', help="test data directory (default is testdata folder within script directory)")
-
-    #### Parse Arguments
-    args = parser.parse_args()
-    global test_dir
-    
-    if args.testdata:
-        test_dir = os.path.abspath(args.testdata)
-    else:
-        test_dir = os.path.join(script_dir, 'testdata')
-    
-    if not os.path.isdir(test_dir):
-        parser.error("Test data folder does not exist: {}".format(test_dir))
-        
     test_cases = [
         TestMosaicFunc
     ]

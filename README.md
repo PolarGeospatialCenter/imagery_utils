@@ -141,25 +141,18 @@ tqdm alive-progress pyperclip --yes
 ```
 
 ## Running Tests
-Most unit tests and functional tests for imagery-utils are written using python's unittest library. They use licensed 
-commercial data that cannot be distributed freely but is available to project contributors.
+Tests for imagery-utils use python's pytest. They require licensed commercial data that cannot be distributed freely
+but is available to project contributors.
 
 On Linux systems:
 ```sh
 # first time only
 ln -s <test_data_location>/tests/testdata tests/
-
-# run the tests
-python tests/unit_test_ortho_functions.py 
-python tests/unit_test_taskhandler.py
-etc... 
 ```
-
-One test is written using pytest:
 
 ```sh
 # run the test
-pytest tests/test_ortho_functions_nodata.py
+pytest tests
 ```
 
 ## Contact
