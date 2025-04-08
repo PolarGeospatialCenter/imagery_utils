@@ -613,7 +613,7 @@ class ImageInfo:
 
                 #### Assign weight
                 #### if both target date and target year are used, share the weight value instead of double counting it
-                if params.m != 0:
+                if params.m == 0:
                     yeardiffwt = 55
                 else:
                     yeardiffwt = 28
