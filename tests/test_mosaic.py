@@ -15,8 +15,7 @@ class TestMosaicFunc(unittest.TestCase):
         if not os.path.isdir(self.dstdir):
             os.makedirs(self.dstdir)
 
-    #@unittest.skip("skipping")
-    def test_pan_mosaic(self):   
+    def test_pan_mosaic(self):
         # extent = -820000.0, -800000.0, -2420000.0, -2400000.0
         # tilesize = 10000, 10000
         # bands = 1
@@ -53,11 +52,8 @@ class TestMosaicFunc(unittest.TestCase):
             fh = open(f)
             lines = fh.readlines()
             self.assertEqual(len(lines), cnt)
-            
-        ## TODO test if culines does not have stats and median
 
-    #@unittest.skip("skipping")
-    def test_bgrn_mosaic_with_stats(self):   
+    def test_bgrn_mosaic_with_stats(self):
         # extent = -3260000, -3240000, 520000, 540000
         # tilesize = 10000, 10000
         # bands = 4
@@ -81,11 +77,8 @@ class TestMosaicFunc(unittest.TestCase):
         self.assertTrue(os.path.isfile(mosaicname + '_cutlines.shp'))
         self.assertTrue(os.path.isfile(mosaicname + '_components.shp'))
         self.assertTrue(os.path.isfile(mosaicname + '_tiles.shp'))
-        
-        ## TODO test if culines has stats and median
-    
-    # @unittest.skip("skipping")
-    def test_ndvi_pansh_mosaic(self):   
+
+    def test_ndvi_pansh_mosaic(self):
         # extent = -3260000, -3240000, 520000, 540000
         # tilesize = 10000, 10000
         # bands = 1
@@ -111,8 +104,7 @@ class TestMosaicFunc(unittest.TestCase):
         self.assertTrue(os.path.isfile(mosaicname + '_components.shp'))
         self.assertTrue(os.path.isfile(mosaicname + '_tiles.shp'))
 
-    # @unittest.skip("skipping")
-    def test_ndvi_pansh_mosaic_with_stats(self):   
+    def test_ndvi_pansh_mosaic_with_stats(self):
         # extent = -3260000, -3240000, 520000, 540000
         # tilesize = 10000, 10000
         # bands = 1

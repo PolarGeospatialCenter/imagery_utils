@@ -1,10 +1,15 @@
 import shutil
 import unittest, os, subprocess
+import sys
 from osgeo import gdal
 
 __test_dir__ = os.path.dirname(os.path.abspath(__file__))
 __app_dir__ = os.path.dirname(__test_dir__)
+sys.path.append(__app_dir__)
 testdata_dir = os.path.join(__test_dir__, 'testdata')
+
+from lib import mosaic
+
 
 class TestPanshFunc(unittest.TestCase):
 
@@ -21,7 +26,7 @@ class TestPanshFunc(unittest.TestCase):
     def test_pansharpen(self):
 
         src = os.path.join(self.srcdir, 'WV02_20110901210502_103001000D52C800_11SEP01210502-M1BS-052560788010_01_P008.ntf')
-        cmd = 'python {} {} {} -r 10 --skip-cmd-txt -p 3413'.format(
+        cmd = 'python {} {} {} --skip-cmd-txt -p 3413'.format(
             self.scriptpath,
             src,
             self.dstdir,
@@ -45,9 +50,53 @@ class TestPanshFunc(unittest.TestCase):
         self.assertEqual(dt, 1)
         ds = None
 
-    def tearDown(self):
-       shutil.rmtree(self.dstdir)
+        image_info = mosaic.ImageInfo(dstfp, 'IMAGE')
+        self.assertAlmostEqual(image_info.xres, 0.564193804791, 11)
+        self.assertAlmostEqual(image_info.yres, 0.560335413717, 11)
+        self.assertEqual(image_info.bands, 4)
+        self.assertEqual(image_info.datatype, 1)
 
+        mosaic_args = MosaicArgs()
+        mosaic_params = mosaic.getMosaicParameters(image_info, mosaic_args)
+        image_info.getScore(mosaic_params)
+
+        self.assertEqual(image_info.sensor, 'WV02')
+        self.assertEqual(image_info.sunel, 37.8)
+        self.assertEqual(image_info.ona, 23.5)
+        self.assertEqual(image_info.cloudcover, 0.003)
+        self.assertEqual(image_info.tdi, 18.0)
+        self.assertEqual(image_info.panfactor, 1)
+        self.assertEqual(image_info.date_diff, -9999)
+        self.assertEqual(image_info.year_diff, -9999)
+        self.assertAlmostEqual(image_info.score, 77.34933333333333)
+
+        image_info.get_raster_stats()
+        stat_dct = {1: [2.0, 153.0, 21.934843, 7.315011],
+                    2: [1.0, 141.0, 17.149106, 6.760020],
+                    3: [1.0, 145.0, 11.088902, 7.401054],
+                    4: [1.0, 172.0, 37.812614, 27.618598]}
+        datapixelcount_dct = {1: 857617457, 2: 857617457, 3: 857617457, 4: 857617457}
+        for i in range(len(image_info.stat_dct[1])):
+            self.assertAlmostEqual(image_info.stat_dct[1][i], stat_dct[1][i], 6)
+        self.assertEqual(image_info.datapixelcount_dct, datapixelcount_dct)
+
+    def tearDown(self):
+       shutil.rmtree(self.dstdir, ignore_errors=True)
+
+# Used to test pansharpen output
+class MosaicArgs(object):
+    def __init__(self):
+        self.resolution = None
+        self.bands = None
+        self.use_exposure = False
+        self.tday = None
+        self.tyear = None
+        self.extent = None
+        self.tilesize = None
+        self.max_cc = 0.5
+        self.force_pan_to_multi = False
+        self.include_all_ms = False
+        self.median_remove = False
 
 if __name__ == '__main__':
 
