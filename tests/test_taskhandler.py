@@ -1,18 +1,10 @@
-import unittest, os, sys, argparse, logging
+import unittest, os, sys
 
-
-script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
-root_dir = os.path.dirname(script_dir)
-sys.path.append(root_dir)
+__test_dir__ = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.dirname(__test_dir__))
+testdata_dir = os.path.join(__test_dir__, 'testdata')
 
 from lib import taskhandler
-
-logger = logging.getLogger("logger")
-# lso = logging.StreamHandler()
-# lso.setLevel(logging.ERROR)
-# formatter = logging.Formatter('%(asctime)s %(levelname)s- %(message)s', '%m-%d-%Y %H:%M:%S')
-# lso.setFormatter(formatter)
-# logger.addHandler(lso)
 
 
 class TestConvertArgs(unittest.TestCase):
@@ -46,14 +38,6 @@ class Args(object):
         
 
 if __name__ == '__main__':
-    
-    #### Set Up Arguments
-    parser = argparse.ArgumentParser(
-        description="Test taskhandler package"
-        )
-
-    #### Parse Arguments
-    args = parser.parse_args()
         
     test_cases = [
         TestConvertArgs,

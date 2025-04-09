@@ -22,6 +22,7 @@ except ImportError:
     import collections as collectionsAbc
 
 gdal.SetConfigOption('GDAL_PAM_ENABLED', 'NO')
+osr.UseExceptions()
 
 #### Create Loggers
 logger = logging.getLogger("logger")
