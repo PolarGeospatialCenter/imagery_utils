@@ -267,6 +267,7 @@ class TestAutoDEMOverlap(unittest.TestCase):
             ('POLYGON ((-52.23 70.843333, -51.735 70.844444, -51.736667 70.760556, -52.23 70.759722, -52.23 70.843333))','/mnt/pgc/data/elev/dem/gimp/GrIMPv2/data/grimp_v02.0_30m_dem.tif'), #greenland
             ('POLYGON ((-52.23 -80.843333, -51.735 -80.844444, -51.736667 -80.760556, -52.23 -80.759722, -52.23 -80.843333))', '/mnt/pgc/data/elev/dem/tandem-x/90m/mosaic/TanDEM-X_Antarctica_90m/TanDEMX_PolarDEM_90m.tif'), #antarctic
             ('POLYGON ((-52.23 -50.843333, -51.735 -50.844444, -51.736667 -50.760556, -52.23 -50.759722, -52.23 -50.843333))', None), # ocean
+            ('POLYGON ((-52.3475 84.515555,-50.882 84.53222,-50.89833 84.40166,-52.330833 84.3844,-52.3475 84.5155))', None), # ocean
             ('POLYGON ((-49.23 61.910556, -47.735 58.844444, -47.735 61.910556, -49.23 58.844444,-49.23 61.910556))', '/mnt/pgc/data/elev/dem/gimp/GrIMPv2/data/grimp_v02.0_30m_dem.tif'), # greenland centroid
             ('POLYGON ((11 -68.5, 11 -70, 12 -70, 12 -68.5, 11 -68.5))', '/mnt/pgc/data/elev/dem/tandem-x/90m/mosaic/TanDEM-X_Antarctica_90m/TanDEMX_PolarDEM_90m.tif'), # antarctic centroid
             ('POLYGON ((-49.23 59.7, -48.23 59.7,-47.23 58.7, -49.23 58.7,-49.23 59.7))', '/mnt/pgc/data/elev/dem/gimp/GrIMPv2/data/grimp_v02.0_30m_dem.tif'), # greenland, but not contained
@@ -277,6 +278,20 @@ class TestAutoDEMOverlap(unittest.TestCase):
         for wkt, result in image_geom_wkts:
             test_result = ortho_functions.check_image_auto_dem(wkt, self.srs, self.gpkg)
             self.assertEqual(test_result, result)
+
+    def test_auto_dem_invalid_gpkgs(self):
+        image_geom_wkt = 'POLYGON ((-52.23 70.843333, -51.735 70.844444, -51.736667 70.760556, -52.23 70.759722, -52.23 70.843333))'
+
+        gpkgs = [
+            os.path.join(testdata_dir, 'auto_dem', 'invalid.gpkg'),
+            os.path.join(testdata_dir, 'auto_dem', 'no_dempath.gpkg')
+        ]
+
+        for gpkg in gpkgs:
+            assert(os.path.isfile(gpkg))
+            with self.assertRaises(RuntimeError):
+                ortho_functions.check_image_auto_dem(image_geom_wkt, self.srs, gpkg)
+
 
 class TestTargetExtent(unittest.TestCase):
         
@@ -318,38 +333,6 @@ class TestAutoStretchAndEpsg(unittest.TestCase):
             info = ortho_functions.ImageInfo(srcfp, dstdir, dstdir, test_args)
             self.assertEqual(info.stretch, out_stretch)
             self.assertEqual(info.epsg, out_epsg)
-
-
-def img_as_array(img_file, band=1):
-    """
-    Open image as numpy array using GDAL.
-
-    :param img_file: <str> path to image file
-    :param band: <int> band to be opened (default=1)
-    :return: <numpy.ndarray> image as 2d array
-    """
-    new_img = gdal.Open(img_file, gdal.GA_ReadOnly)
-    band = new_img.GetRasterBand(band)
-    new_arr = band.ReadAsArray()
-
-    return new_arr
-
-
-def get_images(img_list, img_target):
-    """
-
-    :param img_list: <list> full image paths
-    :param img_target: <str> image to find from list
-    :return: <str> target image path
-    """
-    img_target_path = [i for i in img_list if img_target in i]
-
-    if not img_target_path:
-        raise Exception("No images found for target {0}".format(img_target))
-    elif len(img_target_path) > 1:
-        raise Exception("Multiple results found for target {0}; there should only be one".format(img_target))
-
-    return img_target_path[0]
 
 
 class TestCalcEarthSunDist(unittest.TestCase):
