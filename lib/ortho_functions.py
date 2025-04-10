@@ -1,6 +1,5 @@
 
 import argparse
-import enum
 import glob
 import logging
 import math
@@ -9,7 +8,6 @@ import platform
 import re
 import shutil
 import tarfile
-import sys
 import configparser
 from datetime import datetime
 from xml.dom import minidom
@@ -889,35 +887,38 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
             # Attempt to read the config file
             config = configparser.ConfigParser()
             config_file_path = convert_windows_path(args.config_file)
-
             if not os.path.isfile(config_file_path):
                 logger.error("Config file not found: {}".format(config_file_path))
                 logger.error("Please provide a valid config file path for 'auto' DEM setting.")
                 err = 1
-            else:
-                config.read(config_file_path)
-                gpkg_path = convert_windows_path(config.get("default", "gpkg_path", fallback=None))
 
-                if gpkg_path is None:
-                    logger.error("gpkg_path not found in config file. Please check the config file format.")
-                    err = 1
-                elif not os.path.isfile(gpkg_path):
-                    logger.error("The gpkg file does not exist at the expected location: {}".format(gpkg_path))
-                    gpkg_path = None
-                    err = 1
-                # Proceed with 'auto' DEM processing if no errors
-                if gpkg_path is not None:
-                    args.dem = check_image_auto_dem(info.geometry_wkt, info.spatial_ref, gpkg_path)
-                    if args.dem is None:
-                        logger.error("Automatic DEM selection failed: DEM could not be determined.")
-                        err = 1
         except (configparser.NoSectionError, configparser.Error) as e:
             logger.error("Error reading config file: %s", e)
             logger.error("Please ensure the config file exists and is correctly formatted for 'auto' DEM.")
             err = 1
-        except Exception as e:
-            logger.error("Unexpected error during 'auto' DEM processing: %s", e)
-            err = 1
+
+        else:
+            config.read(config_file_path)
+            gpkg_path = convert_windows_path(config.get("default", "gpkg_path", fallback=None))
+
+            if not gpkg_path:
+                logger.error("gpkg_path not found in config file. Please check the config file format.")
+                err = 1
+            elif not os.path.isfile(gpkg_path):
+                logger.error("The gpkg file does not exist at the expected location: {}".format(gpkg_path))
+                err = 1
+            # Proceed with 'auto' DEM processing if no errors
+            if not err == 1:
+                try:
+                    args.dem = check_image_auto_dem(info.geometry_wkt, info.spatial_ref, gpkg_path)
+                except RuntimeError as e:
+                    logger.error(e)
+                    err = 1
+                else:
+                    if args.dem is None:
+                        logger.info("No candidate DEM found overlapping image. Proceeding without a DEM")
+                    else:
+                        logger.info(f"Auto DEM selected: {args.dem}")
 
     if not err == 1:
         ## Check if image overlaps reference DEM
@@ -1956,12 +1957,7 @@ def overlap_check(geometry_wkt, spatial_ref, demPath):
 
             coordinateTransformer = osr.CoordinateTransformation(imageSpatialReference, demSpatialReference)
             if not imageSpatialReference.IsSame(demSpatialReference):
-                # logger.info("Image Spatial Refernce: %s", imageSpatialReference)
-                # logger.info("DEM Spatial ReferenceL %s", emSpatialReference)
-                # logger.info("Image Geometry before transformation: %s", imageGeometry)
-                logger.info("Transforming image geometry to dem spatial reference")
                 imageGeometry.Transform(coordinateTransformer)
-                # logger.info("Image Geometry after transformation: %s", imageGeometry)
 
             dem = None
             overlap = imageGeometry.Within(demGeometry)
@@ -1982,8 +1978,8 @@ def overlap_check(geometry_wkt, spatial_ref, demPath):
 def check_image_auto_dem(geometry_wkt, spatial_ref, gpkg_path):
     """
     Parameters:
-        image_geometry (wkt)
-        image_spatial_ref
+        geometry_wkt (wkt)
+        spatial_ref
         gpkg_path (str): Path to the GeoPackage file.
 
     Returns:
@@ -1997,10 +1993,11 @@ def check_image_auto_dem(geometry_wkt, spatial_ref, gpkg_path):
     try:
         dataset = gdal.OpenEx(gpkg_path, gdal.OF_VECTOR)
     except Exception as e:
-        logger.error("Error opening the GeoPackage file: %s", e)
+        raise RuntimeError("Error opening the GeoPackage file: %s", e)
 
     num_layers = dataset.GetLayerCount()
     overlapping_layers = []
+    dempath = None
 
     # Iterate over each layer in the dataset
     for i in range(num_layers):
@@ -2035,13 +2032,10 @@ def check_image_auto_dem(geometry_wkt, spatial_ref, gpkg_path):
                     overlapping_layers.append(layer)
                     break  # Break out of the loop since we found an overlap with this layer
             except Exception as e:
-                logger.error("Error processing feature in layer %d: %s", i, e)
+                raise RuntimeError("Error processing feature in layer %d: %s", i, e)
             feature = layer.GetNextFeature()
 
-    if not overlapping_layers:
-        dempath = None  # No overlap found
-        logger.info("image geometry does not overlap with any of the dem regions. %s", geometry_wkt)
-    else:
+    if overlapping_layers:
         selected_layer = None
 
         # If there are multiple overlapping layers, choose the one where the image centroid is located
@@ -2064,9 +2058,8 @@ def check_image_auto_dem(geometry_wkt, spatial_ref, gpkg_path):
                 if selected_layer is not None:
                     break
 
-        if selected_layer == None:
+        if not selected_layer:
             selected_layer = overlapping_layers[0]
-
 
         selected_layer.ResetReading()
         try:
@@ -2078,16 +2071,12 @@ def check_image_auto_dem(geometry_wkt, spatial_ref, gpkg_path):
             else:
                 dempath = feature.GetField("dempath")
         except Exception as e:
-            logger.error("Error getting 'dempath' field: %s", e)
-            dempath = None
+            raise RuntimeError("Error getting 'dempath' field: %s", e)
 
-        # Close the dataset
+    # Close the dataset
     dataset = None
 
     return dempath
-
-
-
 
 def extract_rpb(item, rpb_p):
     rc = 0
