@@ -68,7 +68,13 @@ class TestOrthoFunc(unittest.TestCase):
             self.assertTrue(os.path.isfile(dstfp) == result)
 
     def test_input_parameters(self):
-        
+
+        # Build custom config
+        no_dempath_config = os.path.join(self.dstdir, "no_dempath_config.ini")
+        no_dempath_gpkg = os.path.join(os.path.join(testdata_dir, 'auto_dem', 'no_dempath.gpkg'))
+        with open(no_dempath_config, "w") as f:
+            f.write(f"[default]\ngpkg_path = {no_dempath_gpkg}")
+
         cmds = [
             # (file name, arg string, should succeed, output extension)
             # epsg: 3413
@@ -155,6 +161,26 @@ class TestOrthoFunc(unittest.TestCase):
              f'-r 10 --skip-cmd-txt --epsg auto --stretch au --dem auto',
              True,
              '.tif'),
+
+            # stretch, dem, and epsg: auto with image over the ocean
+            ('WV03_20210811190908_104001006CD51400_21AUG11190908-M1BS-505623932030_01_P001.ntf',
+             f'-r 10 --skip-cmd-txt --epsg auto --stretch au --dem auto',
+             True,
+             '.tif'),
+
+            # bad auto dem config
+            (f'QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.ntf',
+             f'-r 10 --skip-cmd-txt --epsg auto --stretch au --dem auto '
+             f'--config {no_dempath_config}',
+             False,
+             '.tif'),
+
+            # non-existing auto dem config
+            (f'QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.ntf',
+             f'-r 10 --skip-cmd-txt --epsg auto --stretch au --dem auto '
+             f'--config {os.path.join(self.dstdir, "does_not_exist_config.ini")}',
+             False,
+             '.tif'),
         ]
 
         i = 0
@@ -166,8 +192,8 @@ class TestOrthoFunc(unittest.TestCase):
             cmd = f'python "{self.scriptpath}" {test_args} {self.srcdir}/{fn} {_dstdir}'
             p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
             se, so = p.communicate()
-            # print(so)
-            # print(se)
+            print(so)
+            print(se)
             output_files = glob.glob(os.path.join(_dstdir, f'{os.path.splitext(fn)[0]}*{ext}'))
             self.assertEqual(len(output_files) > 0, succeeded)
 
