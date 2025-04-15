@@ -26,6 +26,7 @@ class TestPanshFunc(unittest.TestCase):
     def test_pansharpen(self):
 
         src = os.path.join(self.srcdir, 'WV02_20110901210502_103001000D52C800_11SEP01210502-M1BS-052560788010_01_P008.ntf')
+        src = self.srcdir
         cmd = 'python {} {} {} --skip-cmd-txt -p 3413'.format(
             self.scriptpath,
             src,
