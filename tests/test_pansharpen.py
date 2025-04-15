@@ -44,6 +44,13 @@ class TestPanshFunc(unittest.TestCase):
         self.assertTrue(os.path.isfile(dstfp))
         self.assertTrue(os.path.isfile(dstfp_xml))
 
+        # check second image from proccessing
+        dstfp_2 = os.path.join(self.dstdir, 'WV02_20110901210434_103001000B41DC00_11SEP01210434-M1BS-052730735130_01_P007_u08rf3413_pansh.tif')
+        dstfp_xml_2 = os.path.join(self.dstdir, 'WV02_20110901210434_103001000B41DC00_11SEP01210434-M1BS-052730735130_01_P007_u08rf3413_pansh.xml')
+
+        self.assertTrue(os.path.isfile(dstfp_2))
+        self.assertTrue(os.path.isfile(dstfp_xml_2))
+
         # verify data type
         ds = gdal.Open(dstfp, gdal.GA_ReadOnly)
         dt = ds.GetRasterBand(1).DataType
