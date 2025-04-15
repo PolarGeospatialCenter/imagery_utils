@@ -539,6 +539,7 @@ class ImageInfo:
                             rc = 1
                     else:
                         self.res = "-tr {0:.12f} {1:.12f} ".format(resx, resy)
+                        logger.info("Calculating output resolution from input image: {}".format(self.res))
                     if args.tap:
                         self.tap = "-tap "
 
