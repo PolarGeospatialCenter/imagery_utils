@@ -464,6 +464,12 @@ def main():
         task_srcfp_list = pairs_to_process
         tasklist_is_text_bundles = False
 
+    # Make global variable for resolution if passed in on command line
+    if args.resolution:
+        orig_res = copy.deepcopy(args.resolution)
+    else:
+        orig_res = None
+
     for job_count, task_item in enumerate(task_srcfp_list, 1):
 
         if not tasklist_is_text_bundles:
@@ -497,11 +503,7 @@ def main():
             job_name = 'Psh{:04g}'.format(job_count)
         else:
             job_name = str(args.slurm_job_name)
-        # Make global variable for resolution if passed in on command line
-        if args.resolution:
-            orig_res = copy.deepcopy(args.resolution)
-        else:
-            orig_res = None
+
         task = taskhandler.Task(
             task_item_srcfn,
             job_name,
@@ -650,6 +652,8 @@ def exec_pansharpen(image_pair, pansh_dstfp, args, orig_res):
     if not os.path.isdir(wd):
         os.makedirs(wd)
 
+    logger.info("-----------------------------------")
+
     ####  Ortho pan
     logger.info("Orthorectifying panchromatic image")
     if not os.path.isfile(pan_dstfp) and not os.path.isfile(pan_local_dstfp):
@@ -664,11 +668,13 @@ def exec_pansharpen(image_pair, pansh_dstfp, args, orig_res):
         ## If resolution is specified in the command line, assume it's intended for the pansharpened image
         ##    and multiply the multi by 4
         ##    Use the orig_res variable so that multiple passes over the args.resolution does not blow up recursively
-        if args.resolution:
+        if args.resolution and orig_res is not None:
             args.resolution = [res * 4.0 for res in orig_res]
         ortho_functions.process_image(image_pair.mul_srcfp, mul_dstfp, args, image_pair.intersection_geom)
         # Reset resolution to CLI input
-        args.resolution = [orig_res]
+        args.resolution = orig_res
+        logger.info("Resetting args.resolution: {}".format(args.resolution))
+        logger.info("orig_res: {}".format(orig_res))
 
     if not os.path.isfile(mul_local_dstfp) and os.path.isfile(mul_dstfp):
         shutil.copy2(mul_dstfp, mul_local_dstfp)

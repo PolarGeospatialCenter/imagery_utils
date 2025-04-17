@@ -196,7 +196,8 @@ def convert_optional_args_to_string(args, positional_arg_keys, arg_keys_to_remov
         if k not in positional_arg_keys and k not in arg_keys_to_remove and v is not None:
             k = k.replace('_', '-')
             if isinstance(v, (list, tuple)):
-                arg_list.append("--{} {}".format(k, ' '.join([argval2str(item) for item in v])))
+                if not any([item is None for item in v]):
+                    arg_list.append("--{} {}".format(k, ' '.join([argval2str(item) for item in v])))
             elif isinstance(v, bool):
                 if v is True:
                     if len(k) == 1:
