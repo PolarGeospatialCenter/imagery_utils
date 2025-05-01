@@ -32,22 +32,22 @@ ARGDEF_SCRATCH = os.path.join(os.path.expanduser('~'), 'scratch', 'task_bundles'
 #### Reg Exs
 
 # WV02_12FEB061315046-P1BS-10300100106FC100.ntf
-WV02p = re.compile("WV02_\w+-M")
+WV02p = re.compile(r"WV02_\w+-M")
 
 # WV03_12FEB061315046-P1BS-10300100106FC100.ntf
-WV03p = re.compile("WV03_\w+-M")
+WV03p = re.compile(r"WV03_\w+-M")
 
 # QB02_12FEB061315046-P1BS-10300100106FC100.ntf
-QB02p = re.compile("QB02_\w+-M")
+QB02p = re.compile(r"QB02_\w+-M")
 
 # GE01_12FEB061315046-P1BS-10300100106FC100.ntf
-GE01p_dg = re.compile("GE01_\w+-M")
+GE01p_dg = re.compile(r"GE01_\w+-M")
 
 # GE01_111211P0011184144A222000100082M_000754776.ntf
-GE01p = re.compile("GE01_\w+M0")
+GE01p = re.compile(r"GE01_\w+M0")
 
 # IK01_2009121113234710000011610960_pan_6516S.ntf
-IK01p = re.compile("IK01_\w+(blu|msi|bgrn)")
+IK01p = re.compile(r"IK01_\w+(blu|msi|bgrn)")
 
 dRegExs = {
     WV02p:("WV02"),
