@@ -18,8 +18,8 @@ class TestOrthoFunc(unittest.TestCase):
         self.dstdir = os.path.join(__test_dir__, 'tmp_output')
 
         if platform.system() == 'Windows':
-            self.gimpdem = r'V:\pgc\data\elev\dem\gimp\GIMPv1\gimpdem_v1_30m.tif'
-            self.rampdem = r'V:\pgc\data\elev\dem\ramp\RAMPv2_wgs84_200m.tif'
+            self.gimpdem = r'\\ad.umn.edu\geo\pgc\data\elev\dem\gimp\GIMPv1\gimpdem_v1_30m.tif'
+            self.rampdem = r'\\ad.umn.edu\geo\pgc\data\elev\dem\ramp\RAMPv2_wgs84_200m.tif'
         else:
             self.gimpdem = '/mnt/pgc/data/elev/dem/gimp/GIMPv1/gimpdem_v1_30m.tif'
             self.rampdem = '/mnt/pgc/data/elev/dem/ramp/RAMPv2_wgs84_200m.tif'
@@ -69,11 +69,16 @@ class TestOrthoFunc(unittest.TestCase):
 
     def test_input_parameters(self):
 
-        # Build custom config
+        # Build configs
         no_dempath_config = os.path.join(self.dstdir, "no_dempath_config.ini")
         no_dempath_gpkg = os.path.join(os.path.join(testdata_dir, 'auto_dem', 'no_dempath.gpkg'))
         with open(no_dempath_config, "w") as f:
             f.write(f"[default]\ngpkg_path = {no_dempath_gpkg}")
+
+        good_config = os.path.join(self.dstdir, "good_config.ini")
+        good_config_gpkg = os.path.join(os.path.join(testdata_dir, 'auto_dem', 'dems_list.gpkg'))
+        with open(good_config, "w") as f:
+            f.write(f"[default]\ngpkg_path = {good_config_gpkg}")
 
         cmds = [
             # (file name, arg string, should succeed, output extension)
@@ -158,13 +163,15 @@ class TestOrthoFunc(unittest.TestCase):
 
             # stretch, dem, and epsg: auto
             ('WV02_20120719233558_103001001B998D00_12JUL19233558-M1BS-052754253040_01_P001.tif',
-             f'-r 10 --skip-cmd-txt --epsg auto --stretch au --dem auto',
+             f'-r 10 --skip-cmd-txt --epsg auto --stretch au --dem auto '
+             f'--config {good_config}',
              True,
              '.tif'),
 
             # stretch, dem, and epsg: auto with image over the ocean
             ('WV03_20210811190908_104001006CD51400_21AUG11190908-M1BS-505623932030_01_P001.ntf',
-             f'-r 10 --skip-cmd-txt --epsg auto --stretch au --dem auto',
+             f'-r 10 --skip-cmd-txt --epsg auto --stretch au --dem auto '
+             f'--config {good_config}',
              True,
              '.tif'),
 
@@ -190,6 +197,7 @@ class TestOrthoFunc(unittest.TestCase):
             os.mkdir(_dstdir)
             print(fn)
             cmd = f'python "{self.scriptpath}" {test_args} {self.srcdir}/{fn} {_dstdir}'
+            print(cmd)
             p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
             se, so = p.communicate()
             print(so)

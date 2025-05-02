@@ -1,3 +1,4 @@
+import platform
 import unittest, os, sys
 from osgeo import gdal, ogr
 from collections import namedtuple
@@ -264,19 +265,41 @@ class TestAutoDEMOverlap(unittest.TestCase):
 
     def test_auto_dem_overlap(self):
         image_geom_wkts = [
-            ('POLYGON ((-52.23 70.843333, -51.735 70.844444, -51.736667 70.760556, -52.23 70.759722, -52.23 70.843333))','/mnt/pgc/data/elev/dem/gimp/GrIMPv2/data/grimp_v02.0_30m_dem.tif'), #greenland
-            ('POLYGON ((-52.23 -80.843333, -51.735 -80.844444, -51.736667 -80.760556, -52.23 -80.759722, -52.23 -80.843333))', '/mnt/pgc/data/elev/dem/tandem-x/90m/mosaic/TanDEM-X_Antarctica_90m/TanDEMX_PolarDEM_90m.tif'), #antarctic
-            ('POLYGON ((-52.23 -50.843333, -51.735 -50.844444, -51.736667 -50.760556, -52.23 -50.759722, -52.23 -50.843333))', None), # ocean
-            ('POLYGON ((-52.3475 84.515555,-50.882 84.53222,-50.89833 84.40166,-52.330833 84.3844,-52.3475 84.5155))', None), # ocean
-            ('POLYGON ((-49.23 61.910556, -47.735 58.844444, -47.735 61.910556, -49.23 58.844444,-49.23 61.910556))', '/mnt/pgc/data/elev/dem/gimp/GrIMPv2/data/grimp_v02.0_30m_dem.tif'), # greenland centroid
-            ('POLYGON ((11 -68.5, 11 -70, 12 -70, 12 -68.5, 11 -68.5))', '/mnt/pgc/data/elev/dem/tandem-x/90m/mosaic/TanDEM-X_Antarctica_90m/TanDEMX_PolarDEM_90m.tif'), # antarctic centroid
-            ('POLYGON ((-49.23 59.7, -48.23 59.7,-47.23 58.7, -49.23 58.7,-49.23 59.7))', '/mnt/pgc/data/elev/dem/gimp/GrIMPv2/data/grimp_v02.0_30m_dem.tif'), # greenland, but not contained
-            ('POLYGON ((-56 -61, -55 -61, -55 -60,-56 -60, -56 -61))','/mnt/pgc/data/elev/dem/tandem-x/90m/mosaic/TanDEM-X_Antarctica_90m/TanDEMX_PolarDEM_90m.tif'), # antarctic, but not contained
-            ('POLYGON ((-89.43 81.53, -88.94 81.53, -88.94 81.33, -89.43 81.33, -89.43 81.53))','/mnt/pgc/data/elev/dem/copernicus-dem-30m/mosaic/global/cop30_tiles_global_wgs84-height_nunatak.vrt'), #Centroid in copernicus layer which overlaps greenland layer
+            # polygon, linux path
+            ('POLYGON ((-52.23 70.843333, -51.735 70.844444, -51.736667 70.760556, -52.23 70.759722, -52.23 70.843333))',
+             '/mnt/pgc/data/elev/dem/gimp/GrIMPv2/data/grimp_v02.0_30m_dem.tif'), #greenland
+            ('POLYGON ((-52.23 -80.843333, -51.735 -80.844444, -51.736667 -80.760556, -52.23 -80.759722, -52.23 -80.843333))',
+             '/mnt/pgc/data/elev/dem/tandem-x/90m/mosaic/TanDEM-X_Antarctica_90m/TanDEMX_PolarDEM_90m.tif'), #antarctic
+            ('POLYGON ((-52.23 -50.843333, -51.735 -50.844444, -51.736667 -50.760556, -52.23 -50.759722, -52.23 -50.843333))',
+             None), # ocean
+            ('POLYGON ((-52.3475 84.515555,-50.882 84.53222,-50.89833 84.40166,-52.330833 84.3844,-52.3475 84.5155))',
+             None), # ocean
+            ('POLYGON ((-49.23 61.910556, -47.735 58.844444, -47.735 61.910556, -49.23 58.844444,-49.23 61.910556))',
+             '/mnt/pgc/data/elev/dem/gimp/GrIMPv2/data/grimp_v02.0_30m_dem.tif'), # greenland centroid
+            ('POLYGON ((11 -68.5, 11 -70, 12 -70, 12 -68.5, 11 -68.5))',
+             '/mnt/pgc/data/elev/dem/tandem-x/90m/mosaic/TanDEM-X_Antarctica_90m/TanDEMX_PolarDEM_90m.tif'), # antarctic centroid
+            ('POLYGON ((-49.23 59.7, -48.23 59.7,-47.23 58.7, -49.23 58.7,-49.23 59.7))',
+             '/mnt/pgc/data/elev/dem/gimp/GrIMPv2/data/grimp_v02.0_30m_dem.tif'), # greenland, but not contained
+            ('POLYGON ((-56 -61, -55 -61, -55 -60,-56 -60, -56 -61))',
+             '/mnt/pgc/data/elev/dem/tandem-x/90m/mosaic/TanDEM-X_Antarctica_90m/TanDEMX_PolarDEM_90m.tif'), # antarctic, but not contained
+            ('POLYGON ((-89.43 81.53, -88.94 81.53, -88.94 81.33, -89.43 81.33, -89.43 81.53))',
+             '/mnt/pgc/data/elev/dem/copernicus-dem-30m/mosaic/global/cop30_tiles_global_wgs84-height_nunatak.vrt'), #Centroid in copernicus layer which overlaps greenland layer
         ]
+
+        windows_paths = {
+            # linux path: windows path
+            '/mnt/pgc/data/elev/dem/gimp/GrIMPv2/data/grimp_v02.0_30m_dem.tif':
+                r'\\ad.umn.edu\geo\pgc\data\elev\dem\gimp\GrIMPv2\data\grimp_v02.0_30m_dem.tif',
+            '/mnt/pgc/data/elev/dem/tandem-x/90m/mosaic/TanDEM-X_Antarctica_90m/TanDEMX_PolarDEM_90m.tif':
+                r'\\ad.umn.edu\geo\pgc\data\elev\dem\tandem-x\90m\mosaic\TanDEM-X_Antarctica_90m\TanDEMX_PolarDEM_90m.tif',
+            '/mnt/pgc/data/elev/dem/copernicus-dem-30m/mosaic/global/cop30_tiles_global_wgs84-height_nunatak.vrt':
+                r'\\ad.umn.edu\geo\pgc\data\elev\dem\copernicus-dem-30m\mosaic\global\cop30_tiles_global_wgs84-height_windows.vrt'
+        }
 
         for wkt, result in image_geom_wkts:
             test_result = ortho_functions.check_image_auto_dem(wkt, self.srs, self.gpkg)
+            if result is not None and platform.system() == 'Windows':
+                result = windows_paths[result]
             self.assertEqual(test_result, result)
 
     def test_auto_dem_invalid_gpkgs(self):
