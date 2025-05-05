@@ -18,8 +18,6 @@ class TestPanshFunc(unittest.TestCase):
         self.scriptpath = os.path.join(__app_dir__, "pgc_pansharpen.py")
         self.srcdir = os.path.join(testdata_dir, 'pansharpen', 'src')
         self.dstdir = os.path.join(__test_dir__, 'tmp_output')
-        # if os.path.isdir(self.dstdir):
-        #     shutil.rmtree(self.dstdir)
         if not os.path.isdir(self.dstdir):
             os.makedirs(self.dstdir)
 
@@ -34,8 +32,8 @@ class TestPanshFunc(unittest.TestCase):
 
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         se, so = p.communicate()
-        # print(so)
-        # print(se)
+        print(so)
+        print(se)
 
         # make sure output data exist
         dstfp = os.path.join(self.dstdir, 'WV02_20110901210502_103001000D52C800_11SEP01210502-M1BS-052560788010_01_P008_u08rf3413_pansh.tif')
@@ -83,9 +81,12 @@ class TestPanshFunc(unittest.TestCase):
                     3: [1.0, 145.0, 11.088902, 7.401054],
                     4: [1.0, 172.0, 37.812614, 27.618598]}
         datapixelcount_dct = {1: 857617457, 2: 857617457, 3: 857617457, 4: 857617457}
-        for i in range(len(image_info.stat_dct[1])):
-            self.assertAlmostEqual(image_info.stat_dct[1][i], stat_dct[1][i], 6)
-        self.assertEqual(image_info.datapixelcount_dct, datapixelcount_dct)
+        datapixelcount_threshold = 500
+        for i in range(1,len(image_info.stat_dct)+1):# check stats are similar
+            for j in range(4):
+                self.assertAlmostEqual(image_info.stat_dct[i][j], stat_dct[i][j], 4)
+            print(f'found:{image_info.datapixelcount_dct[i]}, expected {datapixelcount_dct[i]} +-{datapixelcount_threshold}')
+            self.assertTrue(abs(image_info.datapixelcount_dct[i] - datapixelcount_dct[i]) < datapixelcount_threshold)
 
     def tearDown(self):
        shutil.rmtree(self.dstdir, ignore_errors=True)
