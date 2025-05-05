@@ -341,12 +341,12 @@ def get_ge_metadata_as_xml(metafile):
                     child = ET.SubElement(current, "group")
                 else:
                     child = ET.SubElement(current, data)
-                if parent:
+                if parent is not None:
                     node_stack.append(parent)
                 parent = current
                 current = child
             elif tag == "END_GROUP":
-                current = parent if parent else root
+                current = parent if parent is not None else root
                 parent = node_stack.pop() if node_stack else None
             else:
                 if current.tag in group_tags and tag == group_tags[current.tag]:

@@ -723,22 +723,6 @@ def build_parent_argument_parser():
     return parser, pos_arg_keys
 
 
-def convert_windows_path(path):
-    if platform.system() == "Windows":
-        # Replace "/mnt" with "V:"
-        path = path.replace("/mnt", "V:")
-        # Replace "/" with "\"
-        path = path.replace("/", "\\")
-    elif platform.system() == "Linux":
-        # Replace "\" with "/"
-        path = path.replace("\\", "/")
-        # Replace drive letter "V" with "/mnt:"
-        if ":" in path:
-            drive, rest = path.split(":", 1)
-            path = f"/mnt{rest}"
-    return path
-
-
 def process_image(srcfp, dstfp, args, target_extent_geom=None):
     err = 0
     starttime = datetime.today()
@@ -887,7 +871,7 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
         try:
             # Attempt to read the config file
             config = configparser.ConfigParser()
-            config_file_path = convert_windows_path(args.config_file)
+            config_file_path = args.config_file
             if not os.path.isfile(config_file_path):
                 logger.error("Config file not found: {}".format(config_file_path))
                 logger.error("Please provide a valid config file path for 'auto' DEM setting.")
@@ -900,7 +884,7 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
 
         else:
             config.read(config_file_path)
-            gpkg_path = convert_windows_path(config.get("default", "gpkg_path", fallback=None))
+            gpkg_path = config.get("default", "gpkg_path", fallback=None)
 
             if not gpkg_path:
                 logger.error("gpkg_path not found in config file. Please check the config file format.")
@@ -2065,10 +2049,8 @@ def check_image_auto_dem(geometry_wkt, spatial_ref, gpkg_path):
         selected_layer.ResetReading()
         try:
             feature = selected_layer.GetNextFeature()
-            if feature.GetField("dempath") is not None:
-                dempath = convert_windows_path(feature.GetField("dempath"))
-                if platform.system() == "Windows" and ".vrt" in dempath: # this is for selecting between specific versions of the PGC reference DEM file
-                    dempath = convert_windows_path(feature.GetField("windowspath"))
+            if platform.system() == "Windows": # this is for selecting between specific versions of the PGC reference DEM file
+                dempath = feature.GetField("windowspath")
             else:
                 dempath = feature.GetField("dempath")
         except Exception as e:

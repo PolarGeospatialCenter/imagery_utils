@@ -149,13 +149,22 @@ tqdm alive-progress pyperclip --yes
 Tests for imagery-utils use python's pytest. They require licensed commercial data that cannot be distributed freely
 but is available to project contributors.
 
-On Linux systems:
+On Linux systems, make a symlink to the test data location:
 ```sh
 # first time only
 ln -s <test_data_location>/tests/testdata tests/
 
-# run the test
-pytest tests
+# run the tests
+pytest
+```
+
+On Windows, you have to use the full network path and not a mounted drive letter path:
+```sh
+# first time only
+mklink /d tests\testdata <\\server.school.edu\test_data_location>\tests\testdata
+
+# run the tests
+pytest
 ```
 
 ## Contact
