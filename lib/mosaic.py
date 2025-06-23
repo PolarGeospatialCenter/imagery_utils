@@ -1324,18 +1324,19 @@ def copyall(srcfile, dstdir):
 
 def getExcludeList(exclude_arg):
     if exclude_arg == 'pgc_exclude_list':
-        # If pgc_exclude_list is  specified, read it from the database
-        url = "https://pgc-cloud-cover-assessment-dev-web-00.oit.umn.edu/exclude-list"
+        # If pgc_exclude_list is  specified, read it from the API
+        # TODO make this a configuration value or a command line option
+        url = "https://scene-assessment.pgc.umn.edu/exclude-list"
         response = requests.get(url, verify=False)
         # Convert JSON response to a set of lines
         exclude_list = set([line.rstrip() for line in os.linesep.join(response.json()).splitlines()])
-        logger.info("Successfully fetched pgc_exclude_list from sandwich database: dgarchive.mosaic.qa_scenes")
+        logger.info(f"Successfully fetched pgc_exclude_list from API with {len(exclude_list)} scenes")
     elif exclude_arg is not None:
         if not os.path.isfile(exclude_arg):
             logger.error("Value for option --exclude-list is not a valid file")
         f = open(exclude_arg, 'r')
         exclude_list = set([line.rstrip() for line in f.readlines()])
-        logger.debug("Exclude list: %s", str(exclude_list))
+        logger.info(f"Successfully fetched exclude list from file with {len(exclude_list)} scenes")
     else:
         exclude_list = set()
     return exclude_list

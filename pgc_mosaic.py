@@ -97,7 +97,7 @@ def main():
     parser.add_argument("-l",
                         help="PBS resources requested (mimicks qsub syntax). Use only on HPC systems.")
     parser.add_argument("--log",
-                        help="file to log progress (default is <output dir>\{}".format(default_logfile))
+                        help="file to log progress (default is <output dir>/{}".format(default_logfile))
     parser.add_argument("--skip-cmd-txt", action='store_true', default=True,
                         help='THIS OPTION IS DEPRECATED - '
                              'By default this arg is True and the cmd text file will not be written. '
@@ -193,6 +193,7 @@ def main():
     except Exception as e:
         logger.info("Could not retrieve exclude list from source {}. ".format(args.exclude))
         logger.error(f"Unexpected {e=}, {type(e)=}")
+        sys.exit(-1)
     
     ## Build tasks
     task_queue = []
