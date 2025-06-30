@@ -2013,6 +2013,7 @@ def check_image_auto_dem(geometry_wkt, spatial_ref, gpkg_path):
                 feature = layer.GetNextFeature()
                 continue
             try:
+                # TODO: change this to contains/within/something of the sort
                 if image_geometry_transformed.Intersects(feature_geometry):
                     overlapping_layers.append(layer)
                     break  # Break out of the loop since we found an overlap with this layer
@@ -2020,6 +2021,7 @@ def check_image_auto_dem(geometry_wkt, spatial_ref, gpkg_path):
                 raise RuntimeError("Error processing feature in layer %d: %s", i, e)
             feature = layer.GetNextFeature()
 
+    # TODO: have this reference the rank column of the geopackage instead of all this logic
     if overlapping_layers:
         selected_layer = None
 
