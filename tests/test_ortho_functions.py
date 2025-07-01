@@ -272,7 +272,7 @@ class TestAutoDEMOverlap(unittest.TestCase):
              '/mnt/pgc/data/elev/dem/tandem-x/90m/mosaic/TanDEM-X_Antarctica_90m/TanDEMX_PolarDEM_90m.tif'), #antarctic
             ('POLYGON ((-52.23 -50.843333, -51.735 -50.844444, -51.736667 -50.760556, -52.23 -50.759722, -52.23 -50.843333))',
              None), # ocean
-            ('POLYGON ((-52.3475 84.515555,-50.882 84.53222,-50.89833 84.40166,-52.330833 84.3844,-52.3475 84.5155))',
+            ('POLYGON ((-52.3475 84.515555,-50.882 84.53222,-50.89833 84.40166,-52.330833 84.3844,-52.3475 84.515555))',
              None), # ocean
             ('POLYGON ((-49.23 61.910556, -47.735 58.844444, -47.735 61.910556, -49.23 58.844444,-49.23 61.910556))',
              '/mnt/pgc/data/elev/dem/gimp/GrIMPv2/data/grimp_v02.0_30m_dem.tif'), # greenland centroid
