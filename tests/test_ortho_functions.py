@@ -283,7 +283,11 @@ class TestAutoDEMOverlap(unittest.TestCase):
             ('POLYGON ((-56 -61, -55 -61, -55 -60,-56 -60, -56 -61))',
              None), # antarctic, but not contained
             ('POLYGON ((-89.43 81.53, -88.94 81.53, -88.94 81.33, -89.43 81.33, -89.43 81.53))',
-             '/mnt/pgc/data/elev/dem/copernicus-dem-30m/mosaic/global/cop30_tiles_global_wgs84-height_nunatak.vrt'), #Centroid in copernicus layer which overlaps greenland layer
+             '/mnt/pgc/data/elev/dem/copernicus-dem-30m/mosaic/global/cop30_tiles_global_wgs84-height_nunatak.vrt'), # Centroid in copernicus layer which overlaps greenland layer
+            ('POLYGON((-75.198668 77.852004,-74.063225 77.852004,-74.063225 78.538288,-75.198668 78.538288,-75.198668 77.852004))',
+             '/mnt/pgc/data/elev/dem/copernicus-dem-30m/mosaic/global/cop30_tiles_global_wgs84-height_nunatak.vrt'), # Contained fully in copernicus and overlaps but is not contained in Greenland
+            ('POLYGON((-73.231170 77.989205, -72.398375 77.989205, -72.398375 78.514049, -73.231170 78.514049, -73.231170 77.989205))',
+             '/mnt/pgc/data/elev/dem/gimp/GrIMPv2/data/grimp_v02.0_30m_dem.tif'), # contained completely within greenland AND copernicus
         ]
 
         windows_paths = {
