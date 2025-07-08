@@ -1963,7 +1963,7 @@ def overlap_check(geometry_wkt, spatial_ref, demPath):
 def check_image_auto_dem(geometry_wkt, spatial_ref, gpkg_path):
     """
     Parameters:
-        geometry_wkt (wkt)
+        geometry_wkt (wkt): Geometry of input image
         spatial_ref
         gpkg_path (str): Path to the GeoPackage file.
 
@@ -1981,9 +1981,11 @@ def check_image_auto_dem(geometry_wkt, spatial_ref, gpkg_path):
         raise RuntimeError("Error opening the GeoPackage file: %s", e)
 
     num_layers = dataset.GetLayerCount()
-    overlapping_layers = []
+    overlapping_dems = []
     dempath = None
 
+    selected_rank = 9999
+    selected_dem = None
     # Iterate over each layer in the dataset
     for i in range(num_layers):
         layer = dataset.GetLayerByIndex(i)
@@ -2005,60 +2007,35 @@ def check_image_auto_dem(geometry_wkt, spatial_ref, gpkg_path):
             image_geometry_transformed = image_geometry
 
         # Find the overlapping feature in the layer
-        feature = layer.GetNextFeature()
-        while feature:
-            feature_geometry = feature.GetGeometryRef()
-            if feature_geometry is None:
-                logger.debug("Skipping feature in layer %d because its geometry is None", i)
-                feature = layer.GetNextFeature()
+        dem = layer.GetNextFeature()
+        while dem:
+            dem_geometry = dem.GetGeometryRef()
+            if dem_geometry is None:
+                logger.debug("Skipping feature %s in layer %d because its geometry is None", (dem, i))
+                dem = layer.GetNextFeature()
                 continue
             try:
-                if image_geometry_transformed.Intersects(feature_geometry):
-                    overlapping_layers.append(layer)
-                    break  # Break out of the loop since we found an overlap with this layer
+                if image_geometry_transformed.Within(dem_geometry) and dem['rank'] < selected_rank:
+                    selected_dem = dem
+                    selected_rank = dem['rank']
             except Exception as e:
                 raise RuntimeError("Error processing feature in layer %d: %s", i, e)
-            feature = layer.GetNextFeature()
+            dem = layer.GetNextFeature()
 
-    if overlapping_layers:
-        selected_layer = None
 
-        # If there are multiple overlapping layers, choose the one where the image centroid is located
-        if len(overlapping_layers) > 1:
+    if selected_dem is None:
+        return None
 
-            centroid = image_geometry_transformed.Centroid()
-            for layer in overlapping_layers:
-                layer.ResetReading()  # Reset reading to iterate over all features from the start
-                feature = layer.GetNextFeature()
-                while feature:
-                    feature_geometry = feature.GetGeometryRef()
-                    if feature_geometry is None:
-                        logger.debug("Skipping feature in overlapping layer because its geometry is None")
-                        feature = layer.GetNextFeature()
-                        continue
-                    if feature_geometry.Contains(centroid):
-                        selected_layer = layer
-                        break  # Exit the loop once the desired layer is found
-                    feature = layer.GetNextFeature()
-                if selected_layer is not None:
-                    break
-
-        if not selected_layer:
-            selected_layer = overlapping_layers[0]
-
-        selected_layer.ResetReading()
-        try:
-            feature = selected_layer.GetNextFeature()
-            if platform.system() == "Windows": # this is for selecting between specific versions of the PGC reference DEM file
-                dempath = feature.GetField("windowspath")
-            else:
-                dempath = feature.GetField("dempath")
-        except Exception as e:
-            raise RuntimeError("Error getting 'dempath' field: %s", e)
+    try:
+        if platform.system() == "Windows": # this is for selecting between specific versions of the PGC reference DEM file
+            dempath = selected_dem.GetField("windowspath")
+        else:
+            dempath = selected_dem.GetField("dempath")
+    except Exception as e:
+        raise RuntimeError("Error getting 'dempath' field: %s", e)
 
     # Close the dataset
-    dataset = None
-
+    del dataset
     return dempath
 
 def extract_rpb(item, rpb_p):
