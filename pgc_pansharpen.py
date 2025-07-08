@@ -624,6 +624,11 @@ def exec_pansharpen(image_pair, pansh_dstfp, args, orig_res):
     print("Multispectral image: {}".format(image_pair.mul_srcfp))
     print("Panchromatic image: {}".format(image_pair.pan_srcfp))
 
+    if args.dem is not None:
+        dem_arg = '-d "{}" '.format(args.dem)
+    else:
+        dem_arg = ""
+
     # args.epsg has been converted to an int type if possible already,
     # Look up the correct epsg if it's still a string
     if type(args.epsg) is str:
@@ -640,10 +645,12 @@ def exec_pansharpen(image_pair, pansh_dstfp, args, orig_res):
     mul_local_dstfp = os.path.join(wd, "{}_{}{}{}{}".format(mul_basename, bittype, args.stretch, img_epsg, out_ext))
     pan_dstfp = os.path.join(dstdir, "{}_{}{}{}{}".format(pan_basename, bittype, args.stretch, img_epsg, out_ext))
     mul_dstfp = os.path.join(dstdir, "{}_{}{}{}{}".format(mul_basename, bittype, args.stretch, img_epsg, out_ext))
+    pansh_tempfp = os.path.join(wd, "{}_{}{}{}_pansh_temp{}".format(mul_basename, bittype, args.stretch, img_epsg, out_ext))
     pansh_local_dstfp = os.path.join(wd, "{}_{}{}{}_pansh{}".format(mul_basename, bittype, args.stretch, img_epsg, out_ext))
     pansh_xmlfp = os.path.join(dstdir, "{}_{}{}{}_pansh.xml".format(mul_basename, bittype, args.stretch, img_epsg))
     mul_xmlfp = os.path.join(dstdir, "{}_{}{}{}.xml".format(mul_basename, bittype, args.stretch, img_epsg))
-    
+
+
     if not os.path.isdir(wd):
         os.makedirs(wd)
 
@@ -720,7 +727,6 @@ def exec_pansharpen(image_pair, pansh_dstfp, args, orig_res):
                 logger.error(utils.capture_error_trace())
     else:
         logger.warning("Pan or Multi warped image does not exist\n\t{}\n\t{}".format(pan_local_dstfp, mul_local_dstfp))
-        # TODO: exit gracefully here. Raise an error?
         return 1
 
     #### Make pyramids

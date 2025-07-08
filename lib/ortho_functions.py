@@ -1984,6 +1984,8 @@ def check_image_auto_dem(geometry_wkt, spatial_ref, gpkg_path):
     overlapping_dems = []
     dempath = None
 
+    selected_rank = 9999
+    selected_dem = None
     # Iterate over each layer in the dataset
     for i in range(num_layers):
         layer = dataset.GetLayerByIndex(i)
@@ -2005,48 +2007,23 @@ def check_image_auto_dem(geometry_wkt, spatial_ref, gpkg_path):
             image_geometry_transformed = image_geometry
 
         # Find the overlapping feature in the layer
-        # TODO: this is the offending code
-        feature = layer.GetNextFeature()
-        while feature:
-            feature_geometry = feature.GetGeometryRef()
-            if feature_geometry is None:
-                logger.debug("Skipping feature %s in layer %d because its geometry is None", (feature, i))
-                feature = layer.GetNextFeature()
-                continue
-            try:
-                # TODO: make sure within is the correct predicate
-                if image_geometry_transformed.Within(feature_geometry):
-                    overlapping_dems.append(feature)
-            except Exception as e:
-                raise RuntimeError("Error processing feature in layer %d: %s", i, e)
-            feature = layer.GetNextFeature()
-
-    # TODO: have this reference the rank column of the geopackage instead of all this logic
-    selected_dem = None
-    selected_rank = 99999
-
-    # If there are multiple overlapping layers, choose the one where the image centroid is located
-    for dem in overlapping_dems:
-        try:
-            # If the gpkg has the rank field in its dems, use that to select the proper DEM
-            dem_rank = dem['rank']
-            if dem_rank < selected_rank:
-                selected_dem = dem
-                selected_rank = dem_rank
-        except KeyError:
-            logger.info('rank selection failed, falling back to old method') # TODO: make nicer
-            # Otherwise, fall back to the old crusty method
+        dem = layer.GetNextFeature()
+        while dem:
             dem_geometry = dem.GetGeometryRef()
             if dem_geometry is None:
-                logger.debug("Skipping feature in overlapping layer because its geometry is None")
+                logger.debug("Skipping feature %s in layer %d because its geometry is None", (dem, i))
+                dem = layer.GetNextFeature()
                 continue
-            if image_geometry_transformed.Within(dem_geometry):
-                # TODO: this selection logic isn't robust enough probably
-                selected_dem = dem
-                break  # Exit the loop once the desired layer is found
+            try:
+                if image_geometry_transformed.Within(dem_geometry) and dem['rank'] < selected_rank:
+                    selected_dem = dem
+                    selected_rank = dem['rank']
+            except Exception as e:
+                raise RuntimeError("Error processing feature in layer %d: %s", i, e)
+            dem = layer.GetNextFeature()
+
 
     if selected_dem is None:
-        # TODO: is this the right behavior?
         return None
 
     try:
