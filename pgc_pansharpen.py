@@ -604,8 +604,6 @@ def main():
 
 
 def exec_pansharpen(image_pair, pansh_dstfp, args, orig_res):
-    # TODO: check first thing that all the relevant files actually exist
-
     dstdir = os.path.dirname(pansh_dstfp)
 
     #### Get working dir
