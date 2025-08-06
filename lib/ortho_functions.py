@@ -884,7 +884,7 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
 
         else:
             config.read(config_file_path)
-            gpgk_path = config.get("default", "gpkg_path", fallback=None)
+            gpkg_path = config.get("default", "gpkg_path", fallback=None)
             if platform.system() == "Windows":
                 gpkg_path = config.get("windows", "gpkg_path", fallback=gpkg_path)
 
