@@ -52,8 +52,9 @@ should have a field named 'dempath' pointing to the corresponding reference DEM.
 
 1. **Config File Path**: Ensure that the config file exists at the specified path provided to the `--config` argument.
 2. **`gpkg_path` Setting**: The config file should have a `gpkg_path` entry under the `[default]` section. This path 
-should point to a GeoPackage file containing a 'dempath' field to the corresponding DEM.
-3. **Valid DEM File**: The path specified by `dempath` should be accessible and valid.
+should point to a GeoPackage file containing a 'dempath' field to the corresponding DEM. There is support for specific
+Windows filepaths as well by adding a `gpkg_path` entry under the `[windows]` section.
+4. **Valid DEM File**: The path specified by `dempath` should be accessible and valid.
 
 **Example Configuration File (`config.ini`)**
 
