@@ -60,6 +60,9 @@ should point to a GeoPackage file containing a 'dempath' field to the correspond
 ```ini
 [default]
 gpkg_path = /path/to/dem_list.gpkg
+
+[windows]
+gpkg_path = V:\path\to\dem_list.gpkg
 ```
 
 ### pgc_mosaic
