@@ -885,6 +885,8 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
         else:
             config.read(config_file_path)
             gpkg_path = config.get("default", "gpkg_path", fallback=None)
+            if platform.system() == "Windows":
+                gpkg_path = config.get("windows", "gpkg_path", fallback=gpkg_path)
 
             if not gpkg_path:
                 logger.error("gpkg_path not found in config file. Please check the config file format.")
