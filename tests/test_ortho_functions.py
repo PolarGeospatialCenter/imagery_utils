@@ -272,18 +272,22 @@ class TestAutoDEMOverlap(unittest.TestCase):
              '/mnt/pgc/data/elev/dem/tandem-x/90m/mosaic/TanDEM-X_Antarctica_90m/TanDEMX_PolarDEM_90m.tif'), #antarctic
             ('POLYGON ((-52.23 -50.843333, -51.735 -50.844444, -51.736667 -50.760556, -52.23 -50.759722, -52.23 -50.843333))',
              None), # ocean
-            ('POLYGON ((-52.3475 84.515555,-50.882 84.53222,-50.89833 84.40166,-52.330833 84.3844,-52.3475 84.5155))',
+            ('POLYGON ((-52.3475 84.515555,-50.882 84.53222,-50.89833 84.40166,-52.330833 84.3844,-52.3475 84.515555))',
              None), # ocean
             ('POLYGON ((-49.23 61.910556, -47.735 58.844444, -47.735 61.910556, -49.23 58.844444,-49.23 61.910556))',
-             '/mnt/pgc/data/elev/dem/gimp/GrIMPv2/data/grimp_v02.0_30m_dem.tif'), # greenland centroid
+             None), # greenland centroid
             ('POLYGON ((11 -68.5, 11 -70, 12 -70, 12 -68.5, 11 -68.5))',
-             '/mnt/pgc/data/elev/dem/tandem-x/90m/mosaic/TanDEM-X_Antarctica_90m/TanDEMX_PolarDEM_90m.tif'), # antarctic centroid
+             None), # antarctic centroid
             ('POLYGON ((-49.23 59.7, -48.23 59.7,-47.23 58.7, -49.23 58.7,-49.23 59.7))',
-             '/mnt/pgc/data/elev/dem/gimp/GrIMPv2/data/grimp_v02.0_30m_dem.tif'), # greenland, but not contained
+             None), # greenland, but not contained
             ('POLYGON ((-56 -61, -55 -61, -55 -60,-56 -60, -56 -61))',
-             '/mnt/pgc/data/elev/dem/tandem-x/90m/mosaic/TanDEM-X_Antarctica_90m/TanDEMX_PolarDEM_90m.tif'), # antarctic, but not contained
+             None), # antarctic, but not contained
             ('POLYGON ((-89.43 81.53, -88.94 81.53, -88.94 81.33, -89.43 81.33, -89.43 81.53))',
-             '/mnt/pgc/data/elev/dem/copernicus-dem-30m/mosaic/global/cop30_tiles_global_wgs84-height_nunatak.vrt'), #Centroid in copernicus layer which overlaps greenland layer
+             '/mnt/pgc/data/elev/dem/copernicus-dem-30m/mosaic/global/cop30_tiles_global_wgs84-height_nunatak.vrt'), # Centroid in copernicus layer which overlaps greenland layer
+            ('POLYGON((-75.198668 77.852004,-74.063225 77.852004,-74.063225 78.538288,-75.198668 78.538288,-75.198668 77.852004))',
+             '/mnt/pgc/data/elev/dem/copernicus-dem-30m/mosaic/global/cop30_tiles_global_wgs84-height_nunatak.vrt'), # Contained fully in copernicus and overlaps but is not contained in Greenland
+            ('POLYGON((-73.231170 77.989205, -72.398375 77.989205, -72.398375 78.514049, -73.231170 78.514049, -73.231170 77.989205))',
+             '/mnt/pgc/data/elev/dem/gimp/GrIMPv2/data/grimp_v02.0_30m_dem.tif'), # contained completely within greenland AND copernicus
         ]
 
         windows_paths = {
@@ -300,6 +304,7 @@ class TestAutoDEMOverlap(unittest.TestCase):
             test_result = ortho_functions.check_image_auto_dem(wkt, self.srs, self.gpkg)
             if result is not None and platform.system() == 'Windows':
                 result = windows_paths[result]
+            print(wkt, test_result, result)
             self.assertEqual(test_result, result)
 
     def test_auto_dem_invalid_gpkgs(self):
