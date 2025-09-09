@@ -1,6 +1,14 @@
 History
 =======
 
+2.2.1 (2025-09-09)
+------------------
+* Mosaic settings updates by @bakkerbakker in https://github.com/PolarGeospatialCenter/imagery_utils/pull/94
+* Allow pgc_ortho and pgc_pansharpen to accept 1 or two values for resolution by @clairecporter in https://github.com/PolarGeospatialCenter/imagery_utils/pull/95
+* Make Unittest style test runable by pytest by @clairecporter in https://github.com/PolarGeospatialCenter/imagery_utils/pull/97
+* Auto DEM Bug Repair by @clairecporter in https://github.com/PolarGeospatialCenter/imagery_utils/pull/98
+* Gdal 393 by @clairecporter in https://github.com/PolarGeospatialCenter/imagery_utils/pull/100
+
 2.2.0 (2024-10-31)
 ------------------
 
@@ -56,7 +64,7 @@ History
 
 * Added "REGION_ID" field to DemInfo attributes by @ehusby in https://github.com/PolarGeospatialCenter/imagery_utils/pull/18
 * bugfix: add allow_invalid_geom to qsub key removal list by @stevefoga in https://github.com/PolarGeospatialCenter/imagery_utils/pull/19
-* Changes to to address rare bug in pgc_ortho.py --tasks-per-job feature by @ehusby in https://github.com/PolarGeospatialCenter/imagery_utils/pull/20
+* Changes to address rare bug in pgc_ortho.py --tasks-per-job feature by @ehusby in https://github.com/PolarGeospatialCenter/imagery_utils/pull/20
 * Threading for gdalwarp and gdal_pansharpen by @stevefoga in https://github.com/PolarGeospatialCenter/imagery_utils/pull/21
 * Automatically scale default memory request for ortho and pansharpen jobs by @ehusby in https://github.com/PolarGeospatialCenter/imagery_utils/pull/22
 * Update osgeo import syntax by @ehusby in https://github.com/PolarGeospatialCenter/imagery_utils/pull/24
