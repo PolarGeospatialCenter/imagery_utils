@@ -376,6 +376,23 @@ class TestCalcEarthSunDist(unittest.TestCase):
         esd = ortho_functions.calc_earth_sun_dist(self)
         self.assertEqual(esd, 0.9957508611980816)
 
+class TestNegativeSunElev(unittest.TestCase):
+    def setUp(self):
+        self.srcfp = os.path.join(testdata_dir, 'ortho', 'negative_sun_elev', 'WV01_20170202140121_102001005F203900_17FEB02140121-P1BS-509992218030_01_P001.ntf')
+        self.dstdir = os.path.join(__test_dir__, 'tmp_output')
+        if not os.path.isdir(self.dstdir):
+            os.makedirs(self.dstdir)
+
+    def test_raises_error(self):
+        test_args = ProcessArgs(3857, 'au')
+        info = ortho_functions.ImageInfo(self.srcfp, self.dstdir, self.dstdir, test_args)
+        with self.assertRaises(utils.InvalidSunElevation):
+            ortho_functions.get_calibration_factors(info)
+
+    def test_no_stretch(self):
+        test_args = ProcessArgs(3857, 'ns')
+        info = ortho_functions.ImageInfo(self.srcfp, self.dstdir, self.dstdir, test_args)
+        ortho_functions.get_calibration_factors(info)
 
 class TestRPCHeight(unittest.TestCase):
     def setUp(self):
