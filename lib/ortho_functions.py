@@ -2132,6 +2132,9 @@ def get_dg_calib_dict(metad_etree, stretch):
         else:
             raise utils.InvalidMetadataError(f"Metadata file is missing the MEANSUNEL and SUNEL xml tags")
 
+        if sunEl < 0 and stretch != "ns":
+            raise utils.InvalidSunElevation("Negative sun elevation angle is only supported if no-stretch is selected")
+
         sun_angle = 90.0 - sunEl
         des = calc_earth_sun_dist(datetime.strptime(t, "%Y-%m-%dT%H:%M:%S.%fZ"))
 
@@ -2217,6 +2220,8 @@ def get_ik_calib_dict(metad_etree, metafile, regex, stretch):
     for band in range(0, 5, 1):
         sunElStr = metadict["Sun_Angle_Elevation"]
         sunAngle = float(sunElStr.strip(" degrees"))
+        if sunAngle < 0 and stretch == 'ns':
+            raise utils.InvalidSunElevation("Negative sun elevation angle is only supported if no-stretch is selected")
         theta = 90.0 - sunAngle
         datestr = metadict["Acquisition_Date_Time"]  # 2011-12-09 18:43 GMT
         d = datetime.strptime(datestr, "%Y-%m-%d %H:%M GMT")
@@ -2301,6 +2306,8 @@ def get_ge_calib_dict(metad_etree, stretch):
     metadict = get_ge_metadata(metad_etree)
     for band in metadict["gain"].keys():
         sunAngle = float(metadict["firstLineSunElevationAngle"])
+        if sunAngle < 0 and stretch == 'ns':
+            raise utils.InvalidSunElevation("Negative sun elevation angle is only supported if no-stretch is selected")
         theta = 90.0 - sunAngle
         datestr = metadict["originalFirstLineAcquisitionDateTime"]  # 2009-11-01T01:49:33.685421Z
         des = calc_earth_sun_dist(datetime.strptime(datestr, "%Y-%m-%dT%H:%M:%S.%fZ"))
