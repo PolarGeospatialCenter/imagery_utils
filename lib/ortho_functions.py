@@ -2021,7 +2021,7 @@ def check_image_auto_dem(geometry_wkt, spatial_ref, gpkg_path):
                     selected_dem = dem
                     selected_rank = dem['rank']
             except Exception as e:
-                raise RuntimeError("Error processing feature in layer %d: %s", i, e)
+                raise RuntimeError(f"Error processing feature in auto DEM layer {i}: {e}")
             dem = layer.GetNextFeature()
 
 
