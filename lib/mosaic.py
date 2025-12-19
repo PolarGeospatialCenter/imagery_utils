@@ -722,297 +722,6 @@ class ImageInfo:
         self.median = median
         
         
-class DemInfo:
-    def __init__(self, src, frmt, srs=None):
-        
-        self.frmt = frmt  #image format (IMAGE,RECORD)
-        self.pairname = None
-        self.catid = None
-        self.catid2 = None
-        self.geom = None
-        self.sensor = None
-        self.acqdate = None
-        self.sunel = None
-        self.cloudcover = None
-        self.density = None
-        self.dem_id = None
-        self.region_id = None
-        
-        if frmt == 'IMAGE':
-            self.get_attributes_from_file(src)
-        elif frmt == 'RECORD':
-            self.get_attributes_from_record(src, srs)
-        else:
-            logger.error("Image format must be RECORD or IMAGE")
-        
-        
-    def get_attributes_from_record(self, feat, srs):
-                
-        self.proj = srs.ExportToWkt()
-       
-        # Fields from DG archive index 
-        i = feat.GetFieldIndex("AVSUNELEV")
-        if i != -1:
-            self.sunel = feat.GetFieldAsDouble(i)
-        if i == -1 or feat.GetFieldAsString(i) == '':
-            i = feat.GetFieldIndex("SUNEL1")
-            j = feat.GetFieldIndex("SUNEL2")
-            if i != -1 and j != -1:
-                self.sunel = min(feat.GetFieldAsDouble(i), feat.GetFieldAsDouble(j))
-
-        i = feat.GetFieldIndex("CLOUDCOVER")
-        if i != -1:
-            self.cloudcover = feat.GetFieldAsDouble(i)/100.0
-        i = feat.GetFieldIndex("PLATFORM")
-        if i != -1:
-            self.sensor = feat.GetFieldAsString(i)
-        i = feat.GetFieldIndex("PAIRNAME")
-        if i != -1:
-            self.pairname = feat.GetFieldAsString(i)
-
-        i = feat.GetFieldIndex("CATALOGID")
-        if i != -1:
-            self.catid = feat.GetFieldAsString(i)
-        if i == -1 or feat.GetFieldAsString(i) == '':
-            i = feat.GetFieldIndex("CATALOGID1")
-            if i != -1:
-                self.catid = feat.GetFieldAsString(i)
-
-        i = feat.GetFieldIndex("STEREOPAIR")
-        if i != -1:
-            self.catid2 = feat.GetFieldAsString(i)
-        if i == -1 or feat.GetFieldAsString(i) == '':
-            i = feat.GetFieldIndex("CATALOGID2")
-            if i != -1:
-                self.catid2 = feat.GetFieldAsString(i)
-
-        i = feat.GetFieldIndex("SENSOR")
-        if i != -1:
-            self.sensor = feat.GetFieldAsString(i)
-        
-        i = feat.GetFieldIndex("ACQDATE")
-        if i != -1:
-            date_str = feat.GetFieldAsString(i)
-            if date_str != '':
-                self.acqdate = datetime.strptime(date_str[:19], "%Y-%m-%d")
-
-        # Fields from SETSM indices
-        i = feat.GetFieldIndex("DENSITY")
-        if i != -1:
-            self.density = feat.GetFieldAsDouble(i)
-        i = feat.GetFieldIndex("DEM_ID")
-        if i != -1:
-            self.dem_id = feat.GetFieldAsString(i)
-        i = feat.GetFieldIndex("REGION_ID")
-        if i != -1:
-            self.region_id = feat.GetFieldAsString(i)
-        
-        geom = feat.GetGeometryRef()
-        self.geom = geom.Clone()
-        
-
-    def getScore(self, target_date=None):
-        
-        score = 0
-      
-        required_attribs1 = [
-            self.sunel,
-            self.cloudcover,
-            self.sensor,
-        ]
-
-        required_attribs2 = [
-            self.density,
-            self.dem_id,
-            self.sensor,
-        ]
-        
-        #### Test if all required values were found in metadata search
-        status1 = [val is None for val in required_attribs1]
-        status2 = [val is None for val in required_attribs2]
-
-        if sum(status1) != 0 and sum(status2) != 0:
-            logger.error("Cannot determine score for image {}:\n  Sun elev\t{}\n  Cloudcover\t{}\n  Sensor\t{}\n  "
-                         "Density\t{}", self.pairname, self.sunel, self.cloudcover, self.sensor, self.density)
-            score = -1
-            
-        elif self.sensor == 'QB02':
-            score = -1
-        
-        else:
-            
-            #### Test if acqdate if needed, get date difference
-            if target_date:
-                if self.acqdate is None:
-                    logger.error("Cannot get acqdate for image to determine date-based score: %s", self.srcfn)
-                    self.date_diff = -9999
-                    
-                else:
-                    #### Find nearest year for target day
-                    tdeltas = []
-                    target_month, target_day = target_date[0]
-                    for y in list(range(self.acqdate.year-1, self.acqdate.year + 2)):
-                        tdeltas.append(abs((datetime(y, target_month, target_day) - self.acqdate).days))
-                    
-                    self.date_diff = min(tdeltas)
-
-                #### Assign weights
-                ccwt = 75
-                sunelwt = 5
-                datediffwt = 20
-                densitywt = 80
-                
-            else:
-                ccwt = 90
-                sunelwt = 10
-                datediffwt = 0
-                densitywt = 100
-                self.date_diff = -9999
-
-            #### Handle nonesense or nodata cloud cover values
-            if self.cloudcover:
-                if self.cloudcover < 0 or self.cloudcover > 1:
-                    self.cloudcover = 0.5
-            
-                if self.cloudcover > 0.2:
-                    logger.debug("Stereopair too cloudy (>20 percent): %s --> %f", self.pairname, self.cloudcover)
-                    score = -1
-            
-            #### Handle ridiculously low sun el values
-            if self.sunel and self.sunel < 1:
-                logger.debug("Sun elevation too low (<1 degrees): %s --> %f", self.pairname, self.sunel)
-                score = -1
-                        
-            if not score == -1:
-                # determine score method
-                if sum(status1) == 0:
-                    score = ccwt * (1 - self.cloudcover) + sunelwt * (self.sunel / 90) + datediffwt * \
-                            ((183 - self.date_diff) / 183.0)
-                elif sum(status2) == 0:
-                    score = densitywt * self.density + datediffwt * ((183 - self.date_diff) / 183.0)
-        
-        self.score = score
-        return self.score
-
-        
-class DGInfo:
-    def __init__(self, src, frmt, srs=None):
-        
-        self.frmt = frmt  #image format (IMAGE,RECORD)
-        self.pairname = None
-        self.geom = None
-        self.sensor = None
-        self.acqdate = None
-        self.sunel = None
-        self.cloudcover = None
-        self.density = None
-        self.dem_id = None
-        
-        if frmt == 'RECORD':
-            self.get_attributes_from_record(src, srs)
-        else:
-            logger.error("Image format must be RECORD")
-
-    def get_attributes_from_record(self, feat, srs):
-                
-        self.proj = srs.ExportToWkt()
-       
-        # Fields from DG archive index 
-        i = feat.GetFieldIndex("AVSUNELEV")
-        if i != -1:
-            self.sunel = feat.GetFieldAsDouble(i)
-        i = feat.GetFieldIndex("CLOUDCOVER")
-        if i != -1:
-            self.cloudcover = feat.GetFieldAsDouble(i) / 100.0
-        i = feat.GetFieldIndex("PLATFORM")
-        if i != -1:
-            self.sensor = feat.GetFieldAsString(i)
-        i = feat.GetFieldIndex("CATALOGID")
-        if i != -1:
-            self.catid = feat.GetFieldAsString(i)
-        i = feat.GetFieldIndex("SENSOR")
-        if i != -1:
-            self.sensor = feat.GetFieldAsString(i)
-        
-        i = feat.GetFieldIndex("ACQDATE")
-        if i != -1:
-            date_str = feat.GetFieldAsString(i)
-            self.acqdate = datetime.strptime(date_str[:19], "%Y-%m-%d")
-        
-        geom = feat.GetGeometryRef()
-        self.geom = geom.Clone()
-
-    def getScore(self, target_date=None):
-        
-        score = 0
-      
-        required_attribs1 = [
-            self.sunel,
-            self.cloudcover,
-            self.sensor,
-        ]
-        
-        #### Test if all required values were found in metadata search
-        status1 = [val is None for val in required_attribs1]
-
-        if sum(status1) != 0:
-            logger.error("Cannot determine score for image %s:\n  Sun elev\t%f\n  Cloudcover\t%f\n  Sensor\t%s",
-                         self.pairname, self.sunel, self.cloudcover, self.sensor)
-            score = -1
-        
-        else:
-            
-            #### Test if acqdate if needed, get date difference
-            if target_date:
-                if self.acqdate is None:
-                    logger.error("Cannot get acqdate for image to determine date-based score: %s", self.srcfn)
-                    self.date_diff = -9999
-                    
-                else:
-                    #### Find nearest year for target day
-                    tdeltas = []
-                    target_month, target_day = target_date[0]
-                    for y in list(range(self.acqdate.year - 1, self.acqdate.year + 2)):
-                        tdeltas.append(abs((datetime(y, target_month, target_day) - self.acqdate).days))
-                    
-                    self.date_diff = min(tdeltas)
-            
-            
-                #### Assign weights
-                ccwt = 75
-                sunelwt = 5
-                datediffwt = 20
-                
-            else:
-                ccwt = 90
-                sunelwt = 10
-                datediffwt = 0
-                self.date_diff = -9999
-
-            #### Handle nonesense or nodata cloud cover values
-            if self.cloudcover:
-                if self.cloudcover < 0 or self.cloudcover > 1:
-                    self.cloudcover = 0.5
-            
-                if self.cloudcover > 0.2:
-                    logger.debug("Catid too cloudy (>20 percent): %s --> %f", self.pairname, self.cloudcover)
-                    score = -1
-            
-            #### Handle ridiculously low sun el values
-            if self.sunel and self.sunel < 1:
-                logger.debug("Sun elevation too low (<1 degrees): %s --> %f", self.pairname, self.sunel)
-                score = -1
-                        
-            if not score == -1:
-                # determine score method
-                if sum(status1) == 0:
-                    score = ccwt * (1 - self.cloudcover) + sunelwt * (self.sunel / 90) + datediffwt * \
-                            ((183 - self.date_diff) / 183.0)
-        
-        self.score = score
-        return self.score
-
-        
 class MosaicParams:
     pass
 
@@ -1122,7 +831,14 @@ def filter_images_by_geometry(imginfo_list, params):
 def getMosaicParameters(iinfo, options):
     
     params = MosaicParams()
-    
+    params.bands = options.bands if options.bands is not None else iinfo.bands
+    params.proj = iinfo.proj
+    params.datatype = iinfo.datatype
+    params.useExposure = options.use_exposure
+    params.max_cc = options.max_cc
+    params.min_sunel = options.min_sunel
+    params.include_all_ms = options.include_all_ms
+
     try:
         if options.resolution is not None:
             params.xres = options.resolution[0]
@@ -1134,10 +850,7 @@ def getMosaicParameters(iinfo, options):
         params.xres = iinfo.xres
         params.yres = iinfo.yres
        
-    params.bands = options.bands if options.bands is not None else iinfo.bands
-    params.proj = iinfo.proj
-    params.datatype = iinfo.datatype
-    params.useExposure = options.use_exposure
+
     
     if options.tday is not None:
         params.m = int(options.tday.split("-")[0])
@@ -1179,16 +892,9 @@ def getMosaicParameters(iinfo, options):
         else:
             params.xtilesize = None
             params.ytilesize = None
-        
-    if options.max_cc is not None:
-        params.max_cc = options.max_cc
-    else:
-        params.max_cc = 0.5
-    
+
     params.force_pan_to_multi = True if params.bands > 1 and options.force_pan_to_multi else False # determine if force pan to multi is applicable and true
 
-    params.include_all_ms = options.include_all_ms
-    
     try:
         params.median_remove = options.median_remove
     except AttributeError:

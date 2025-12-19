@@ -58,7 +58,9 @@ def main():
                              "a filepath: of file name patterns (text only, no wildcards or regexs) to exclude;"
                              "None: no exclude list")
     parser.add_argument("--max-cc", type=float, default=0.2,
-                        help="maximum fractional cloud cover (0.0-1.0, default 0.5)")
+                        help="maximum fractional cloud cover (0.0-1.0)")
+    parser.add_argument("--min-sunel", type=int, default=10,
+                        help="minimum sun angle in degrees (default=10)")
     parser.add_argument("--include-all-ms", action="store_true", default=False,
                         help="include all multispectral imagery, even if the imagery has differing numbers of bands")
     parser.add_argument("--min-contribution-area", type=int, default=20000000,
