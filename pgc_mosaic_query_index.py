@@ -444,7 +444,9 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
                     
                     #### Write textfiles
                     rn_fromtape_basedir = os.path.join(dstdir, "renamed_fromtape")
-                    rn_fromtape_path = os.path.join(rn_fromtape_basedir, t.name)
+                    # no longer need tile name in filepaths written to orig.txt, tape pull for all tiles output to
+                    # same dir. Still need tile subdirectories for ortho
+                    rn_fromtape_path = os.path.abspath(rn_fromtape_basedir)
 
                     otxt = open(otxtpath, 'w')
                     ttxt = open(otxtpath_ontape, 'w')
