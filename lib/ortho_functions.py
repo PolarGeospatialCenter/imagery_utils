@@ -26,7 +26,7 @@ logger = logging.getLogger("logger")
 logger.setLevel(logging.DEBUG)
 
 DGbandList = ['BAND_P', 'BAND_C', 'BAND_B',  # Pan, Visible, NIR, Pansharpened: P*, M*, and S* product codes
-              'BAND_G', 'BAND_Y', 'BAND_R', 'BAND_RE', 'BAND_N', 'BAND_N2',
+              'BAND_G', 'BAND_Y', 'BAND_R', 'BAND_RE', 'BAND_RE1', 'BAND_RE2', 'BAND_N', 'BAND_N2',
               'BAND_S1', 'BAND_S2', 'BAND_S3', 'BAND_S4', 'BAND_S5',  # SWIR: A* product codes
               'BAND_S6', 'BAND_S7', 'BAND_S8',
               'BAND_DC', 'BAND_CG', 'BAND_W2', 'BAND_CRS', 'BAND_SNO',  # CAVIS: C* product codes
@@ -118,7 +118,27 @@ EsunDict = {  # Spectral Irradiance in W/m2/um
     'IK01_BAND_B': 1921.26,
     'IK01_BAND_G': 1803.28,
     'IK01_BAND_R': 1517.76,
-    'IK01_BAND_N': 1145.8
+    'IK01_BAND_N': 1145.8,
+
+    'LG01_BAND_P': 1627.669,
+    'LG01_BAND_C': 1756.808,
+    'LG01_BAND_B': 2020.761,
+    'LG01_BAND_G': 1877.814,
+    'LG01_BAND_Y': 1750.532,
+    'LG01_BAND_R': 1551.612,
+    'LG01_BAND_RE1': 1413.868,
+    'LG01_BAND_RE2': 1298.429,
+    'LG01_BAND_N': 1047.56,
+
+    'LG02_BAND_P': 1630.911,
+    'LG02_BAND_C': 1748.182,
+    'LG02_BAND_B': 2021.502,
+    'LG02_BAND_G': 1878.494,
+    'LG02_BAND_Y': 1745.874,
+    'LG02_BAND_R': 1552.111,
+    'LG02_BAND_RE1': 1411.14,
+    'LG02_BAND_RE2': 1292.678,
+    'LG02_BAND_N': 1049.999,
 }
 
 GainDict = {
@@ -180,7 +200,27 @@ GainDict = {
     'IK01_BAND_B': 1.073,
     'IK01_BAND_G': 0.990,
     'IK01_BAND_R': 0.940,
-    'IK01_BAND_N': 1.043
+    'IK01_BAND_N': 1.043,
+
+    'LG01_BAND_P': 1,
+    'LG01_BAND_C': 1,
+    'LG01_BAND_B': 1,
+    'LG01_BAND_G': 1,
+    'LG01_BAND_Y': 1,
+    'LG01_BAND_R': 1,
+    'LG01_BAND_RE1': 1,
+    'LG01_BAND_RE2': 1,
+    'LG01_BAND_N': 1,
+
+    'LG02_BAND_P': 1,
+    'LG02_BAND_C': 1,
+    'LG02_BAND_B': 1,
+    'LG02_BAND_G': 1,
+    'LG02_BAND_Y': 1,
+    'LG02_BAND_R': 1,
+    'LG02_BAND_RE1': 1,
+    'LG02_BAND_RE2': 1,
+    'LG02_BAND_N': 1,
 }
 
 BiasDict = {
@@ -242,7 +282,27 @@ BiasDict = {
     'IK01_BAND_B': -9.699,
     'IK01_BAND_G': -7.937,
     'IK01_BAND_R': -4.767,
-    'IK01_BAND_N': -8.869
+    'IK01_BAND_N': -8.869,
+
+    'LG01_BAND_P': 0,
+    'LG01_BAND_C': 0,
+    'LG01_BAND_B': 0,
+    'LG01_BAND_G': 0,
+    'LG01_BAND_Y': 0,
+    'LG01_BAND_R': 0,
+    'LG01_BAND_RE1': 0,
+    'LG01_BAND_RE2': 0,
+    'LG01_BAND_N': 0,
+
+    'LG02_BAND_P': 0,
+    'LG02_BAND_C': 0,
+    'LG02_BAND_B': 0,
+    'LG02_BAND_G': 0,
+    'LG02_BAND_Y': 0,
+    'LG02_BAND_R': 0,
+    'LG02_BAND_RE1': 0,
+    'LG02_BAND_RE2': 0,
+    'LG02_BAND_N': 0,
 }
 
 # Defines the relationship between the output type and the NoData value that will be assigned to the destination rasters
@@ -2179,30 +2239,29 @@ def get_dg_calib_dict(metad_etree, stretch):
             if satband not in EsunDict:
                 logger.warning("Cannot find sensor and band in Esun lookup table: %s.  Try using --stretch "
                                "ns.", satband)
-                return None
             else:
                 Esun = EsunDict[satband]
                 gain = GainDict[satband]
                 bias = BiasDict[satband]
 
-            abscal, effbandw = abscalfact_dict[band]
+                abscal, effbandw = abscalfact_dict[band]
 
-            rad_fact = units_factor * gain * abscal / effbandw
-            refl_fact = units_factor * (gain * abscal * des ** 2 * math.pi) / \
-                        (Esun * math.cos(math.radians(sun_angle)) * effbandw)
-            refl_offset = units_factor * (bias * des ** 2 * math.pi) / (Esun * math.cos(math.radians(sun_angle)))
+                rad_fact = units_factor * gain * abscal / effbandw
+                refl_fact = units_factor * (gain * abscal * des ** 2 * math.pi) / \
+                            (Esun * math.cos(math.radians(sun_angle)) * effbandw)
+                refl_offset = units_factor * (bias * des ** 2 * math.pi) / (Esun * math.cos(math.radians(sun_angle)))
 
-            logger.debug("%s: \n\tabsCalFactor %f\n\teffectiveBandwidth %f\n\tEarth-Sun distance %f"
-                            "\n\tEsun %f\n\tSun angle %f\n\tSun elev %f\n\tGain %f\n\tBias %f"
-                            "\n\tUnits factor %f\n\tReflectance correction %f\n\tReflectance offset %f"
-                            "\n\tRadiance correction %f\n\tRadiance offset %f", satband, abscal, effbandw,
-                            des, Esun, sun_angle, sunEl, gain, bias, units_factor, refl_fact, refl_offset,
-                            rad_fact, bias)
+                logger.debug("%s: \n\tabsCalFactor %f\n\teffectiveBandwidth %f\n\tEarth-Sun distance %f"
+                                "\n\tEsun %f\n\tSun angle %f\n\tSun elev %f\n\tGain %f\n\tBias %f"
+                                "\n\tUnits factor %f\n\tReflectance correction %f\n\tReflectance offset %f"
+                                "\n\tRadiance correction %f\n\tRadiance offset %f", satband, abscal, effbandw,
+                                des, Esun, sun_angle, sunEl, gain, bias, units_factor, refl_fact, refl_offset,
+                                rad_fact, bias)
 
-            if stretch == "rd":
-                calibDict[band] = (rad_fact, bias)
-            else:
-                calibDict[band] = (refl_fact, refl_offset)
+                if stretch == "rd":
+                    calibDict[band] = (rad_fact, bias)
+                else:
+                    calibDict[band] = (refl_fact, refl_offset)
 
     # return correction factor and offset
     return calibDict
