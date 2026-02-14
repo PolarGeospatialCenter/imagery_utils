@@ -1802,7 +1802,7 @@ def warp_image(args, info, gdal_thread_count=1):
 
                 #### GDALWARP Command
                 cmd = 'gdalwarp {} -srcnodata "{}" -dstnodata "{}" -of GTiff -ot Float32 {}{}{}{}-co "TILED=YES" -co "BIGTIFF=YES" ' \
-                      '-t_srs "{}" -r {} -et 0.01 -rpc -to "{}" "{}" "{}"'.format(
+                      '-t_srs "{}" -r {} -rpc -to "{}" "{}" "{}"'.format(
                         config_options,
                         " ".join(src_nodata_list),
                         " ".join(dst_nodata_list),
