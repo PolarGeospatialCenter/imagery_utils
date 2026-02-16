@@ -51,7 +51,9 @@ def main():
                              "a filepath: of file name patterns (text only, no wildcards or regexs) to exclude;"
                              "None: no exclude list")
     parser.add_argument("--max-cc", type=float, default=0.2,
-                        help="maximum fractional cloud cover (0.0-1.0, default 0.2)")
+                        help="maximum fractional cloud cover (0.0-1.0)")
+    parser.add_argument("--min-sunel", type=int, default=10,
+                        help="minimum sun angle in degrees (default=10)")
     parser.add_argument("--include-all-ms", action="store_true", default=False,
                         help="include all multispectral imagery, even if the imagery has differing numbers of bands")
     parser.add_argument("--min-contribution-area", type=int, default=20000000,
@@ -118,7 +120,6 @@ def main():
                 tyear_test = datetime(year=int(args.tyear), month=1, day=1)
             except ValueError:
                 parser.error("Supplied year {0} is not valid".format(args.tyear))
-                sys.exit(1)
 
         elif len(str(args.tyear)) == 9:
             if '-' in args.tyear:
@@ -130,17 +131,14 @@ def main():
                         tyear_test = datetime(year=yy, month=1, day=1)
                     except ValueError:
                         parser.error("Supplied year {0} in range {1} is not valid".format(yy, args.tyear))
-                        sys.exit(1)
 
             else:
                 parser.error("Supplied year range {0} is not valid; should be like: 2015 OR 2015-2017"
                              .format(args.tyear))
-                sys.exit(1)
 
         else:
             parser.error("Supplied year {0} is not valid, or its format is incorrect; should be 4 digits for single "
                          "year (e.g., 2017), eight digits and dash for range (e.g., 2015-2017)".format(args.tyear))
-            sys.exit(1)
 
     ## validate bit depth options
     bit_depth_options = {"Byte":"u08",
@@ -228,11 +226,12 @@ def main():
         
         
 def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
-    
-    
-    otxtpath = os.path.join(dstdir, "{}_{}_orig.txt".format(os.path.basename(csvpath)[:-4], t.name))
-    mtxtpath = os.path.join(dstdir, "{}_{}_ortho.txt".format(os.path.basename(csvpath)[:-4], t.name))
-    
+
+    querypath = os.path.join(dstdir, "query")
+    otxtpath = os.path.join(querypath, "{}_{}_orig.txt".format(args.mosaic, t.name))
+    otxtpath_ontape = os.path.join(querypath, "{}_{}_orig_ontape.csv".format(args.mosaic, t.name))
+    mtxtpath = os.path.join(querypath, "{}_{}_ortho.txt".format(args.mosaic, t.name))
+
     if os.path.isfile(otxtpath) and os.path.isfile(mtxtpath) and args.overwrite is False:
         logger.info("Tile %s processing files already exist", t.name)
     else:
@@ -280,7 +279,7 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
                     # logger.info([layerDef.GetFieldDefn(i).GetName() for i in range(layerDef.GetFieldCount())])
                     logger.info("Total input feature count with spatial filter: {}".format(len(lyr)))
                     lyr.SetAttributeFilter("prod_code = 'P1BS'")
-                    logger.info("P1BS feature count: {}".format(len(lyr)))
+                    logger.info("P1BS subset of selected features: {}".format(len(lyr)))
 
                     # when looping through features below, if args.require_pan: check if iinfo.pair_scene_id in scene_ids list,
                     # add it to pairs list, then loop through pairs list to add those images to
@@ -302,9 +301,7 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
                 feat = lyr.GetNextFeature()
                 
                 imginfo_list1 = []
-                
                 while feat:
-                    
                     iinfo = mosaic.ImageInfo(feat, "RECORD", srs=s_srs)
                     # skip panchromatic if require_pan
                     # evaluate multispectral images for mosaic coverage
@@ -389,27 +386,21 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
                 else:
                     imginfo_list3 = list(imginfo_list2)
                     
-                ####  Overlay geoms and remove non-contributors
+                ## Overlay geoms and remove non-contributors
                 logger.debug("Overlaying images to determine contributors")
                 contribs = mosaic.determine_contributors(imginfo_list3, t.geom, args.min_contribution_area)
                                             
                 logger.info("Number of contributing images: %i", len(contribs))
             
                 if len(contribs) > 0:
-                    
+                    os.makedirs(querypath, exist_ok=True)
                     if args.build_shp:
                         
-                        #######################################################
-                        #### Create Shp
-                        
-                        shp = os.path.join(dstdir, "{}_{}_imagery.shp".format(args.mosaic, t.name))
-                   
+                        ## Create Shp
+                        shp = os.path.join(querypath, "{}_{}_imagery.shp".format(args.mosaic, t.name))
                         logger.debug("Creating shapefile of geoms: %s", shp)
-                    
                         fields = [("IMAGENAME", ogr.OFTString, 100), ("SCORE", ogr.OFTReal, 0)]
-                        
                         OGR_DRIVER = "ESRI Shapefile"
-                        
                         ogrDriver = ogr.GetDriverByName(OGR_DRIVER)
                         if ogrDriver is None:
                             logger.debug("OGR: Driver %s is not available", OGR_DRIVER)
@@ -438,32 +429,24 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
                                 logger.debug("ERROR: Failed to create field: %s", fld)
                         
                         for iinfo, geom in contribs:
-                        
                             logger.debug("Image: %s", iinfo.srcfn)
-                            
                             feat = ogr.Feature(lyr.GetLayerDefn())
-                            
                             feat.SetField("IMAGENAME", iinfo.srcfn)
                             feat.SetField("SCORE", iinfo.score)
-    
                             feat.SetGeometry(geom)
-                            if lyr.CreateFeature(feat) != 0:
-                                logger.debug("ERROR: Could not create feature for image %s", iinfo.srcfn)
+                            try:
+                                lyr.CreateFeature(feat)
+                            except RuntimeError as e:
+                                logger.warning("Could not create feature for image %s: %s", iinfo.srcfn, e)
                             else:
                                 logger.debug("Created feature for image: %s", iinfo.srcfn)
-                                
                             feat.Destroy()
                     
                     #### Write textfiles
-                    if not os.path.isdir(dstdir):
-                        os.makedirs(dstdir)
-                    
-                    otxtpath = os.path.join(dstdir, "{}_{}_orig.txt".format(args.mosaic, t.name))
-                    otxtpath_ontape = os.path.join(dstdir, "{}_{}_orig_ontape.csv".format(args.mosaic, t.name))
-                    mtxtpath = os.path.join(dstdir, "{}_{}_ortho.txt".format(args.mosaic, t.name))
-
                     rn_fromtape_basedir = os.path.join(dstdir, "renamed_fromtape")
-                    rn_fromtape_path = os.path.join(rn_fromtape_basedir, t.name)
+                    # no longer need tile name in filepaths written to orig.txt, tape pull for all tiles output to
+                    # same dir. Still need tile subdirectories for ortho
+                    rn_fromtape_path = os.path.abspath(rn_fromtape_basedir)
 
                     otxt = open(otxtpath, 'w')
                     ttxt = open(otxtpath_ontape, 'w')
@@ -503,6 +486,7 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
                             logger.warning("Image does not exist: %s", iinfo.srcfp)
                             
                         if iinfo.status == "tape":
+                            # TODO: this "tape" logic does not belong in the public repo
                             tape_ct += 1
                             ttxt.write("{0},{1},{2},{3},{4}\n".format(iinfo.scene_id, iinfo.strip_id, iinfo.catid, iinfo.srcfp, iinfo.status))
                             # get srcfp with file extension
@@ -538,32 +522,12 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
                         os.remove(otxtpath_ontape)
 
                     else:
-                        # make output dirs from tape
-                        if not os.path.isdir(rn_fromtape_basedir):
-                            os.mkdir(rn_fromtape_basedir)
-                        if not os.path.isdir(rn_fromtape_path):
-                            os.mkdir(rn_fromtape_path)
-
-                        tape_tmp = os.path.join(dstdir, "{0}_{1}_tmp".format(args.mosaic, t.name))
-                        if not os.path.isdir(tape_tmp):
-                            os.mkdir(tape_tmp)
-                        logger.warning("{0} scenes are not accessible, as they are on tape. Please use ir.py to pull "
+                        # Prompt user to pull scenes from tape
+                        logger.info("{0} scenes are not accessible, as they are on tape. Please use ir.py to pull "
                                        "scenes using file '{1}'. They must be put in directory '{2}', as file '{3}' "
                                        "contains hard-coded paths to said files (necessary to perform "
-                                       "orthorectification). Please set a --tmp path (use '{4}').\n"
-                                       "Note that if some (or all) scenes have already been pulled from tape, ir.py "
-                                       "will not pull them again.\n".
-                                       format(tape_ct, otxtpath_ontape, rn_fromtape_path, otxtpath, tape_tmp))
-
-                        tape_log = "{0}_{1}_ir_log_{2}.log".format(args.mosaic, t.name,
-                                                                   datetime.today().strftime("%Y%m%d%H%M%S"))
-                        root_pgclib_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                                                        "pgclib", "")
-                        logger.info("Suggested ir.py command:\n\n"
-                                    ""
-                                    "python {}ir.py -i {} -o {} --tmp {} -tm link 2>&1 | tee {}"
-                        .format(root_pgclib_path, otxtpath_ontape, rn_fromtape_path, tape_tmp,
-                                os.path.join(dstdir, tape_log)))
+                                       "orthorectification).".
+                                       format(tape_ct, otxtpath_ontape, rn_fromtape_path, otxtpath))
 
 
 if __name__ == '__main__':
