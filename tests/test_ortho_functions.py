@@ -51,17 +51,18 @@ class TestReadMetadata(unittest.TestCase):
             ('WV03_20150526221639_104A01000C51A100_15MAY26221639-A1BS-500802200030_01_P001.xml', True, True), # SWIR
             ('WV03_20190114103353_104C0100462B2500_19JAN14103353-C1BA-502817502010_01_P001.xml', True, True), # CAVIS A
             ('WV03_20190114103355_104C0100462B2500_19JAN14103355-C1BB-502817502010_01_P001.xml', True, True), # CAVIS B
+            ('LG01_20250812153720_B110001102369000_25AUG12153720-M1BS-050463930010_01_P001.xml', True, True), # Legion 1
         )
 
         dg_valid_data_range = {
             'rf': {
                 'BAND_P': (Band_data_range(0.0005, 0.0015, -0.036, 0)),  # pan
-                'BAND_B': (Band_data_range(0.000447, 0.0012, -0.1307, 0.0012)),  # blue
+                'BAND_B': (Band_data_range(0.000042, 0.0012, -0.1307, 0.0012)),  # blue
                 'BAND_S1': (Band_data_range(0.00005, 0.0015, 0, 0)),  # 1st SWIR band
             },
             'rd': {
                 'BAND_P': (Band_data_range(0.08, 0.15, -5.55, 0)),
-                'BAND_B': (Band_data_range(0.17, 0.33,  -9.84, 0)),
+                'BAND_B': (Band_data_range(0.02, 0.33,  -9.84, 0)),
                 'BAND_S1': (Band_data_range(0.0045, 0.15, 0, 0)),
             }
         }
