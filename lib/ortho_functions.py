@@ -2205,6 +2205,9 @@ def get_dg_calib_dict(metad_etree, stretch):
                 elem = nodeBAND.find('ABSCALFACTOR')
                 if elem is not None:
                     abscal = float(elem.text)
+                    if abscal < 0:
+                        raise utils.InvalidMetadataError(
+                            f"Metadata file includes invalid ABSCALFACTOR xml tag: {abscal}")
                 else:
                     raise utils.InvalidMetadataError(
                         f"Metadata file is missing the ABSCALFACTOR xml tag")

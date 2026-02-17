@@ -52,6 +52,7 @@ class TestReadMetadata(unittest.TestCase):
             ('WV03_20190114103353_104C0100462B2500_19JAN14103353-C1BA-502817502010_01_P001.xml', True, True), # CAVIS A
             ('WV03_20190114103355_104C0100462B2500_19JAN14103355-C1BB-502817502010_01_P001.xml', True, True), # CAVIS B
             ('LG01_20250812153720_B110001102369000_25AUG12153720-M1BS-050463930010_01_P001.xml', True, True), # Legion 1
+            ('LG02_20240927155103_B12000110059ED00_24SEP27155103-M2AS-200006033301_01_P001.xml', True, False), # Legion 2, invalid calibration
         )
 
         dg_valid_data_range = {
@@ -127,7 +128,6 @@ def stretch_params_method(test_obj, file_list, stretch, valid_data_range, test_b
     # Test stretch factor and offset
     metadata_files = [(os.path.join(test_obj.srcdir, m), r1, r2) for m, r1, r2 in file_list]
     for mdf, is_readable, is_usable in metadata_files:
-        # print(f'{mdf}: {is_readable} {is_usable}')
         metad = None
         calib_dict = {}
         img_name = os.path.basename(mdf).replace('metadata.txt', 'blu_0000000.ntf')
