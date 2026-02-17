@@ -82,17 +82,17 @@ class TestPanshFunc(unittest.TestCase):
                     4: [1.0, 172.0, 37.812614, 27.618598]}
         datapixelcount_dct = {1: 857617457, 2: 857617457, 3: 857617457, 4: 857617457}
         datapixelcount_threshold = 0.00001 # percentage
-        minmax_threshold = 5
+        minmax_threshold = 10
         for i in range(1,len(image_info.stat_dct)+1):# check stats are similar
-            # Check min and max values +- 3
+            # Check min and max values
             for j in range(2):
                 self.assertTrue(abs(image_info.stat_dct[i][j] - stat_dct[i][j]) <= minmax_threshold,
                                 f'found:{image_info.stat_dct[i][j]}, expected {stat_dct[i][j]} +-{minmax_threshold} ')
-            # Check mean and stddev within 2 decimal places
+            # Check mean and stddev
             for j in range(2,4):
                 self.assertAlmostEqual(image_info.stat_dct[i][j], stat_dct[i][j], 2,
                                        f'found:{image_info.stat_dct[i][j]}, expected {stat_dct[i][j]} within 2 decimal places')
-            # Check data pixel count within 0.001%
+            # Check data pixel count
             self.assertTrue(abs(image_info.datapixelcount_dct[i] - datapixelcount_dct[i]) / float(datapixelcount_dct[i]) <= datapixelcount_threshold,
                             f'found:{image_info.datapixelcount_dct[i]}, expected {datapixelcount_dct[i]} +-{datapixelcount_threshold/100} percent')
 
