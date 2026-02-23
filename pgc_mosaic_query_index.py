@@ -513,7 +513,7 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
                             args.bit_depth
                         )
                         
-                        mtxt.write(os.path.join(dstdir, 'ortho', t.name, m_fn) + "\n")
+                        mtxt.write(os.path.join(dstdir, 'ortho', m_fn) + "\n")
  
                     otxt.close()
 
