@@ -711,12 +711,40 @@ def exec_pansharpen(image_pair, pansh_dstfp, args, orig_res):
 
     else:
         co = ''
+
+    # add specific pansharpening weights for WV02 and WV03 images
+    if "WV02" in mul_basename or "WV03" in mul_basename:
+        red_wt = ortho_functions.WV03_BAND_WEIGHT_DICT['RED']
+        green_wt = ortho_functions.WV03_BAND_WEIGHT_DICT['GREEN']
+        blue_wt = ortho_functions.WV03_BAND_WEIGHT_DICT['BLUE']
+        nir_wt = ortho_functions.WV03_BAND_WEIGHT_DICT['NEAR_IR1']
+        if args.rgb:
+            # set rgb weights
+            band_args = '-b 5 -b 3 -b 2 '
+            weight_args = '-w {0} -w {1} -w {2} '.format(red_wt, green_wt, blue_wt)
+        elif args.bgrn:
+            # set 4-band weights
+            band_args = '-b 2 -b 3 -b 5 -b 7 '
+            weight_args = '-w {0} -w {1} -w {2} -w {3}'.format(blue_wt, green_wt, red_wt, nir_wt)
+        else:
+            # 8-band weights - use WV03 weights for both WV02 and WV03
+            # TODO: check number of bands to make sure this 8-band assumption is valid
+            band_args = ''
+            weight_args = ''
+            for value in ortho_functions.WV03_BAND_WEIGHT_DICT.values():
+                weight_args += '-w {} '.format(value)
+
+    else:
+        band_args = ''
+        weight_args = ''
     
     logger.info("Pansharpening multispectral image")
     if os.path.isfile(pan_local_dstfp) and os.path.isfile(mul_local_dstfp):
         if not os.path.isfile(pansh_local_dstfp):
-            cmd = '{}gdal_pansharpen{} -of {} {} {} "{}" "{}" "{}"'.\
-                format(conda_prefix, py_ext, args.format, pan_threading, co, pan_local_dstfp, mul_local_dstfp, pansh_local_dstfp)
+            cmd = '{}gdal_pansharpen{} -of {} {} {} {} {} "{}" "{}" "{}"'.\
+                format(conda_prefix, py_ext, args.format, pan_threading, co, band_args, weight_args,
+                       pan_local_dstfp, mul_local_dstfp, pansh_local_dstfp)
+            logger.info(cmd)
             try:
                 taskhandler.exec_cmd(cmd)
             except Exception as e:

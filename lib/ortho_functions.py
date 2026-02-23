@@ -278,6 +278,16 @@ SWIR_CAVIS_IMAGE_TYPES = [
     ImageType.CAVIS
 ]
 
+WV03_BAND_WEIGHT_DICT = {
+    'COASTAL_BLUE': 0.005,
+    'BLUE': 0.142,
+    'GREEN': 0.209,
+    'YELLOW': 0.144,
+    'RED': 0.234,
+    'RED_EDGE': 0.157,
+    'NEAR_IR1': 0.116,
+    'NEAR_IR2': 0
+}
 
 class ImageInfo:
     def __init__(self, srcfp, dstdir, wd, args):
