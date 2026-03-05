@@ -48,6 +48,8 @@ def main():
                              "for contrast")
     parser.add_argument("--wd",
                         help="scratch space (default is mosaic directory)")
+    parser.add_argument("-f", "--format", choices=mosaic.MOSAIC_FORMATS.keys(), default="GTiff",
+                        help="output to the given format (default=GTiff)")
     parser.add_argument("--gtiff-compression", choices=mosaic.GTIFF_COMPRESSIONS, default="lzw",
                         help="GTiff compression type. Default=lzw ({})".format(','.join(mosaic.GTIFF_COMPRESSIONS)))
     parser.add_argument("--skip-cmd-txt", action='store_true', default=True,
@@ -189,18 +191,24 @@ def main():
         ####  Write to Compressed file
         if os.path.isfile(localtile1):
             if args.gtiff_compression == 'lzw':
-                compress_option = '-co "compress=lzw"'
+                compress_option = '-co "compress=lzw" -co PREDICTOR=YES '
             elif args.gtiff_compression == 'jpeg95':
                 compress_option = '-co "compress=jpeg" -co "jpeg_quality=95"'
-                
-            cmd = 'gdal_translate -stats -of GTiff {} -co "PHOTOMETRIC=MINISBLACK" -co "TILED=YES" -co ' \
-                  '"BIGTIFF=YES" "{}" "{}"'.format(compress_option, localtile1, localtile2)
+            elif args.gtiff_compression == 'jpeg75':
+                compress_option = '-co COMPRESS=JPEG -co QUALITY=75 '
+            elif args.gtiff_compression == 'zstd':
+                compress_option = '-co COMPRESS=ZSTD -co PREDICTOR=YES '
+
+            ### TODO: update "PHOTOMETRIC" setting? MINISBLACK is default, except for 3/4 band then RGB
+            cmd = 'gdal_translate -stats -of {} {} -co "PHOTOMETRIC=MINISBLACK" -co "TILED=YES" -co ' \
+                  '"BIGTIFF=YES" "{}" "{}"'.format(args.format.key, compress_option, localtile1, localtile2)
             taskhandler.exec_cmd(cmd)
         
-        ####  Build Pyramids        
-        if os.path.isfile(localtile2):
-            cmd = 'gdaladdo "{}" 2 4 8 16 30'.format(localtile2)
-            taskhandler.exec_cmd(cmd)
+        ####  Build Pyramids
+        if not args.format.key == "COG":
+            if os.path.isfile(localtile2):
+                cmd = 'gdaladdo "{}" 2 4 8 16 30'.format(localtile2)
+                taskhandler.exec_cmd(cmd)
         
         #### Copy tile to destination
         if os.path.isfile(localtile2):

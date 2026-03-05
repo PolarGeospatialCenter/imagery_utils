@@ -19,7 +19,8 @@ logger.setLevel(logging.DEBUG)
 
 MODES = ["ALL", "MOSAIC", "SHP", "TEST"]
 EXTS = [".tif", ".ntf", ".vrt"]
-GTIFF_COMPRESSIONS = ["jpeg95", "lzw"]
+GTIFF_COMPRESSIONS = ["jpeg95", "lzw", "jpeg75", "zstd"]
+MOSAIC_FORMATS = {'GTiff': '.tif', 'COG': '.tif'}
 
 #class Attribs:
 #    def __init__(self,dAttribs):
