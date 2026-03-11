@@ -629,6 +629,11 @@ class ImageInfo:
                             logger.error("Cannot get bgrn bands from a %i band image", self.bands)
                             rc = 1
 
+                    # check if band count is compatible with compression - JPEG allows only 1 or 3 bands (COGs) or RGBAlpha for GeoTiff
+                    if args.gtiff_compression in ["jpeg95", "jpeg75"] and self.bands not in [1, 3]:
+                        logger.error("JPEG compression is only compatible with 1 and 3-band imagery")
+                        rc = 1
+
                     if self.stretch == 'au':
                         # SWIR AND CAVIS should use the rf stretch
                         if self.vendor == Vendor.DG and self.image_type in [ImageType.SWIR, ImageType.CAVIS]:
@@ -843,11 +848,11 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
             logger.error('Output type UInt16 is not reasonable with modified reflectance (mr stretch)')
             err = 1
 
-        if args.gtiff_compression == 'jpeg95' and args.outtype == OutputType.UINT16.value:
-            logger.error('Output type UInt16 is not compatible with jpeg compression')
+        if ((args.gtiff_compression == 'jpeg95' or args.gtiff_compression == 'jpeg75') and
+                (args.outtype == OutputType.UINT16.value or args.outtype == OutputType.FLOAT32.value)):
+            logger.error('Only output type Byte is compatible with jpeg compression')
             err = 1
 
-        #TODO: add COG compression logic checks here for input args
 
         ## Check if image is type and stretch are appropriate
         if info.prod_code:
@@ -1358,28 +1363,8 @@ def calc_stats(args, info):
 
     # Set COG creation options
     elif args.format == 'COG':
-        # default/universal COG settings
-        co = '-co BIGTIFF=YES -co OVERVIEW_RESAMPLING=CUBIC '
-
-        # 8bit
-        if args.outtype == OutputType.BYTE.value:
-            co += '-co BLOCKSIZE=1024 '
-            if args.gtiff_compression == 'jpeg95':
-                co += '-co COMPRESS=JPEG -co QUALITY=95 '
-            elif args.gtiff_compression == 'jpeg75':
-                # GDAL COG default JPEG quality is 75, minimal visual difference from 90 but much smaller files size
-                co += '-co COMPRESS=JPEG -co QUALITY=75 '
-            elif args.gtiff_compression == 'zstd':
-                co += '-co COMPRESS=ZSTD -co PREDICTOR=YES '
-            elif args.gtiff_compression == 'lzw':
-                # GDAL COG default compression is LZW
-                co += '-co COMPRESS=LZW -co PREDICTOR=YES '
-            # TODO: should we make ZSTD the default or use the GDAL LZW default (current default in this script, too)?
-
-        # UInt16 and Float32
-        elif args.outtype == OutputType.UINT16.value or args.outtype == OutputType.FLOAT32.value:
-            # predictor defaults to 2 for int and 3 for float
-            co += '-co COMPRESS=ZSTD -co ZSTD_LEVEL=22 -co BLOCKSIZE=512 -co PREDICTOR=YES '
+        co = get_cog_creation_options(args.outtype, args.gtiff_compression)
+        logger.debug("COG creation options: {}".format(co))
 
     else:
         co = ''
@@ -2463,3 +2448,27 @@ def xml_to_j2w(jp2p):
         j2w.write("{}\n".format(param))
     j2w.close()
 
+
+def get_cog_creation_options(bittype, gtiff_compression):
+    # default/universal COG settings
+    co = '-co BIGTIFF=YES -co OVERVIEW_RESAMPLING=CUBIC '
+
+    if bittype == OutputType.BYTE.value:
+        co += '-co BLOCKSIZE=1024 -co BIGTIFF'
+        if gtiff_compression == 'jpeg95':
+            co += '-co COMPRESS=JPEG -co QUALITY=95 '
+        elif gtiff_compression == 'jpeg75':
+            # GDAL COG default JPEG quality is 75, minimal visual difference from 90 but much smaller files size
+            co += '-co COMPRESS=JPEG -co QUALITY=75 '
+        elif gtiff_compression == 'zstd':
+            co += '-co COMPRESS=ZSTD -co PREDICTOR=YES '
+        elif gtiff_compression == 'lzw':
+            # GDAL COG default compression is LZW
+            co += '-co COMPRESS=LZW -co PREDICTOR=YES '
+
+    # UInt16 and Float32
+    elif bittype == OutputType.UINT16.value or bittype == OutputType.FLOAT32.value:
+        # predictor defaults to 2 for int and 3 for float
+        co += '-co COMPRESS=ZSTD -co ZSTD_LEVEL=22 -co BLOCKSIZE=512 -co PREDICTOR=YES '
+
+    return co
