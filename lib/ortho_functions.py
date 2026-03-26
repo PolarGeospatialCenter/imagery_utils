@@ -631,8 +631,9 @@ class ImageInfo:
 
                     # check if band count is compatible with compression - JPEG allows only 1 or 3 bands (COGs) or RGBAlpha for GeoTiff
                     if args.gtiff_compression in ["jpeg95", "jpeg75"] and self.bands not in [1, 3]:
-                        logger.error("JPEG compression is only compatible with 1 and 3-band imagery")
-                        rc = 1
+                        if not args.rgb:
+                            logger.error("JPEG compression is only compatible with 1 and 3-band imagery")
+                            rc = 1
 
                     if self.stretch == 'au':
                         # SWIR AND CAVIS should use the rf stretch
