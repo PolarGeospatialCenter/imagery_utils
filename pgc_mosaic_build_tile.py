@@ -201,11 +201,11 @@ def main():
 
             ### TODO: update "PHOTOMETRIC" setting? MINISBLACK is default, except for 3/4 band then RGB
             cmd = 'gdal_translate -stats -of {} {} -co "PHOTOMETRIC=MINISBLACK" -co "TILED=YES" -co ' \
-                  '"BIGTIFF=YES" "{}" "{}"'.format(args.format.key, compress_option, localtile1, localtile2)
+                  '"BIGTIFF=YES" "{}" "{}"'.format(args.format, compress_option, localtile1, localtile2)
             taskhandler.exec_cmd(cmd)
         
         ####  Build Pyramids
-        if not args.format.key == "COG":
+        if not args.format == "COG":
             if os.path.isfile(localtile2):
                 cmd = 'gdaladdo "{}" 2 4 8 16 30'.format(localtile2)
                 taskhandler.exec_cmd(cmd)
