@@ -2455,7 +2455,7 @@ def get_cog_creation_options(bittype, gtiff_compression):
     co = '-co BIGTIFF=YES -co OVERVIEW_RESAMPLING=CUBIC '
 
     if bittype == OutputType.BYTE.value:
-        co += '-co BLOCKSIZE=1024 -co BIGTIFF'
+        co += '-co BLOCKSIZE=1024 -co BIGTIFF '
         if gtiff_compression == 'jpeg95':
             co += '-co COMPRESS=JPEG -co QUALITY=95 '
         elif gtiff_compression == 'jpeg75':
