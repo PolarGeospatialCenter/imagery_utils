@@ -2446,10 +2446,10 @@ def xml_to_j2w(jp2p):
 
 def get_cog_creation_options(bittype, gtiff_compression):
     # default/universal COG settings
-    co = '-co BIGTIFF=YES -co OVERVIEW_RESAMPLING=CUBIC '
+    co = '-co BIGTIFF=YES -co OVERVIEW_RESAMPLING=CUBIC -co TILED=YES '
 
     if bittype == OutputType.BYTE.value:
-        co += '-co BLOCKSIZE=1024 -co BIGTIFF '
+        co += '-co BLOCKSIZE=1024 '
         if gtiff_compression == 'jpeg95':
             co += '-co COMPRESS=JPEG -co QUALITY=95 '
         elif gtiff_compression == 'jpeg75':
