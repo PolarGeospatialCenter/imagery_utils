@@ -190,17 +190,23 @@ def main():
     if status == 0:
         ####  Write to Compressed file
         if os.path.isfile(localtile1):
+            compress_option = ""
             if args.gtiff_compression == 'lzw':
-                compress_option = '-co "compress=lzw" -co PREDICTOR=YES '
+                compress_option = '-co "compress=lzw" '
             elif args.gtiff_compression == 'jpeg95':
-                compress_option = '-co "compress=jpeg" -co "jpeg_quality=95"'
+                compress_option = '-co "compress=jpeg" -co "jpeg_quality=95" '
             elif args.gtiff_compression == 'jpeg75':
                 compress_option = '-co COMPRESS=JPEG -co QUALITY=75 '
             elif args.gtiff_compression == 'zstd':
-                compress_option = '-co COMPRESS=ZSTD -co PREDICTOR=YES '
+                compress_option = '-co COMPRESS=ZSTD '
 
-            ### TODO: update "PHOTOMETRIC" setting? MINISBLACK is default, except for 3/4 band then RGB
-            cmd = 'gdal_translate -stats -of {} {} -co "PHOTOMETRIC=MINISBLACK" -co "TILED=YES" -co ' \
+            if args.format == 'COG' and args.gtiff_compression in ['lzw', 'zstd']:
+                compress_option += '-co PREDICTOR=YES '
+
+            if args.format == "GTiff":
+                compress_option += '-co "PHOTOMETRIC=MINISBLACK" '
+
+            cmd = 'gdal_translate -stats -of {} {} -co "TILED=YES" -co ' \
                   '"BIGTIFF=YES" "{}" "{}"'.format(args.format, compress_option, localtile1, localtile2)
             taskhandler.exec_cmd(cmd)
         
