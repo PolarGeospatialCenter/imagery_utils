@@ -1,4 +1,5 @@
 import shutil
+from osgeo import gdal, gdalconst
 import unittest, os, subprocess
 
 __test_dir__ = os.path.dirname(os.path.abspath(__file__))
@@ -129,6 +130,35 @@ class TestMosaicFunc(unittest.TestCase):
         self.assertTrue(os.path.isfile(mosaicname + '_cutlines.shp'))
         self.assertTrue(os.path.isfile(mosaicname + '_components.shp'))
         self.assertTrue(os.path.isfile(mosaicname + '_tiles.shp'))
+
+    def test_bgrn_cog_mosaic(self):
+        # extent = -3260000, -3240000, 520000, 540000
+        # tilesize = 10000, 10000
+        # bands = 4
+        # format = COG
+        mosaicname = os.path.join(self.dstdir, 'testmosaic5')
+        args = '--skip-cmd-txt --component-shp -e -3260000 -3240000 520000 540000 -t 10000 10000 -b 4 -r 10 10 -f COG'
+        cmd = 'python {} {} {} {}'.format(
+            self.scriptpath,
+            self.srcdir,
+            mosaicname,
+            args
+        )
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        se, so = p.communicate()
+        # print(so)
+        # print(se)
+
+        self.assertTrue(os.path.isfile(mosaicname + '_1_1.tif'))
+        self.assertTrue(os.path.isfile(mosaicname + '_1_2.tif'))
+        self.assertTrue(os.path.isfile(mosaicname + '_2_1.tif'))
+        self.assertTrue(os.path.isfile(mosaicname + '_2_2.tif'))
+        self.assertTrue(os.path.isfile(mosaicname + '_cutlines.shp'))
+        self.assertTrue(os.path.isfile(mosaicname + '_components.shp'))
+        self.assertTrue(os.path.isfile(mosaicname + '_tiles.shp'))
+
+        with gdal.Open(os.path.join(mosaicname + '_1_1.tif'), gdalconst.GA_ReadOnly) as ds:
+            self.assertIn('LAYOUT=COG', ds.GetMetadata_List('IMAGE_STRUCTURE'))
 
     def tearDown(self):
         shutil.rmtree(self.dstdir)

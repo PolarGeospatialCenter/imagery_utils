@@ -2,6 +2,7 @@
 import shutil
 import unittest, os, subprocess
 import platform
+from osgeo import gdal, gdalconst
 
 from setuptools import glob
 
@@ -155,6 +156,15 @@ class TestOrthoFunc(unittest.TestCase):
              True,
              '.jp2'),
 
+            # epsg: 3413
+            # stretch: rf
+            # outtype: Byte
+            # format: COG (.tif)
+            ('QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.ntf',
+             '-r 10 --epsg 3413 --stretch rf --resample near --format COG --outtype Byte --gtiff-compression lzw',
+             True,
+             '.tif'),
+
             # dem: Y:/private/elevation/dem/RAMP/RAMPv2/RAMPv2_wgs84_200m.tif
             # should fail: the image is not contained within the DEM
             ('QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.ntf',
@@ -205,6 +215,9 @@ class TestOrthoFunc(unittest.TestCase):
             print(se)
             output_files = glob.glob(os.path.join(_dstdir, f'{os.path.splitext(fn)[0]}*{ext}'))
             self.assertEqual(len(output_files) > 0, succeeded)
+            if "COG" in cmd:
+                with gdal.Open(output_files[0], gdalconst.GA_ReadOnly) as ds:
+                    self.assertIn('LAYOUT=COG', ds.GetMetadata_List('IMAGE_STRUCTURE'))
 
     def tearDown(self):
         shutil.rmtree(self.dstdir)
