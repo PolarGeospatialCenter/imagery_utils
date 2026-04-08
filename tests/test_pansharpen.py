@@ -1,7 +1,7 @@
 import shutil
 import unittest, os, subprocess
 import sys
-from osgeo import gdal
+from osgeo import gdal, gdalconst
 
 __test_dir__ = os.path.dirname(os.path.abspath(__file__))
 __app_dir__ = os.path.dirname(__test_dir__)
@@ -20,6 +20,9 @@ class TestPanshFunc(unittest.TestCase):
         self.dstdir = os.path.join(__test_dir__, 'tmp_output')
         if not os.path.isdir(self.dstdir):
             os.makedirs(self.dstdir)
+        self.dstdircog = os.path.join(__test_dir__, 'tmp_output_cog')
+        if not os.path.isdir(self.dstdircog):
+            os.makedirs(self.dstdircog)
 
     def test_pansharpen(self):
 
@@ -96,8 +99,39 @@ class TestPanshFunc(unittest.TestCase):
             self.assertTrue(abs(image_info.datapixelcount_dct[i] - datapixelcount_dct[i]) / float(datapixelcount_dct[i]) <= datapixelcount_threshold,
                             f'found:{image_info.datapixelcount_dct[i]}, expected {datapixelcount_dct[i]} +-{datapixelcount_threshold/100} percent')
 
+    def test_pansharpen_cog(self):
+        src = self.srcdir
+        cmd = 'python {} {} {} --skip-cmd-txt -p 3413 -f COG'.format(
+            self.scriptpath,
+            src,
+            self.dstdircog,
+        )
+
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        se, so = p.communicate()
+        print(so)
+        print(se)
+
+        dstfp = os.path.join(self.dstdircog, 'WV02_20110901210502_103001000D52C800_11SEP01210502-M1BS-052560788010_01_P008_u08rf3413_pansh.tif')
+        dstfp_xml = os.path.join(self.dstdircog, 'WV02_20110901210502_103001000D52C800_11SEP01210502-M1BS-052560788010_01_P008_u08rf3413_pansh.xml')
+
+        self.assertTrue(os.path.isfile(dstfp))
+        self.assertTrue(os.path.isfile(dstfp_xml))
+
+        # check second image from proccessing
+        dstfp_2 = os.path.join(self.dstdircog, 'WV02_20110901210434_103001000B41DC00_11SEP01210434-M1BS-052730735130_01_P007_u08rf3413_pansh.tif')
+        dstfp_xml_2 = os.path.join(self.dstdircog, 'WV02_20110901210434_103001000B41DC00_11SEP01210434-M1BS-052730735130_01_P007_u08rf3413_pansh.xml')
+
+        self.assertTrue(os.path.isfile(dstfp_2))
+        self.assertTrue(os.path.isfile(dstfp_xml_2))
+
+        with gdal.Open(dstfp, gdalconst.GA_ReadOnly) as ds:
+            self.assertIn('LAYOUT=COG', ds.GetMetadata_List('IMAGE_STRUCTURE'))
+
+
     def tearDown(self):
        shutil.rmtree(self.dstdir, ignore_errors=True)
+       shutil.rmtree(self.dstdircog, ignore_errors=True)
 
 # Used to test pansharpen output
 class MosaicArgs(object):
