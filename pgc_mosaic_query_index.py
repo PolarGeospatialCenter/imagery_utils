@@ -345,7 +345,7 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
                                         logger.debug("Image does not have a panchromatic component, excluding: %s",
                                                  iinfo.srcfp)
                                 else:
-                                    logger.debug("Intersect %s, %s: %s", iinfo.scene_id, iinfo.srcfp, str(iinfo.geom))
+                                    # logger.debug("Intersect %s, %s: %s", iinfo.scene_id, iinfo.srcfp, str(iinfo.geom))
                                     pansh_pair_matches.append(iinfo.pan_scene_id)
                                     imginfo_list1.append(iinfo)
                                 
