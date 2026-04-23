@@ -32,10 +32,10 @@ DGbandList = ['BAND_P', 'BAND_C', 'BAND_B',  # Pan, Visible, NIR, Pansharpened: 
               'BAND_DC', 'BAND_CG', 'BAND_W2', 'BAND_CRS', 'BAND_SNO',  # CAVIS: C* product codes
               'BAND_A31', 'BAND_A1', 'BAND_A2',  'BAND_W1', 'BAND_W3', 'BAND_NDVI', 'BAND_A32',
               ]
-formats = {'GTiff': '.tif', 'JP2OpenJPEG': '.jp2', 'ENVI': '.envi', 'HFA': '.img', 'JPEG': '.jpg'}
+formats = {'GTiff': '.tif', 'JP2OpenJPEG': '.jp2', 'ENVI': '.envi', 'HFA': '.img', 'JPEG': '.jpg', 'COG': '.tif'}
 stretches = ["ns", "rf", "mr", "rd", "au"]
 resamples = ["near", "bilinear", "cubic", "cubicspline", "lanczos"]
-gtiff_compressions = ["jpeg95", "lzw"]
+gtiff_compressions = ["jpeg95", "lzw", "jpeg75", "zstd"]
 exts = ['.ntf', '.tif']
 ARGDEF_THREADS = 1
 
@@ -843,9 +843,11 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
             logger.error('Output type UInt16 is not reasonable with modified reflectance (mr stretch)')
             err = 1
 
-        if args.gtiff_compression == 'jpeg95' and args.outtype == OutputType.UINT16.value:
-            logger.error('Output type UInt16 is not compatible with jpeg compression')
+        if ((args.gtiff_compression == 'jpeg95' or args.gtiff_compression == 'jpeg75') and
+                (args.outtype == OutputType.UINT16.value or args.outtype == OutputType.FLOAT32.value)):
+            logger.error('Only output type Byte is compatible with jpeg compression')
             err = 1
+
 
         ## Check if image is type and stretch are appropriate
         if info.prod_code:
@@ -1353,6 +1355,11 @@ def calc_stats(args, info):
 
     elif args.format == 'JPEG':
         co = ''
+
+    # Set COG creation options
+    elif args.format == 'COG':
+        co = get_cog_creation_options(args.outtype, args.gtiff_compression)
+        logger.debug("COG creation options: {}".format(co))
 
     else:
         co = ''
@@ -2436,3 +2443,27 @@ def xml_to_j2w(jp2p):
         j2w.write("{}\n".format(param))
     j2w.close()
 
+
+def get_cog_creation_options(bittype, gtiff_compression):
+    # default/universal COG settings
+    co = '-co BIGTIFF=YES -co OVERVIEW_RESAMPLING=CUBIC -co TILED=YES '
+
+    if bittype == OutputType.BYTE.value:
+        co += '-co BLOCKSIZE=1024 '
+        if gtiff_compression == 'jpeg95':
+            co += '-co COMPRESS=JPEG -co QUALITY=95 '
+        elif gtiff_compression == 'jpeg75':
+            # GDAL COG default JPEG quality is 75, minimal visual difference from 90 but much smaller files size
+            co += '-co COMPRESS=JPEG -co QUALITY=75 '
+        elif gtiff_compression == 'zstd':
+            co += '-co COMPRESS=ZSTD -co PREDICTOR=YES '
+        elif gtiff_compression == 'lzw':
+            # GDAL COG default compression is LZW
+            co += '-co COMPRESS=LZW -co PREDICTOR=YES '
+
+    # UInt16 and Float32
+    elif bittype == OutputType.UINT16.value or bittype == OutputType.FLOAT32.value:
+        # predictor defaults to 2 for int and 3 for float
+        co += '-co COMPRESS=ZSTD -co ZSTD_LEVEL=22 -co BLOCKSIZE=512 -co PREDICTOR=YES '
+
+    return co

@@ -709,6 +709,10 @@ def exec_pansharpen(image_pair, pansh_dstfp, args, orig_res):
     elif args.format == 'JPEG':
         co = ''
 
+    elif args.format == 'COG':
+        co = ortho_functions.get_cog_creation_options(bittype, args.gtiff_compression)
+        logger.debug("COG creation options: {}".format(co))
+
     else:
         co = ''
     
