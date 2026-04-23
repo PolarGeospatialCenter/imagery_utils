@@ -56,6 +56,10 @@ class InvalidMetadataError(Exception):
     def __init__(self, msg=""):
         super(Exception, self).__init__(msg)
 
+class InvalidSunElevation(ValueError):
+    def __init__(self, msg=""):
+        super(ValueError, self).__init__(msg)
+
 class SpatialRef(object):
 
     def __init__(self, epsg):

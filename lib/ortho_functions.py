@@ -26,16 +26,16 @@ logger = logging.getLogger("logger")
 logger.setLevel(logging.DEBUG)
 
 DGbandList = ['BAND_P', 'BAND_C', 'BAND_B',  # Pan, Visible, NIR, Pansharpened: P*, M*, and S* product codes
-              'BAND_G', 'BAND_Y', 'BAND_R', 'BAND_RE', 'BAND_N', 'BAND_N2',
+              'BAND_G', 'BAND_Y', 'BAND_R', 'BAND_RE', 'BAND_RE1', 'BAND_RE2', 'BAND_N', 'BAND_N2',
               'BAND_S1', 'BAND_S2', 'BAND_S3', 'BAND_S4', 'BAND_S5',  # SWIR: A* product codes
               'BAND_S6', 'BAND_S7', 'BAND_S8',
               'BAND_DC', 'BAND_CG', 'BAND_W2', 'BAND_CRS', 'BAND_SNO',  # CAVIS: C* product codes
               'BAND_A31', 'BAND_A1', 'BAND_A2',  'BAND_W1', 'BAND_W3', 'BAND_NDVI', 'BAND_A32',
               ]
-formats = {'GTiff': '.tif', 'JP2OpenJPEG': '.jp2', 'ENVI': '.envi', 'HFA': '.img', 'JPEG': '.jpg'}
+formats = {'GTiff': '.tif', 'JP2OpenJPEG': '.jp2', 'ENVI': '.envi', 'HFA': '.img', 'JPEG': '.jpg', 'COG': '.tif'}
 stretches = ["ns", "rf", "mr", "rd", "au"]
 resamples = ["near", "bilinear", "cubic", "cubicspline", "lanczos"]
-gtiff_compressions = ["jpeg95", "lzw"]
+gtiff_compressions = ["jpeg95", "lzw", "jpeg75", "zstd"]
 exts = ['.ntf', '.tif']
 ARGDEF_THREADS = 1
 
@@ -118,7 +118,27 @@ EsunDict = {  # Spectral Irradiance in W/m2/um
     'IK01_BAND_B': 1921.26,
     'IK01_BAND_G': 1803.28,
     'IK01_BAND_R': 1517.76,
-    'IK01_BAND_N': 1145.8
+    'IK01_BAND_N': 1145.8,
+
+    'LG01_BAND_P': 1627.669,
+    'LG01_BAND_C': 1756.808,
+    'LG01_BAND_B': 2020.761,
+    'LG01_BAND_G': 1877.814,
+    'LG01_BAND_Y': 1750.532,
+    'LG01_BAND_R': 1551.612,
+    'LG01_BAND_RE1': 1413.868,
+    'LG01_BAND_RE2': 1298.429,
+    'LG01_BAND_N': 1047.56,
+
+    'LG02_BAND_P': 1630.911,
+    'LG02_BAND_C': 1748.182,
+    'LG02_BAND_B': 2021.502,
+    'LG02_BAND_G': 1878.494,
+    'LG02_BAND_Y': 1745.874,
+    'LG02_BAND_R': 1552.111,
+    'LG02_BAND_RE1': 1411.14,
+    'LG02_BAND_RE2': 1292.678,
+    'LG02_BAND_N': 1049.999,
 }
 
 GainDict = {
@@ -180,7 +200,27 @@ GainDict = {
     'IK01_BAND_B': 1.073,
     'IK01_BAND_G': 0.990,
     'IK01_BAND_R': 0.940,
-    'IK01_BAND_N': 1.043
+    'IK01_BAND_N': 1.043,
+
+    'LG01_BAND_P': 1,
+    'LG01_BAND_C': 1,
+    'LG01_BAND_B': 1,
+    'LG01_BAND_G': 1,
+    'LG01_BAND_Y': 1,
+    'LG01_BAND_R': 1,
+    'LG01_BAND_RE1': 1,
+    'LG01_BAND_RE2': 1,
+    'LG01_BAND_N': 1,
+
+    'LG02_BAND_P': 1,
+    'LG02_BAND_C': 1,
+    'LG02_BAND_B': 1,
+    'LG02_BAND_G': 1,
+    'LG02_BAND_Y': 1,
+    'LG02_BAND_R': 1,
+    'LG02_BAND_RE1': 1,
+    'LG02_BAND_RE2': 1,
+    'LG02_BAND_N': 1,
 }
 
 BiasDict = {
@@ -242,7 +282,27 @@ BiasDict = {
     'IK01_BAND_B': -9.699,
     'IK01_BAND_G': -7.937,
     'IK01_BAND_R': -4.767,
-    'IK01_BAND_N': -8.869
+    'IK01_BAND_N': -8.869,
+
+    'LG01_BAND_P': 0,
+    'LG01_BAND_C': 0,
+    'LG01_BAND_B': 0,
+    'LG01_BAND_G': 0,
+    'LG01_BAND_Y': 0,
+    'LG01_BAND_R': 0,
+    'LG01_BAND_RE1': 0,
+    'LG01_BAND_RE2': 0,
+    'LG01_BAND_N': 0,
+
+    'LG02_BAND_P': 0,
+    'LG02_BAND_C': 0,
+    'LG02_BAND_B': 0,
+    'LG02_BAND_G': 0,
+    'LG02_BAND_Y': 0,
+    'LG02_BAND_R': 0,
+    'LG02_BAND_RE1': 0,
+    'LG02_BAND_RE2': 0,
+    'LG02_BAND_N': 0,
 }
 
 # Defines the relationship between the output type and the NoData value that will be assigned to the destination rasters
@@ -793,9 +853,11 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
             logger.error('Output type UInt16 is not reasonable with modified reflectance (mr stretch)')
             err = 1
 
-        if args.gtiff_compression == 'jpeg95' and args.outtype == OutputType.UINT16.value:
-            logger.error('Output type UInt16 is not compatible with jpeg compression')
+        if ((args.gtiff_compression == 'jpeg95' or args.gtiff_compression == 'jpeg75') and
+                (args.outtype == OutputType.UINT16.value or args.outtype == OutputType.FLOAT32.value)):
+            logger.error('Only output type Byte is compatible with jpeg compression')
             err = 1
+
 
         ## Check if image is type and stretch are appropriate
         if info.prod_code:
@@ -1303,6 +1365,11 @@ def calc_stats(args, info):
 
     elif args.format == 'JPEG':
         co = ''
+
+    # Set COG creation options
+    elif args.format == 'COG':
+        co = get_cog_creation_options(args.outtype, args.gtiff_compression)
+        logger.debug("COG creation options: {}".format(co))
 
     else:
         co = ''
@@ -1812,7 +1879,7 @@ def warp_image(args, info, gdal_thread_count=1):
 
                 #### GDALWARP Command
                 cmd = 'gdalwarp {} -srcnodata "{}" -dstnodata "{}" -of GTiff -ot Float32 {}{}{}{}-co "TILED=YES" -co "BIGTIFF=YES" ' \
-                      '-t_srs "{}" -r {} -et 0.01 -rpc -to "{}" "{}" "{}"'.format(
+                      '-t_srs "{}" -r {} -rpc -to "{}" "{}" "{}"'.format(
                         config_options,
                         " ".join(src_nodata_list),
                         " ".join(dst_nodata_list),
@@ -2142,6 +2209,9 @@ def get_dg_calib_dict(metad_etree, stretch):
         else:
             raise utils.InvalidMetadataError(f"Metadata file is missing the MEANSUNEL and SUNEL xml tags")
 
+        if sunEl < 0 and stretch != "ns":
+            raise utils.InvalidSunElevation("Negative sun elevation angle is only supported if no-stretch is selected")
+
         sun_angle = 90.0 - sunEl
         des = calc_earth_sun_dist(datetime.strptime(t, "%Y-%m-%dT%H:%M:%S.%fZ"))
 
@@ -2152,6 +2222,9 @@ def get_dg_calib_dict(metad_etree, stretch):
                 elem = nodeBAND.find('ABSCALFACTOR')
                 if elem is not None:
                     abscal = float(elem.text)
+                    if abscal < 0:
+                        raise utils.InvalidMetadataError(
+                            f"Metadata file includes invalid ABSCALFACTOR xml tag: {abscal}")
                 else:
                     raise utils.InvalidMetadataError(
                         f"Metadata file is missing the ABSCALFACTOR xml tag")
@@ -2186,30 +2259,29 @@ def get_dg_calib_dict(metad_etree, stretch):
             if satband not in EsunDict:
                 logger.warning("Cannot find sensor and band in Esun lookup table: %s.  Try using --stretch "
                                "ns.", satband)
-                return None
             else:
                 Esun = EsunDict[satband]
                 gain = GainDict[satband]
                 bias = BiasDict[satband]
 
-            abscal, effbandw = abscalfact_dict[band]
+                abscal, effbandw = abscalfact_dict[band]
 
-            rad_fact = units_factor * gain * abscal / effbandw
-            refl_fact = units_factor * (gain * abscal * des ** 2 * math.pi) / \
-                        (Esun * math.cos(math.radians(sun_angle)) * effbandw)
-            refl_offset = units_factor * (bias * des ** 2 * math.pi) / (Esun * math.cos(math.radians(sun_angle)))
+                rad_fact = units_factor * gain * abscal / effbandw
+                refl_fact = units_factor * (gain * abscal * des ** 2 * math.pi) / \
+                            (Esun * math.cos(math.radians(sun_angle)) * effbandw)
+                refl_offset = units_factor * (bias * des ** 2 * math.pi) / (Esun * math.cos(math.radians(sun_angle)))
 
-            logger.debug("%s: \n\tabsCalFactor %f\n\teffectiveBandwidth %f\n\tEarth-Sun distance %f"
-                            "\n\tEsun %f\n\tSun angle %f\n\tSun elev %f\n\tGain %f\n\tBias %f"
-                            "\n\tUnits factor %f\n\tReflectance correction %f\n\tReflectance offset %f"
-                            "\n\tRadiance correction %f\n\tRadiance offset %f", satband, abscal, effbandw,
-                            des, Esun, sun_angle, sunEl, gain, bias, units_factor, refl_fact, refl_offset,
-                            rad_fact, bias)
+                logger.debug("%s: \n\tabsCalFactor %f\n\teffectiveBandwidth %f\n\tEarth-Sun distance %f"
+                                "\n\tEsun %f\n\tSun angle %f\n\tSun elev %f\n\tGain %f\n\tBias %f"
+                                "\n\tUnits factor %f\n\tReflectance correction %f\n\tReflectance offset %f"
+                                "\n\tRadiance correction %f\n\tRadiance offset %f", satband, abscal, effbandw,
+                                des, Esun, sun_angle, sunEl, gain, bias, units_factor, refl_fact, refl_offset,
+                                rad_fact, bias)
 
-            if stretch == "rd":
-                calibDict[band] = (rad_fact, bias)
-            else:
-                calibDict[band] = (refl_fact, refl_offset)
+                if stretch == "rd":
+                    calibDict[band] = (rad_fact, bias)
+                else:
+                    calibDict[band] = (refl_fact, refl_offset)
 
     # return correction factor and offset
     return calibDict
@@ -2227,6 +2299,8 @@ def get_ik_calib_dict(metad_etree, metafile, regex, stretch):
     for band in range(0, 5, 1):
         sunElStr = metadict["Sun_Angle_Elevation"]
         sunAngle = float(sunElStr.strip(" degrees"))
+        if sunAngle < 0 and stretch == 'ns':
+            raise utils.InvalidSunElevation("Negative sun elevation angle is only supported if no-stretch is selected")
         theta = 90.0 - sunAngle
         datestr = metadict["Acquisition_Date_Time"]  # 2011-12-09 18:43 GMT
         d = datetime.strptime(datestr, "%Y-%m-%d %H:%M GMT")
@@ -2311,6 +2385,8 @@ def get_ge_calib_dict(metad_etree, stretch):
     metadict = get_ge_metadata(metad_etree)
     for band in metadict["gain"].keys():
         sunAngle = float(metadict["firstLineSunElevationAngle"])
+        if sunAngle < 0 and stretch == 'ns':
+            raise utils.InvalidSunElevation("Negative sun elevation angle is only supported if no-stretch is selected")
         theta = 90.0 - sunAngle
         datestr = metadict["originalFirstLineAcquisitionDateTime"]  # 2009-11-01T01:49:33.685421Z
         des = calc_earth_sun_dist(datetime.strptime(datestr, "%Y-%m-%dT%H:%M:%S.%fZ"))
@@ -2377,3 +2453,27 @@ def xml_to_j2w(jp2p):
         j2w.write("{}\n".format(param))
     j2w.close()
 
+
+def get_cog_creation_options(bittype, gtiff_compression):
+    # default/universal COG settings
+    co = '-co BIGTIFF=YES -co OVERVIEW_RESAMPLING=CUBIC -co TILED=YES '
+
+    if bittype == OutputType.BYTE.value:
+        co += '-co BLOCKSIZE=1024 '
+        if gtiff_compression == 'jpeg95':
+            co += '-co COMPRESS=JPEG -co QUALITY=95 '
+        elif gtiff_compression == 'jpeg75':
+            # GDAL COG default JPEG quality is 75, minimal visual difference from 90 but much smaller files size
+            co += '-co COMPRESS=JPEG -co QUALITY=75 '
+        elif gtiff_compression == 'zstd':
+            co += '-co COMPRESS=ZSTD -co PREDICTOR=YES '
+        elif gtiff_compression == 'lzw':
+            # GDAL COG default compression is LZW
+            co += '-co COMPRESS=LZW -co PREDICTOR=YES '
+
+    # UInt16 and Float32
+    elif bittype == OutputType.UINT16.value or bittype == OutputType.FLOAT32.value:
+        # predictor defaults to 2 for int and 3 for float
+        co += '-co COMPRESS=ZSTD -co ZSTD_LEVEL=22 -co BLOCKSIZE=512 -co PREDICTOR=YES '
+
+    return co

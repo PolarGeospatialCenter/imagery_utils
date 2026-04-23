@@ -19,7 +19,8 @@ logger.setLevel(logging.DEBUG)
 
 MODES = ["ALL", "MOSAIC", "SHP", "TEST"]
 EXTS = [".tif", ".ntf", ".vrt"]
-GTIFF_COMPRESSIONS = ["jpeg95", "lzw"]
+GTIFF_COMPRESSIONS = ["jpeg95", "lzw", "jpeg75", "zstd"]
+MOSAIC_FORMATS = {'GTiff': '.tif', 'COG': '.tif'}
 
 #class Attribs:
 #    def __init__(self,dAttribs):
@@ -831,26 +832,18 @@ def filter_images_by_geometry(imginfo_list, params):
 def getMosaicParameters(iinfo, options):
     
     params = MosaicParams()
+    
+    if options.resolution is not None:
+        params.xres = options.resolution[0]
+        params.yres = options.resolution[1]
+    else:
+        params.xres = iinfo.xres
+        params.yres = iinfo.yres
+
     params.bands = options.bands if options.bands is not None else iinfo.bands
     params.proj = iinfo.proj
     params.datatype = iinfo.datatype
     params.useExposure = options.use_exposure
-    params.max_cc = options.max_cc
-    params.min_sunel = options.min_sunel
-    params.include_all_ms = options.include_all_ms
-
-    try:
-        if options.resolution is not None:
-            params.xres = options.resolution[0]
-            params.yres = options.resolution[1]
-        else:
-            params.xres = iinfo.xres
-            params.yres = iinfo.yres
-    except AttributeError:
-        params.xres = iinfo.xres
-        params.yres = iinfo.yres
-       
-
     
     if options.tday is not None:
         params.m = int(options.tday.split("-")[0])
@@ -880,25 +873,23 @@ def getMosaicParameters(iinfo, options):
                                                                             params.ymin)
         params.extent_geom = ogr.CreateGeometryFromWkt(poly_wkt)
     
-    try:
-        if options.tilesize is not None:
-            params.xtilesize = options.tilesize[0]
-            params.ytilesize = options.tilesize[1]
-            
-    except AttributeError:
-        if params.xres is not None:
-            params.xtilesize = params.xres * 40000
-            params.ytilesize = params.yres * 40000
-        else:
-            params.xtilesize = None
-            params.ytilesize = None
+    if options.tilesize is not None:
+        params.xtilesize = options.tilesize[0]
+        params.ytilesize = options.tilesize[1]
+    else:
+        params.xtilesize = params.xres * 40000
+        params.ytilesize = params.yres * 40000
 
+    if options.max_cc is not None:
+        params.max_cc = options.max_cc
+    else:
+        params.max_cc = 0.5
+    
     params.force_pan_to_multi = True if params.bands > 1 and options.force_pan_to_multi else False # determine if force pan to multi is applicable and true
 
-    try:
-        params.median_remove = options.median_remove
-    except AttributeError:
-        params.median_remove = None
+    params.include_all_ms = options.include_all_ms
+    
+    params.median_remove = options.median_remove
 
     return params
 
