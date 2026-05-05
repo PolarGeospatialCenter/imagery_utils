@@ -81,16 +81,16 @@ class ImagePair(object):
                     self.pan_srcfn, self.pan_srcfp = self._check_datetime_dif()
                 except:
                     raise RuntimeError("Corresponding panchromatic image not found: {}".format(self.mul_srcfp))
-            else:
+
             ## get extent info for both images and calc intersect
-                mul_extent = self._get_image_info(self.mul_srcfp, spatial_ref, args)
-                pan_extent = self._get_image_info(self.pan_srcfp, spatial_ref, args)
-                self.intersection_geom = mul_extent.Intersection(pan_extent)
-                # print(mul_extent)
-                # print(mul_extent.Contains(pan_extent))
-                # print(pan_extent)
-                # print(pan_extent.Contains(mul_extent))
-                # print(self.intersection_geom)
+            mul_extent = self._get_image_info(self.mul_srcfp, spatial_ref, args)
+            pan_extent = self._get_image_info(self.pan_srcfp, spatial_ref, args)
+            self.intersection_geom = mul_extent.Intersection(pan_extent)
+            # print(mul_extent)
+            # print(mul_extent.Contains(pan_extent))
+            # print(pan_extent)
+            # print(pan_extent.Contains(mul_extent))
+            # print(self.intersection_geom)
                 
         else:
             raise RuntimeError("Image does not match multispectral name pattern: {}".format(self.mul_srcfn))
@@ -715,12 +715,43 @@ def exec_pansharpen(image_pair, pansh_dstfp, args, orig_res):
 
     else:
         co = ''
+
+    # add specific pansharpening weights for WV02 and WV03 images - get band count of input mul from image info
+    iinfo = ortho_functions.ImageInfo(image_pair.mul_srcfp, mul_dstfp, wd, args)
+    _err = iinfo.get_image_stats(args)
+    if _err != 0:
+        raise RuntimeError(f"Error in stats calculation")
+
+    if "WV02" in iinfo.sat or "WV03" in iinfo.sat:
+        red_wt = ortho_functions.WV03_BAND_WEIGHT_DICT['RED']
+        green_wt = ortho_functions.WV03_BAND_WEIGHT_DICT['GREEN']
+        blue_wt = ortho_functions.WV03_BAND_WEIGHT_DICT['BLUE']
+        nir_wt = ortho_functions.WV03_BAND_WEIGHT_DICT['NEAR_IR1']
+
+        if iinfo.bands == 3:
+            # set rgb weights - Assumes RGB band order
+            weight_args = '-w {0} -w {1} -w {2} '.format(red_wt, green_wt, blue_wt)
+        elif iinfo.bands == 4:
+            # set 4-band weights - assumes BGRN band order
+            weight_args = '-w {0} -w {1} -w {2} -w {3}'.format(blue_wt, green_wt, red_wt, nir_wt)
+        elif iinfo.bands == 8:
+            # 8-band weights - use WV03 weights for both WV02 and WV03, assumes default WV band order
+            weight_args = ''
+            for value in ortho_functions.WV03_BAND_WEIGHT_DICT.values():
+                weight_args += '-w {} '.format(value)
+        else:
+            logger.warning("Incompatible numnber of bands for pansharpening weights: {} bands in multispectral image".format(iinfo.bands))
+
+    else:
+        weight_args = ''
     
     logger.info("Pansharpening multispectral image")
     if os.path.isfile(pan_local_dstfp) and os.path.isfile(mul_local_dstfp):
         if not os.path.isfile(pansh_local_dstfp):
-            cmd = '{}gdal_pansharpen{} -of {} {} {} "{}" "{}" "{}"'.\
-                format(conda_prefix, py_ext, args.format, pan_threading, co, pan_local_dstfp, mul_local_dstfp, pansh_local_dstfp)
+            cmd = '{}gdal_pansharpen{} -of {} {} {} {} "{}" "{}" "{}"'.\
+                format(conda_prefix, py_ext, args.format, pan_threading, co, weight_args,
+                       pan_local_dstfp, mul_local_dstfp, pansh_local_dstfp)
+            logger.info(cmd)
             try:
                 taskhandler.exec_cmd(cmd)
             except Exception as e:
