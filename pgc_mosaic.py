@@ -83,6 +83,8 @@ def main():
                         help="cutline calculator pixel skip interval (default=2)")
     parser.add_argument("--calc-stats", action="store_true", default=False,
                         help="calculate image stats and record them in the index")
+    parser.add_argument("-f", "--format", choices=mosaic.MOSAIC_FORMATS.keys(), default="GTiff",
+                        help="output to the given format (default=GTiff)")
     parser.add_argument("--gtiff-compression", choices=mosaic.GTIFF_COMPRESSIONS, default="lzw",
                         help="GTiff compression type. Default=lzw ({})".format(",".join(mosaic.GTIFF_COMPRESSIONS)))
     parser.add_argument("--pbs", action='store_true', default=False,

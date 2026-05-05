@@ -48,6 +48,8 @@ def main():
                              "for contrast")
     parser.add_argument("--wd",
                         help="scratch space (default is mosaic directory)")
+    parser.add_argument("-f", "--format", choices=mosaic.MOSAIC_FORMATS.keys(), default="GTiff",
+                        help="output to the given format (default=GTiff)")
     parser.add_argument("--gtiff-compression", choices=mosaic.GTIFF_COMPRESSIONS, default="lzw",
                         help="GTiff compression type. Default=lzw ({})".format(','.join(mosaic.GTIFF_COMPRESSIONS)))
     parser.add_argument("--skip-cmd-txt", action='store_true', default=True,
@@ -188,19 +190,31 @@ def main():
     if status == 0:
         ####  Write to Compressed file
         if os.path.isfile(localtile1):
+            compress_option = ""
             if args.gtiff_compression == 'lzw':
-                compress_option = '-co "compress=lzw"'
+                compress_option = '-co "compress=lzw" '
             elif args.gtiff_compression == 'jpeg95':
-                compress_option = '-co "compress=jpeg" -co "jpeg_quality=95"'
-                
-            cmd = 'gdal_translate -stats -of GTiff {} -co "PHOTOMETRIC=MINISBLACK" -co "TILED=YES" -co ' \
-                  '"BIGTIFF=YES" "{}" "{}"'.format(compress_option, localtile1, localtile2)
+                compress_option = '-co "compress=jpeg" -co "jpeg_quality=95" '
+            elif args.gtiff_compression == 'jpeg75':
+                compress_option = '-co COMPRESS=JPEG -co QUALITY=75 '
+            elif args.gtiff_compression == 'zstd':
+                compress_option = '-co COMPRESS=ZSTD '
+
+            if args.format == 'COG' and args.gtiff_compression in ['lzw', 'zstd']:
+                compress_option += '-co PREDICTOR=YES '
+
+            if args.format == "GTiff":
+                compress_option += '-co "PHOTOMETRIC=MINISBLACK" '
+
+            cmd = 'gdal_translate -stats -of {} {} -co "TILED=YES" -co ' \
+                  '"BIGTIFF=YES" "{}" "{}"'.format(args.format, compress_option, localtile1, localtile2)
             taskhandler.exec_cmd(cmd)
         
-        ####  Build Pyramids        
-        if os.path.isfile(localtile2):
-            cmd = 'gdaladdo "{}" 2 4 8 16 30'.format(localtile2)
-            taskhandler.exec_cmd(cmd)
+        ####  Build Pyramids
+        if not args.format == "COG":
+            if os.path.isfile(localtile2):
+                cmd = 'gdaladdo "{}" 2 4 8 16 30'.format(localtile2)
+                taskhandler.exec_cmd(cmd)
         
         #### Copy tile to destination
         if os.path.isfile(localtile2):

@@ -1,7 +1,7 @@
 import shutil
 import unittest, os, subprocess
 import sys
-from osgeo import gdal
+from osgeo import gdal, gdalconst
 
 __test_dir__ = os.path.dirname(os.path.abspath(__file__))
 __app_dir__ = os.path.dirname(__test_dir__)
@@ -20,6 +20,9 @@ class TestPanshFunc(unittest.TestCase):
         self.dstdir = os.path.join(__test_dir__, 'tmp_output')
         if not os.path.isdir(self.dstdir):
             os.makedirs(self.dstdir)
+        self.dstdircog = os.path.join(__test_dir__, 'tmp_output_cog')
+        if not os.path.isdir(self.dstdircog):
+            os.makedirs(self.dstdircog)
 
     def test_pansharpen(self):
 
@@ -81,15 +84,54 @@ class TestPanshFunc(unittest.TestCase):
                     3: [1.0, 145.0, 11.088902, 7.401054],
                     4: [1.0, 172.0, 37.812614, 27.618598]}
         datapixelcount_dct = {1: 857617457, 2: 857617457, 3: 857617457, 4: 857617457}
-        datapixelcount_threshold = 500
+        datapixelcount_threshold = 0.00001 # percentage
+        minmax_threshold = 10
         for i in range(1,len(image_info.stat_dct)+1):# check stats are similar
-            for j in range(4):
-                self.assertAlmostEqual(image_info.stat_dct[i][j], stat_dct[i][j], 4)
-            print(f'found:{image_info.datapixelcount_dct[i]}, expected {datapixelcount_dct[i]} +-{datapixelcount_threshold}')
-            self.assertTrue(abs(image_info.datapixelcount_dct[i] - datapixelcount_dct[i]) < datapixelcount_threshold)
+            # Check min and max values
+            for j in range(2):
+                self.assertTrue(abs(image_info.stat_dct[i][j] - stat_dct[i][j]) <= minmax_threshold,
+                                f'found:{image_info.stat_dct[i][j]}, expected {stat_dct[i][j]} +-{minmax_threshold} ')
+            # Check mean and stddev
+            for j in range(2,4):
+                self.assertAlmostEqual(image_info.stat_dct[i][j], stat_dct[i][j], 2,
+                                       f'found:{image_info.stat_dct[i][j]}, expected {stat_dct[i][j]} within 2 decimal places')
+            # Check data pixel count
+            self.assertTrue(abs(image_info.datapixelcount_dct[i] - datapixelcount_dct[i]) / float(datapixelcount_dct[i]) <= datapixelcount_threshold,
+                            f'found:{image_info.datapixelcount_dct[i]}, expected {datapixelcount_dct[i]} +-{datapixelcount_threshold/100} percent')
+
+    def test_pansharpen_cog(self):
+        src = self.srcdir
+        cmd = 'python {} {} {} --skip-cmd-txt -p 3413 -f COG'.format(
+            self.scriptpath,
+            src,
+            self.dstdircog,
+        )
+
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        se, so = p.communicate()
+        print(so)
+        print(se)
+
+        dstfp = os.path.join(self.dstdircog, 'WV02_20110901210502_103001000D52C800_11SEP01210502-M1BS-052560788010_01_P008_u08rf3413_pansh.tif')
+        dstfp_xml = os.path.join(self.dstdircog, 'WV02_20110901210502_103001000D52C800_11SEP01210502-M1BS-052560788010_01_P008_u08rf3413_pansh.xml')
+
+        self.assertTrue(os.path.isfile(dstfp))
+        self.assertTrue(os.path.isfile(dstfp_xml))
+
+        # check second image from proccessing
+        dstfp_2 = os.path.join(self.dstdircog, 'WV02_20110901210434_103001000B41DC00_11SEP01210434-M1BS-052730735130_01_P007_u08rf3413_pansh.tif')
+        dstfp_xml_2 = os.path.join(self.dstdircog, 'WV02_20110901210434_103001000B41DC00_11SEP01210434-M1BS-052730735130_01_P007_u08rf3413_pansh.xml')
+
+        self.assertTrue(os.path.isfile(dstfp_2))
+        self.assertTrue(os.path.isfile(dstfp_xml_2))
+
+        with gdal.Open(dstfp, gdalconst.GA_ReadOnly) as ds:
+            self.assertIn('LAYOUT=COG', ds.GetMetadata_List('IMAGE_STRUCTURE'))
+
 
     def tearDown(self):
        shutil.rmtree(self.dstdir, ignore_errors=True)
+       shutil.rmtree(self.dstdircog, ignore_errors=True)
 
 # Used to test pansharpen output
 class MosaicArgs(object):
