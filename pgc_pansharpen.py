@@ -81,16 +81,16 @@ class ImagePair(object):
                     self.pan_srcfn, self.pan_srcfp = self._check_datetime_dif()
                 except:
                     raise RuntimeError("Corresponding panchromatic image not found: {}".format(self.mul_srcfp))
-            else:
+
             ## get extent info for both images and calc intersect
-                mul_extent = self._get_image_info(self.mul_srcfp, spatial_ref, args)
-                pan_extent = self._get_image_info(self.pan_srcfp, spatial_ref, args)
-                self.intersection_geom = mul_extent.Intersection(pan_extent)
-                # print(mul_extent)
-                # print(mul_extent.Contains(pan_extent))
-                # print(pan_extent)
-                # print(pan_extent.Contains(mul_extent))
-                # print(self.intersection_geom)
+            mul_extent = self._get_image_info(self.mul_srcfp, spatial_ref, args)
+            pan_extent = self._get_image_info(self.pan_srcfp, spatial_ref, args)
+            self.intersection_geom = mul_extent.Intersection(pan_extent)
+            # print(mul_extent)
+            # print(mul_extent.Contains(pan_extent))
+            # print(pan_extent)
+            # print(pan_extent.Contains(mul_extent))
+            # print(self.intersection_geom)
                 
         else:
             raise RuntimeError("Image does not match multispectral name pattern: {}".format(self.mul_srcfn))
