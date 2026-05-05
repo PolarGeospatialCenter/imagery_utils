@@ -10,7 +10,7 @@
 #SBATCH --mem 48G
 
 # wallclock
-#SBATCH -t 8:00:00
+#SBATCH -t 24:00:00
 
 # job log path
 #SBATCH -o %x.o%j
