@@ -177,6 +177,9 @@ def main():
     parser.add_argument("--skip-missing-pairs", action='store_true', default=False,
                         help="submit available pan/multi image pairs for pansharpening,"
                              " skipping over cases of image pairs missing a pan or multi image")
+    parser.add_argument("--skip-WV03-weights", action="store_true", default=False,
+                        help="use GDAL default pansharpening weights (each band equally weighted) instead of "
+                             "custom WorldView-03 spectral band weights. Only impacts WV02 and WV03 imagery.")
     parser.add_argument("--pbs", action='store_true', default=False,
                         help="submit tasks to PBS")
     parser.add_argument("--slurm", action='store_true', default=False,
@@ -716,34 +719,36 @@ def exec_pansharpen(image_pair, pansh_dstfp, args, orig_res):
     else:
         co = ''
 
-    # add specific pansharpening weights for WV02 and WV03 images - get band count of input mul from image info
-    iinfo = ortho_functions.ImageInfo(image_pair.mul_srcfp, mul_dstfp, wd, args)
-    _err = iinfo.get_image_stats(args)
-    if _err != 0:
-        raise RuntimeError(f"Error in stats calculation")
+    weight_args = ''
+    if not args.skip_WV03_weights:
+        # add specific pansharpening weights for WV02 and WV03 images - get band count of input mul from image info
+        iinfo = ortho_functions.ImageInfo(image_pair.mul_srcfp, mul_dstfp, wd, args)
+        _err = iinfo.get_image_stats(args)
+        if _err != 0:
+            raise RuntimeError(f"Error in stats calculation")
 
-    if "WV02" in iinfo.sat or "WV03" in iinfo.sat:
-        red_wt = ortho_functions.WV03_BAND_WEIGHT_DICT['RED']
-        green_wt = ortho_functions.WV03_BAND_WEIGHT_DICT['GREEN']
-        blue_wt = ortho_functions.WV03_BAND_WEIGHT_DICT['BLUE']
-        nir_wt = ortho_functions.WV03_BAND_WEIGHT_DICT['NEAR_IR1']
+        if "WV02" in iinfo.sat or "WV03" in iinfo.sat:
+            red_wt = ortho_functions.WV03_BAND_WEIGHT_DICT['RED']
+            green_wt = ortho_functions.WV03_BAND_WEIGHT_DICT['GREEN']
+            blue_wt = ortho_functions.WV03_BAND_WEIGHT_DICT['BLUE']
+            nir_wt = ortho_functions.WV03_BAND_WEIGHT_DICT['NEAR_IR1']
 
-        if iinfo.bands == 3:
-            # set rgb weights - Assumes RGB band order
-            weight_args = '-w {0} -w {1} -w {2} '.format(red_wt, green_wt, blue_wt)
-        elif iinfo.bands == 4:
-            # set 4-band weights - assumes BGRN band order
-            weight_args = '-w {0} -w {1} -w {2} -w {3}'.format(blue_wt, green_wt, red_wt, nir_wt)
-        elif iinfo.bands == 8:
-            # 8-band weights - use WV03 weights for both WV02 and WV03, assumes default WV band order
-            weight_args = ''
-            for value in ortho_functions.WV03_BAND_WEIGHT_DICT.values():
-                weight_args += '-w {} '.format(value)
-        else:
-            logger.warning("Incompatible numnber of bands for pansharpening weights: {} bands in multispectral image".format(iinfo.bands))
+            if iinfo.bands == 3:
+                # set rgb weights - Assumes RGB band order
+                weight_args = '-w {0} -w {1} -w {2} '.format(red_wt, green_wt, blue_wt)
+            elif iinfo.bands == 4:
+                # set 4-band weights - assumes BGRN band order
+                weight_args = '-w {0} -w {1} -w {2} -w {3}'.format(blue_wt, green_wt, red_wt, nir_wt)
+            elif iinfo.bands == 8:
+                # 8-band weights - use WV03 weights for both WV02 and WV03, assumes default WV band order
+                weight_args = ''
+                for value in ortho_functions.WV03_BAND_WEIGHT_DICT.values():
+                    weight_args += '-w {} '.format(value)
+            else:
+                logger.warning("Incompatible numnber of bands for pansharpening weights: {} bands in multispectral image".format(iinfo.bands))
 
     else:
-        weight_args = ''
+        logger.info("using GDAL default weights for pansharpening: each band weighted equally")
     
     logger.info("Pansharpening multispectral image")
     if os.path.isfile(pan_local_dstfp) and os.path.isfile(mul_local_dstfp):
