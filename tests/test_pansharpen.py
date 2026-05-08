@@ -27,7 +27,7 @@ class TestPanshFunc(unittest.TestCase):
     def test_pansharpen(self):
 
         src = self.srcdir
-        cmd = 'python {} {} {} --skip-cmd-txt -p 3413'.format(
+        cmd = 'python {} {} {} --skip-cmd-txt -p 3413 --skip-custom-weights'.format(
             self.scriptpath,
             src,
             self.dstdir,
