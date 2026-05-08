@@ -177,7 +177,7 @@ def main():
     parser.add_argument("--skip-missing-pairs", action='store_true', default=False,
                         help="submit available pan/multi image pairs for pansharpening,"
                              " skipping over cases of image pairs missing a pan or multi image")
-    parser.add_argument("--skip-WV03-weights", action="store_true", default=False,
+    parser.add_argument("--skip-custom-weights", action="store_true", default=False,
                         help="use GDAL default pansharpening weights (each band equally weighted) instead of "
                              "custom WorldView-03 spectral band weights. Only impacts WV02 and WV03 imagery.")
     parser.add_argument("--pbs", action='store_true', default=False,
@@ -720,7 +720,7 @@ def exec_pansharpen(image_pair, pansh_dstfp, args, orig_res):
         co = ''
 
     weight_args = ''
-    if not args.skip_WV03_weights:
+    if not args.skip_custom_weights:
         # add specific pansharpening weights for WV02 and WV03 images - get band count of input mul from image info
         iinfo = ortho_functions.ImageInfo(image_pair.mul_srcfp, mul_dstfp, wd, args)
         _err = iinfo.get_image_stats(args)
