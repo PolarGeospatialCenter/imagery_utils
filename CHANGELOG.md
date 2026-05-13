@@ -1,6 +1,18 @@
 History
 =======
 
+2.3.0 (2026-05-13)
+------------------
+* add validation for sun elevation
+* Auto dem logging fix 
+* Remove error threshold (-et) option from gdalwarp 
+* Add Support for WorldView Legion 1 and 2 
+* Add cog option for imagery output
+* Mosaic changes to separate business logic 
+* Pansharpened weights, use WV03 band weights by default
+* Bugfix to replace exception for running query without required mosaic args
+
+
 2.2.1 (2025-09-09)
 ------------------
 * Mosaic settings updates
