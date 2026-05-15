@@ -23,6 +23,9 @@ class TestPanshFunc(unittest.TestCase):
         self.dstdircog = os.path.join(__test_dir__, 'tmp_output_cog')
         if not os.path.isdir(self.dstdircog):
             os.makedirs(self.dstdircog)
+        self.dstdirrgb = os.path.join(__test_dir__, 'tmp_output_rgb')
+        if not os.path.isdir(self.dstdirrgb):
+            os.makedirs(self.dstdirrgb)
 
     def test_pansharpen(self):
 
@@ -127,6 +130,28 @@ class TestPanshFunc(unittest.TestCase):
 
         with gdal.Open(dstfp, gdalconst.GA_ReadOnly) as ds:
             self.assertIn('LAYOUT=COG', ds.GetMetadata_List('IMAGE_STRUCTURE'))
+
+    def test_pansharpen_rgb(self):
+        src = os.path.join(self.srcdir, "WV02_20110901210502_103001000D52C800_11SEP01210502-M1BS-052560788010_01_P008.ntf")
+        cmd = 'python {} {} {} --skip-cmd-txt -p 3413 -r 10 --rgb'.format(
+            self.scriptpath,
+            src,
+            self.dstdirrgb,
+        )
+
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        se, so = p.communicate()
+        print(so)
+        print(se)
+
+        dstfp = os.path.join(self.dstdirrgb, 'WV02_20110901210502_103001000D52C800_11SEP01210502-M1BS-052560788010_01_P008_u08rf3413_pansh.tif')
+        dstfp_xml = os.path.join(self.dstdirrgb, 'WV02_20110901210502_103001000D52C800_11SEP01210502-M1BS-052560788010_01_P008_u08rf3413_pansh.xml')
+
+        self.assertTrue(os.path.isfile(dstfp))
+        self.assertTrue(os.path.isfile(dstfp_xml))
+
+        with gdal.Open(dstfp, gdalconst.GA_ReadOnly) as ds:
+            self.assertTrue(ds.RasterCount == 3)
 
 
     def tearDown(self):
