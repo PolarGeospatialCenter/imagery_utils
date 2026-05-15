@@ -722,7 +722,7 @@ def exec_pansharpen(image_pair, pansh_dstfp, args, orig_res):
     weight_args = ''
     if not args.skip_custom_weights:
         # add specific pansharpening weights for WV02 and WV03 images - get band count of input mul from image info
-        iinfo = ortho_functions.ImageInfo(image_pair.mul_srcfp, mul_dstfp, wd, args)
+        iinfo = ortho_functions.ImageInfo(mul_dstfp, dstdir, wd, args)
         _err = iinfo.get_image_stats(args)
         if _err != 0:
             raise RuntimeError(f"Error in stats calculation")
