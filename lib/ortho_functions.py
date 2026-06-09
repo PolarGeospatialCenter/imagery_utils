@@ -11,7 +11,7 @@ import tarfile
 import configparser
 from datetime import datetime
 from xml.dom import minidom
-from xml.etree import cElementTree as ET
+from xml.etree import ElementTree as ET
 
 from osgeo import gdal, gdalconst, ogr, osr
 
@@ -1671,8 +1671,20 @@ def write_output_metadata(args, info):
 
     #  If DG
     if info.vendor == Vendor.DG:
-        imd = info.metad_etree.find("IMD")
-        til = info.metad_etree.find("TIL")
+
+        def strip_ns(element):
+            if element.tag.startswith("{"):
+                element.tag = element.tag.split("}", 1)[1]
+
+            for child in element:
+                strip_ns(child)
+
+        imd = info.metad_etree.find("{*}IMD")
+        if imd is not None:
+            strip_ns(imd)
+        til = info.metad_etree.find("{*}TIL")
+        if til is not None:
+            strip_ns(til)
 
     #  If GE
     elif info.vendor == Vendor.GE and info.sat == "GE01":
@@ -2184,26 +2196,26 @@ def get_dg_calib_dict(metad_etree, stretch):
 
     calibDict = {}
     abscalfact_dict = {}
-    nodeIMD = metad_etree.find('IMD')
+    nodeIMD = metad_etree.find('{*}IMD')
     if nodeIMD is None:
         raise utils.InvalidMetadataError(f"Metadata file is missing the IMD xml section")
     else:
-        nodeIMAGE = nodeIMD.find('IMAGE')
-        nodeMPP = nodeIMD.find('MAP_PROJECTED_PRODUCT')
+        nodeIMAGE = nodeIMD.find('{*}IMAGE')
+        nodeMPP = nodeIMD.find('{*}MAP_PROJECTED_PRODUCT')
 
-        sat = nodeIMAGE.find('SATID').text
-        elem = nodeIMAGE.find('FIRSTLINETIME')
+        sat = nodeIMAGE.find('{*}SATID').text
+        elem = nodeIMAGE.find('{*}FIRSTLINETIME')
         if elem is None:
             if nodeMPP is not None:
-                elem = nodeMPP.find('EARLIESTACQTIME')
+                elem = nodeMPP.find('{*}EARLIESTACQTIME')
         if elem is not None:
             t = elem.text
         else:
             raise utils.InvalidMetadataError(f"Metadata file is missing the FIRSTLINETIME and EARLIESTACQTIME xml tags")
 
-        elem = nodeIMAGE.find('MEANSUNEL')
+        elem = nodeIMAGE.find('{*}MEANSUNEL')
         if elem is None:
-            elem = nodeIMAGE.find('SUNEL')
+            elem = nodeIMAGE.find('{*}SUNEL')
         if elem is not None:
             sunEl = float(elem.text)
         else:
@@ -2217,9 +2229,9 @@ def get_dg_calib_dict(metad_etree, stretch):
 
         # get BAND tags
         for band in DGbandList:
-            nodeBAND = nodeIMD.find(band)
+            nodeBAND = nodeIMD.find("{*}" + f"{band}")
             if nodeBAND is not None:
-                elem = nodeBAND.find('ABSCALFACTOR')
+                elem = nodeBAND.find('{*}ABSCALFACTOR')
                 if elem is not None:
                     abscal = float(elem.text)
                     if abscal < 0:
@@ -2229,7 +2241,7 @@ def get_dg_calib_dict(metad_etree, stretch):
                     raise utils.InvalidMetadataError(
                         f"Metadata file is missing the ABSCALFACTOR xml tag")
 
-                elem = nodeBAND.find('EFFECTIVEBANDWIDTH')
+                elem = nodeBAND.find('{*}EFFECTIVEBANDWIDTH')
                 if elem is not None:
                     effbandw = float(elem.text)
                 else:
