@@ -271,6 +271,28 @@ class TestMosaicImageInfo(unittest.TestCase):
             self.assertAlmostEqual(image_info.stat_dct[1][i], stat_dct[1][i])
         self.assertEqual(image_info.datapixelcount_dct, datapixelcount_dct)
 
+    def test_image_info_new_vantor_metadata(self):
+        image = "WV02_20210313084410_10300100BB7B2D00_21MAR13084410-M1BS-600000003955_01_P002_u08rf32635.tif"
+        image_info = mosaic.ImageInfo(os.path.join(self.srcdir, image), "IMAGE")
+
+        self.assertEqual(image_info.xres, 100)
+        self.assertEqual(image_info.yres, 100)
+        self.assertEqual(image_info.bands, 8)
+        self.assertEqual(image_info.datatype, 1)
+
+        mosaic_args = MosaicArgs()
+        mosaic_params = mosaic.getMosaicParameters(image_info, mosaic_args)
+        image_info.getScore(mosaic_params)
+
+        self.assertEqual(image_info.sensor, "WV02")
+        self.assertEqual(image_info.sunel, 66.0)
+        self.assertEqual(image_info.ona, 22.9)
+        self.assertEqual(image_info.cloudcover, 0.192)
+        self.assertEqual(image_info.panfactor, 1)
+        self.assertEqual(image_info.date_diff, -9999)
+        self.assertEqual(image_info.year_diff, -9999)
+        self.assertAlmostEqual(image_info.score, 77.2106667,6)
+
     def test_filter_images(self):
         image_list = glob.glob(os.path.join(self.srcdir, '*.tif'))
         imginfo_list = [mosaic.ImageInfo(image, "IMAGE") for image in image_list]

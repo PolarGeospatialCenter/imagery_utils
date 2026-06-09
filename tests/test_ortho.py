@@ -53,6 +53,7 @@ class TestOrthoFunc(unittest.TestCase):
             ('WV03_20140919212947_104001000227BF00_14SEP19212947-M1BS-500191821040_01_P002.ntf', 3413, True),
             ('WV03_20190114103353_104C0100462B2500_19JAN14103353-C1BA-502817502010_01_P001.ntf', 3031, True),
             ('LG01_20250812153720_B110001102369000_25AUG12153720-M1BS-050463930010_01_P001.tif', 32619, True),
+            ('WV02_20210313084410_10300100BB7B2D00_21MAR13084410-M1BS-600000003955_01_P002.ntf', 32635, True),
         ]
         
         for test_image, epsg, result in test_images:
@@ -61,8 +62,7 @@ class TestOrthoFunc(unittest.TestCase):
             dstfp = os.path.join(self.dstdir, '{}_u08rf{}.tif'.format(
                 os.path.splitext(test_image)[0], epsg))
             print(srcfp)
-            cmd = r"""python "{}" -r 10 -p {} "{}" "{}" """.format(
-                self.scriptpath, epsg, srcfp, self.dstdir)
+            cmd = f'python "{self.scriptpath}" -r 100 -p {epsg} "{srcfp}" "{self.dstdir}" '
             p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
             se, so = p.communicate()
             # print(so)

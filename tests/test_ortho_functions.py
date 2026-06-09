@@ -53,6 +53,7 @@ class TestReadMetadata(unittest.TestCase):
             ('WV03_20190114103355_104C0100462B2500_19JAN14103355-C1BB-502817502010_01_P001.xml', True, True), # CAVIS B
             ('LG01_20250812153720_B110001102369000_25AUG12153720-M1BS-050463930010_01_P001.xml', True, True), # Legion 1
             ('LG02_20240927155103_B12000110059ED00_24SEP27155103-M2AS-200006033301_01_P001.xml', True, False), # Legion 2, invalid calibration
+            ('WV02_20210313084410_10300100BB7B2D00_21MAR13084410-M1BS-600000003955_01_P002.xml', True, True), # Vantor XML with Namespaces
         )
 
         dg_valid_data_range = {
