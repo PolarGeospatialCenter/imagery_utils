@@ -6,7 +6,7 @@ import os
 import shutil
 import requests
 from datetime import datetime, timedelta
-from xml.etree import cElementTree as ET
+from xml.etree import ElementTree as ET
 
 import numpy
 from numpy import flatnonzero

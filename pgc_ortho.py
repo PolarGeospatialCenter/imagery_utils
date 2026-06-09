@@ -4,10 +4,8 @@ from __future__ import division
 
 import argparse
 import logging
-import math
 import os
 import sys
-import xml.etree.ElementTree as ET
 import datetime
 
 import numpy as np

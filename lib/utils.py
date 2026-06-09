@@ -11,7 +11,7 @@ import sys
 import traceback
 from datetime import datetime
 from io import StringIO
-from xml.etree import cElementTree as ET
+from xml.etree import ElementTree as ET
 
 import numpy as np
 from osgeo import gdal, ogr, osr
