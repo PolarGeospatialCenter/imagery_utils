@@ -1,6 +1,11 @@
 History
 =======
 
+2.3.1 (2026-06-09)
+------------------
+* Pansh weight bug fix
+* Handle XML namespaces from Vantor imagery
+
 2.3.0 (2026-05-13)
 ------------------
 * add validation for sun elevation
@@ -12,7 +17,6 @@ History
 * Pansharpened weights, use WV03 band weights by default
 * Bugfix to replace exception for running query without required mosaic args
 
-
 2.2.1 (2025-09-09)
 ------------------
 * Mosaic settings updates
@@ -23,7 +27,6 @@ History
 
 2.2.0 (2024-10-31)
 ------------------
-
 * Add slurm queue arg to ortho and pansharpen scripts
 * Fix ortho metadata file for IKONOS imagery
 * add stack_landsat.py script to the repo
@@ -34,12 +37,10 @@ History
 
 2.1.3 (2024-07-03)
 ------------------
-
 * Minor bugfix for slurm job submission memory settings
 
 2.1.2 (2024-07-02)
 ------------------
-
 * add option for passing custom slurm job name
 * Patch for running pansharpen in mamba env on windows
 * Slurm script default settings
@@ -47,12 +48,10 @@ History
 
 2.1.1 (2024-05-23)
 ------------------
-
 * patch to fix processing bug with `auto` DEM flag
 
 2.1.0 (2024-05-17)
 ------------------
-
 * add option to write input command to txt file next to output dir
 * Add functionality for accepting ESRI codes in the EPSG arg
 * Minor bug fixes for writing out the input command
@@ -73,7 +72,6 @@ History
 
 2.1.0 (2022-06-14)
 ------------------
-
 * Added "REGION_ID" field to DemInfo attributes
 * bugfix: add allow_invalid_geom to qsub key removal list
 * Changes to address rare bug in pgc_ortho.py --tasks-per-job feature
