@@ -30,12 +30,18 @@ def main():
     parser.add_argument("mosaic", help="mosaic name without extension")
     #pos_arg_keys = ["index","tile_csv","dstdir"]
 
+
+
     parser.add_argument("-e", "--extent", nargs=4, type=float,
                         help="extent of output mosaic -- xmin xmax ymin ymax (default is union of all inputs)")
     parser.add_argument("--force-pan-to-multi", action="store_true", default=False,
                         help="if output is multiband, force script to also use 1 band images")
     parser.add_argument("-b", "--bands", type=int,
                         help="number of output bands( default is number of bands in the first image)")
+    parser.add_argument("--num-images", type=int, 
+                        help="Defines the number of best scored images to include for a tile extent. " 
+                             "If this argument is flagged, output will be a .txt file of said number of best scored " \
+                             "images rather than a single mosaic .tif")
     parser.add_argument("--tday",
                         help="month and day of the year to use as target for image suitability ranking -- 04-05")
     parser.add_argument("--tyear",
@@ -386,148 +392,169 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
                 else:
                     imginfo_list3 = list(imginfo_list2)
                     
-                ## Overlay geoms and remove non-contributors
-                logger.debug("Overlaying images to determine contributors")
-                contribs = mosaic.determine_contributors(imginfo_list3, t.geom, args.min_contribution_area)
-                                            
-                logger.info("Number of contributing images: %i", len(contribs))
-            
-                if len(contribs) > 0:
-                    os.makedirs(querypath, exist_ok=True)
-                    if args.build_shp:
-                        
-                        ## Create Shp
-                        shp = os.path.join(querypath, "{}_{}_imagery.shp".format(args.mosaic, t.name))
-                        logger.debug("Creating shapefile of geoms: %s", shp)
-                        fields = [("IMAGENAME", ogr.OFTString, 100), ("SCORE", ogr.OFTReal, 0)]
-                        OGR_DRIVER = "ESRI Shapefile"
-                        ogrDriver = ogr.GetDriverByName(OGR_DRIVER)
-                        if ogrDriver is None:
-                            logger.debug("OGR: Driver %s is not available", OGR_DRIVER)
-                            sys.exit(-1)
-                        
-                        if os.path.isfile(shp):
-                            ogrDriver.DeleteDataSource(shp)
-                        vds = ogrDriver.CreateDataSource(shp)
-                        if vds is None:
-                            logger.debug("Could not create shp")
-                            sys.exit(-1)
-                        
-                        shpd, shpn = os.path.split(shp)
-                        shpbn, shpe = os.path.splitext(shpn)
-                        
-                        lyr = vds.CreateLayer(shpbn, t_srs, ogr.wkbPolygon)
-                        if lyr is None:
-                            logger.debug("ERROR: Failed to create layer: %s", shpbn)
-                            sys.exit(-1)
-                        
-                        for fld, fdef, flen in fields:
-                            field_defn = ogr.FieldDefn(fld, fdef)
-                            if fdef == ogr.OFTString:
-                                field_defn.SetWidth(flen)
-                            if lyr.CreateField(field_defn) != 0:
-                                logger.debug("ERROR: Failed to create field: %s", fld)
-                        
-                        for iinfo, geom in contribs:
-                            logger.debug("Image: %s", iinfo.srcfn)
-                            feat = ogr.Feature(lyr.GetLayerDefn())
-                            feat.SetField("IMAGENAME", iinfo.srcfn)
-                            feat.SetField("SCORE", iinfo.score)
-                            feat.SetGeometry(geom)
-                            try:
-                                lyr.CreateFeature(feat)
-                            except RuntimeError as e:
-                                logger.warning("Could not create feature for image %s: %s", iinfo.srcfn, e)
-                            else:
-                                logger.debug("Created feature for image: %s", iinfo.srcfn)
-                            feat.Destroy()
+                # Output lit of n best scene ids
+                if args.num_images:
+                    output_txt_path = os.path.join(querypath, "{}_{}_qa_scenes.txt".format(args.mosaic, t.name))
+                    if args.num_images >= len(imginfo_list3):
+                        logger.info(f"Number of requested images ({args.num_images}), is greater than total number of images available for tile extent ({len(imginfo_list3)})")
+                        logger.info(f"Outputting to text file: {output_txt_path}")
+                        with open(output_txt_path, 'w') as file:
+                            file.write("SCENE_ID, SCORE")
+                            for iinfo in imginfo_list3:
+                                file.write(f'{iinfo.scene_id}, {iinfo.score}\n')
+                    else:
+                        logger.info(f"Outputtting to text file: ({output_txt_path})")
+                        i = 0
+                        with open(output_txt_path, 'w') as file:
+                            file.write("SCENE_ID, SCORE")
+                            for iinfo in imginfo_list3:
+                                while i < args.num_images:
+                                    file.write(f'{iinfo.scene_id}, {iinfo.score}\n')
+                                    i += 1
                     
-                    #### Write textfiles
-                    rn_fromtape_basedir = os.path.join(dstdir, "renamed_fromtape")
-                    # no longer need tile name in filepaths written to orig.txt, tape pull for all tiles output to
-                    # same dir. Still need tile subdirectories for ortho
-                    rn_fromtape_path = os.path.abspath(rn_fromtape_basedir)
+                else:
+                    ## Overlay geoms and remove non-contributors
+                    logger.debug("Overlaying images to determine contributors")
+                    contribs = mosaic.determine_contributors(imginfo_list3, t.geom, args.min_contribution_area)
+                                                
+                    logger.info("Number of contributing images: %i", len(contribs))
+                
+                    if len(contribs) > 0:
+                        os.makedirs(querypath, exist_ok=True)
+                        if args.build_shp:
+                            
+                            ## Create Shp
+                            shp = os.path.join(querypath, "{}_{}_imagery.shp".format(args.mosaic, t.name))
+                            logger.debug("Creating shapefile of geoms: %s", shp)
+                            fields = [("IMAGENAME", ogr.OFTString, 100), ("SCORE", ogr.OFTReal, 0)]
+                            OGR_DRIVER = "ESRI Shapefile"
+                            ogrDriver = ogr.GetDriverByName(OGR_DRIVER)
+                            if ogrDriver is None:
+                                logger.debug("OGR: Driver %s is not available", OGR_DRIVER)
+                                sys.exit(-1)
+                            
+                            if os.path.isfile(shp):
+                                ogrDriver.DeleteDataSource(shp)
+                            vds = ogrDriver.CreateDataSource(shp)
+                            if vds is None:
+                                logger.debug("Could not create shp")
+                                sys.exit(-1)
+                            
+                            shpd, shpn = os.path.split(shp)
+                            shpbn, shpe = os.path.splitext(shpn)
+                            
+                            lyr = vds.CreateLayer(shpbn, t_srs, ogr.wkbPolygon)
+                            if lyr is None:
+                                logger.debug("ERROR: Failed to create layer: %s", shpbn)
+                                sys.exit(-1)
+                            
+                            for fld, fdef, flen in fields:
+                                field_defn = ogr.FieldDefn(fld, fdef)
+                                if fdef == ogr.OFTString:
+                                    field_defn.SetWidth(flen)
+                                if lyr.CreateField(field_defn) != 0:
+                                    logger.debug("ERROR: Failed to create field: %s", fld)
+                            
+                            for iinfo, geom in contribs:
+                                logger.debug("Image: %s", iinfo.srcfn)
+                                feat = ogr.Feature(lyr.GetLayerDefn())
+                                feat.SetField("IMAGENAME", iinfo.srcfn)
+                                feat.SetField("SCORE", iinfo.score)
+                                feat.SetGeometry(geom)
+                                try:
+                                    lyr.CreateFeature(feat)
+                                except RuntimeError as e:
+                                    logger.warning("Could not create feature for image %s: %s", iinfo.srcfn, e)
+                                else:
+                                    logger.debug("Created feature for image: %s", iinfo.srcfn)
+                                feat.Destroy()
+                        
+                        #### Write textfiles
+                        rn_fromtape_basedir = os.path.join(dstdir, "renamed_fromtape")
+                        # no longer need tile name in filepaths written to orig.txt, tape pull for all tiles output to
+                        # same dir. Still need tile subdirectories for ortho
+                        rn_fromtape_path = os.path.abspath(rn_fromtape_basedir)
 
-                    otxt = open(otxtpath, 'w')
-                    ttxt = open(otxtpath_ontape, 'w')
-                    mtxt = open(mtxtpath, 'w')
+                        otxt = open(otxtpath, 'w')
+                        ttxt = open(otxtpath_ontape, 'w')
+                        mtxt = open(mtxtpath, 'w')
 
-                    # write header
-                    ttxt.write("{0},{1},{2},{3},{4}\n".format("SCENE_ID", "STRIP_ID", "CATALOG_ID", "S_FILEPATH", "STATUS"))
+                        # write header
+                        ttxt.write("{0},{1},{2},{3},{4}\n".format("SCENE_ID", "STRIP_ID", "CATALOG_ID", "S_FILEPATH", "STATUS"))
 
-                    tape_ct = 0
+                        tape_ct = 0
 
-                    if args.require_pan:
-                        # add pan component to contribs
-                        pan_contribs = []
-                        ds = ogr.Open(dsp)
-                        lyr = ds.GetLayerByName(lyrn)
-                        lyr.ResetReading()
-                        lyr.SetSpatialFilter(tile_geom_in_s_srs)
-                        lyr.SetAttributeFilter("")
-                        empty_geom = None
-                        logger.info("Adding panchromatic component images to output files")
+                        if args.require_pan:
+                            # add pan component to contribs
+                            pan_contribs = []
+                            ds = ogr.Open(dsp)
+                            lyr = ds.GetLayerByName(lyrn)
+                            lyr.ResetReading()
+                            lyr.SetSpatialFilter(tile_geom_in_s_srs)
+                            lyr.SetAttributeFilter("")
+                            empty_geom = None
+                            logger.info("Adding panchromatic component images to output files")
+
+                            for iinfo, geom in contribs:
+                                # TODO: speed this part up
+                                pan_component_id = iinfo.pan_scene_id
+                                lyr.SetAttributeFilter("SCENE_ID = '{}'".format(pan_component_id))
+                                pan_feat = lyr.GetNextFeature()
+                                pan_iinfo = mosaic.ImageInfo(pan_feat, "RECORD", srs=s_srs)
+                                pan_contribs.append([pan_iinfo, empty_geom])
+
+                            logger.info("Found {} pan components to go with {} multispectral images".format(
+                                len(pan_contribs), len(contribs)))
+                            contribs = contribs + pan_contribs
 
                         for iinfo, geom in contribs:
-                            # TODO: speed this part up
-                            pan_component_id = iinfo.pan_scene_id
-                            lyr.SetAttributeFilter("SCENE_ID = '{}'".format(pan_component_id))
-                            pan_feat = lyr.GetNextFeature()
-                            pan_iinfo = mosaic.ImageInfo(pan_feat, "RECORD", srs=s_srs)
-                            pan_contribs.append([pan_iinfo, empty_geom])
-
-                        logger.info("Found {} pan components to go with {} multispectral images".format(
-                            len(pan_contribs), len(contribs)))
-                        contribs = contribs + pan_contribs
-
-                    for iinfo, geom in contribs:
-                        
-                        if not os.path.isfile(iinfo.srcfp) and iinfo.status != "tape":
-                            logger.warning("Image does not exist: %s", iinfo.srcfp)
                             
-                        if iinfo.status == "tape":
-                            # TODO: this "tape" logic does not belong in the public repo
-                            tape_ct += 1
-                            ttxt.write("{0},{1},{2},{3},{4}\n".format(iinfo.scene_id, iinfo.strip_id, iinfo.catid, iinfo.srcfp, iinfo.status))
-                            # get srcfp with file extension
-                            srcfp_file = os.path.basename(iinfo.srcfn)
-                            otxt.write("{}\n".format(os.path.join(rn_fromtape_path, srcfp_file)))
+                            if not os.path.isfile(iinfo.srcfp) and iinfo.status != "tape":
+                                logger.warning("Image does not exist: %s", iinfo.srcfp)
+                                
+                            if iinfo.status == "tape":
+                                # TODO: this "tape" logic does not belong in the public repo
+                                tape_ct += 1
+                                ttxt.write("{0},{1},{2},{3},{4}\n".format(iinfo.scene_id, iinfo.strip_id, iinfo.catid, iinfo.srcfp, iinfo.status))
+                                # get srcfp with file extension
+                                srcfp_file = os.path.basename(iinfo.srcfn)
+                                otxt.write("{}\n".format(os.path.join(rn_fromtape_path, srcfp_file)))
+
+                            else:
+                                otxt.write("{}\n".format(iinfo.srcfp))
+
+                            # add "_pansh" to the files name written to ortho.txt if running pansharpened
+                            pansh_suf = ""
+                            if args.require_pan:
+                                pansh_suf = "_pansh"
+                                # skip P1BS images since pansharpened outputs use M1BS in the name
+                                if "P1BS" in iinfo.srcfp:
+                                    continue
+
+
+                            m_fn = "{0}_{4}{1}{2}{3}.tif".format(
+                                os.path.splitext(iinfo.srcfn)[0],
+                                args.stretch,
+                                t.epsg,
+                                pansh_suf,
+                                args.bit_depth
+                            )
+                            
+                            mtxt.write(os.path.join(dstdir, 'ortho', m_fn) + "\n")
+    
+                        otxt.close()
+
+                        if tape_ct == 0:
+                            logger.debug("No files need to be pulled from tape.")
+                            os.remove(otxtpath_ontape)
 
                         else:
-                            otxt.write("{}\n".format(iinfo.srcfp))
-
-                        # add "_pansh" to the files name written to ortho.txt if running pansharpened
-                        pansh_suf = ""
-                        if args.require_pan:
-                            pansh_suf = "_pansh"
-                            # skip P1BS images since pansharpened outputs use M1BS in the name
-                            if "P1BS" in iinfo.srcfp:
-                                continue
-
-
-                        m_fn = "{0}_{4}{1}{2}{3}.tif".format(
-                            os.path.splitext(iinfo.srcfn)[0],
-                            args.stretch,
-                            t.epsg,
-                            pansh_suf,
-                            args.bit_depth
-                        )
-                        
-                        mtxt.write(os.path.join(dstdir, 'ortho', m_fn) + "\n")
- 
-                    otxt.close()
-
-                    if tape_ct == 0:
-                        logger.debug("No files need to be pulled from tape.")
-                        os.remove(otxtpath_ontape)
-
-                    else:
-                        # Prompt user to pull scenes from tape
-                        logger.info("{0} scenes are not accessible, as they are on tape. Please use ir.py to pull "
-                                       "scenes using file '{1}'. They must be put in directory '{2}', as file '{3}' "
-                                       "contains hard-coded paths to said files (necessary to perform "
-                                       "orthorectification).".
-                                       format(tape_ct, otxtpath_ontape, rn_fromtape_path, otxtpath))
+                            # Prompt user to pull scenes from tape
+                            logger.info("{0} scenes are not accessible, as they are on tape. Please use ir.py to pull "
+                                        "scenes using file '{1}'. They must be put in directory '{2}', as file '{3}' "
+                                        "contains hard-coded paths to said files (necessary to perform "
+                                        "orthorectification).".
+                                        format(tape_ct, otxtpath_ontape, rn_fromtape_path, otxtpath))
 
 
 if __name__ == '__main__':
