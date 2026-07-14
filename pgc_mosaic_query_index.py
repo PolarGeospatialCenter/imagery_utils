@@ -234,6 +234,8 @@ def main():
 def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
 
     querypath = os.path.join(dstdir, "query")
+    if not os.path.exists(querypath):
+        os.mkdir(querypath)
     otxtpath = os.path.join(querypath, "{}_{}_orig.txt".format(args.mosaic, t.name))
     otxtpath_ontape = os.path.join(querypath, "{}_{}_orig_ontape.csv".format(args.mosaic, t.name))
     mtxtpath = os.path.join(querypath, "{}_{}_ortho.txt".format(args.mosaic, t.name))
@@ -399,18 +401,20 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
                         logger.info(f"Number of requested images ({args.num_images}), is greater than total number of images available for tile extent ({len(imginfo_list3)})")
                         logger.info(f"Outputting to text file: {output_txt_path}")
                         with open(output_txt_path, 'w') as file:
-                            file.write("SCENE_ID, SCORE")
+                            file.write("SCENE_ID, SCORE\n")
                             for iinfo in imginfo_list3:
                                 file.write(f'{iinfo.scene_id}, {iinfo.score}\n')
                     else:
                         logger.info(f"Outputtting to text file: ({output_txt_path})")
                         i = 0
                         with open(output_txt_path, 'w') as file:
-                            file.write("SCENE_ID, SCORE")
-                            for iinfo in imginfo_list3:
-                                while i < args.num_images:
+                            file.write("SCENE_ID, SCORE\n")
+                            for iinfo in reversed(imginfo_list3):
+                                if i <= args.num_images:
                                     file.write(f'{iinfo.scene_id}, {iinfo.score}\n')
                                     i += 1
+                                else:
+                                    break
                     
                 else:
                     ## Overlay geoms and remove non-contributors
