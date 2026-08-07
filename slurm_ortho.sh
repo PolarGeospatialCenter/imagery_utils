@@ -4,7 +4,7 @@
 #SBATCH -N 1
 
 # number of cpus per task
-#SBATCH -c 1
+#SBATCH -c 2
 
 # memory
 #SBATCH --mem 12G
@@ -17,6 +17,7 @@
 #SBATCH -e %x.o%j
 
 #SBATCH --licenses=vida:25
+#SBATCH --gres=bandwidth:1000
 
 echo ________________________________________
 echo

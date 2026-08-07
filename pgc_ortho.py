@@ -443,6 +443,8 @@ def main():
 
         elif args.slurm:
             qsub_args = ""
+            # add number of cpus, vida licenses, and bandwidth limit for bundled jobs
+            qsub_args += ortho_functions.slurm_args
             if not slurm_log_dir == None:
                 qsub_args += '-o {}/%x.o%j '.format(slurm_log_dir)
                 qsub_args += '-e {}/%x.o%j '.format(slurm_log_dir)
@@ -454,8 +456,6 @@ def main():
                 qsub_args += '-t {}:00:00 '.format(wallclock_hrs)
             if args.queue:
                 qsub_args += "-p {} ".format(args.queue)
-            # add vida licenses limit for bundled jobs
-            qsub_args += "--licenses=vida:25 "
             try:
                 task_handler = taskhandler.SLURMTaskHandler(qsubpath, qsub_args)
             except RuntimeError as e:
