@@ -447,11 +447,15 @@ def main():
                 qsub_args += '-o {}/%x.o%j '.format(slurm_log_dir)
                 qsub_args += '-e {}/%x.o%j '.format(slurm_log_dir)
             # adjust wallclock if submitting multiple tasks ro be run in serial for a single slurm job
-            # default wallclock for ortho jobs is 1:00:00, refer to slurm_ortho.sh to verify
+            # default wallclock for ortho jobs is set in slurm_ortho.sh and ortho_functions.wallclock_mult var
+            # wallclock hrs multiplies number of bundled jobs * wallclock_mult to set total slurm hours
             if args.tasks_per_job:
-                qsub_args += '-t {}:00:00 '.format(args.tasks_per_job)
+                wallclock_hrs = ortho_functions.wallclock_mult * args.tasks_per_job
+                qsub_args += '-t {}:00:00 '.format(wallclock_hrs)
             if args.queue:
                 qsub_args += "-p {} ".format(args.queue)
+            # add vida licenses limit for bundled jobs
+            qsub_args += "--licenses=vida:25 "
             try:
                 task_handler = taskhandler.SLURMTaskHandler(qsubpath, qsub_args)
             except RuntimeError as e:
