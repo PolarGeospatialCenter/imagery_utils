@@ -17,7 +17,7 @@
 #SBATCH -e %x.o%j
 
 #SBATCH --licenses=vida:25
-#SBATCH --gres=bandwidth:1000
+#SBATCH --gres=bandwidth:500
 
 echo ________________________________________
 echo
