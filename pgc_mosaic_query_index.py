@@ -38,10 +38,6 @@ def main():
                         help="if output is multiband, force script to also use 1 band images")
     parser.add_argument("-b", "--bands", type=int,
                         help="number of output bands( default is number of bands in the first image)")
-    parser.add_argument("--num-images", type=int, 
-                        help="Defines the number of best scored images to include for a tile extent. " 
-                             "If this argument is flagged, output will be a .txt file of said number of best scored " \
-                             "images rather than a single mosaic .tif")
     parser.add_argument("--tday",
                         help="month and day of the year to use as target for image suitability ranking -- 04-05")
     parser.add_argument("--tyear",
@@ -65,6 +61,13 @@ def main():
     parser.add_argument("--min-contribution-area", type=int, default=20000000,
                         help="minimum area contribution threshold in target projection units (default=20000000). "
                              "Higher values remove more image slivers from the resulting mosaic")
+    parser.add_argument("--num-images", type=int,
+                        help="Defines the number of best scored images to include for a tile extent. " 
+                             "If this argument is flagged, output will be a .txt file of said number of best scored " \
+                             "images")
+    parser.add_argument("--mosaic-layers", type=int,
+                        help="Defines the number of layers of mosaic coverage - outputs n best mosaic coverages "
+                             "in combined txt and shp")
     parser.add_argument("--log",
                         help="output log file (default is queryFP.log in the output folder)")
     parser.add_argument("--ttile",
@@ -417,11 +420,27 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
                                     break
                     
                 else:
-                    ## Overlay geoms and remove non-contributors
-                    logger.debug("Overlaying images to determine contributors")
-                    contribs = mosaic.determine_contributors(imginfo_list3, t.geom, args.min_contribution_area)
-                                                
-                    logger.info("Number of contributing images: %i", len(contribs))
+                    if not args.mosaic_layers:
+                        ## Overlay geoms and remove non-contributors
+                        logger.debug("Overlaying images to determine contributors")
+                        contribs = mosaic.determine_contributors(imginfo_list3, t.geom, args.min_contribution_area)
+
+                        logger.info("Number of contributing images: %i", len(contribs))
+
+                    else:
+                        layers = 1
+                        contribs = []
+                        while layers <= args.mosaic_layers:
+                            logger.info("Mosaic Coverage Iteration  %i", layers)
+                            ## Overlay geoms and remove non-contributors
+                            logger.debug("Overlaying images to determine contributors")
+                            contribs_to_append = mosaic.determine_contributors(imginfo_list3, t.geom, args.min_contribution_area)
+                            contribs.extend(contribs_to_append)
+                            logger.info("Total contibuting images:  %i", len(contribs))
+                            # remove contributors from list of candidate images
+                            contrib_iinfo_to_remove = [item[0] for item in contribs_to_append]
+                            imginfo_list3 = [item for item in imginfo_list3 if item not in contrib_iinfo_to_remove]
+                            layers += 1
                 
                     if len(contribs) > 0:
                         os.makedirs(querypath, exist_ok=True)
