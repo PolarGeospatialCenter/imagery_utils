@@ -471,49 +471,6 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
                             ## Create Shp
                             shp = os.path.join(querypath, "{}_{}_imagery.shp".format(args.mosaic, t.name))
                             create_shp(shp, t_srs, contribs)
-                            # logger.debug("Creating shapefile of geoms: %s", shp)
-                            # fields = [("IMAGENAME", ogr.OFTString, 100), ("SCORE", ogr.OFTReal, 0)]
-                            # OGR_DRIVER = "ESRI Shapefile"
-                            # ogrDriver = ogr.GetDriverByName(OGR_DRIVER)
-                            # if ogrDriver is None:
-                            #     logger.debug("OGR: Driver %s is not available", OGR_DRIVER)
-                            #     sys.exit(-1)
-                            #
-                            # if os.path.isfile(shp):
-                            #     ogrDriver.DeleteDataSource(shp)
-                            # vds = ogrDriver.CreateDataSource(shp)
-                            # if vds is None:
-                            #     logger.debug("Could not create shp")
-                            #     sys.exit(-1)
-                            #
-                            # shpd, shpn = os.path.split(shp)
-                            # shpbn, shpe = os.path.splitext(shpn)
-                            #
-                            # lyr = vds.CreateLayer(shpbn, t_srs, ogr.wkbPolygon)
-                            # if lyr is None:
-                            #     logger.debug("ERROR: Failed to create layer: %s", shpbn)
-                            #     sys.exit(-1)
-                            #
-                            # for fld, fdef, flen in fields:
-                            #     field_defn = ogr.FieldDefn(fld, fdef)
-                            #     if fdef == ogr.OFTString:
-                            #         field_defn.SetWidth(flen)
-                            #     if lyr.CreateField(field_defn) != 0:
-                            #         logger.debug("ERROR: Failed to create field: %s", fld)
-                            #
-                            # for iinfo, geom in contribs:
-                            #     logger.debug("Image: %s", iinfo.srcfn)
-                            #     feat = ogr.Feature(lyr.GetLayerDefn())
-                            #     feat.SetField("IMAGENAME", iinfo.srcfn)
-                            #     feat.SetField("SCORE", iinfo.score)
-                            #     feat.SetGeometry(geom)
-                            #     try:
-                            #         lyr.CreateFeature(feat)
-                            #     except RuntimeError as e:
-                            #         logger.warning("Could not create feature for image %s: %s", iinfo.srcfn, e)
-                            #     else:
-                            #         logger.debug("Created feature for image: %s", iinfo.srcfn)
-                            #     feat.Destroy()
                         
                         #### Write textfiles
                         rn_fromtape_basedir = os.path.join(dstdir, "renamed_fromtape")
