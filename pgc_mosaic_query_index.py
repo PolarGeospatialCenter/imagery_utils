@@ -399,6 +399,7 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
                     
                 # Output lit of n best scene ids
                 if args.num_images:
+                    num_image_contribs = []
                     output_txt_path = os.path.join(querypath, "{}_{}_qa_scenes.txt".format(args.mosaic, t.name))
                     if args.num_images >= len(imginfo_list3):
                         logger.info(f"Number of requested images ({args.num_images}), is greater than total number of images available for tile extent ({len(imginfo_list3)})")
@@ -409,15 +410,29 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
                                 file.write(f'{iinfo.scene_id}, {iinfo.score}\n')
                     else:
                         logger.info(f"Outputtting to text file: ({output_txt_path})")
-                        i = 0
+                        i = 1
                         with open(output_txt_path, 'w') as file:
                             file.write("SCENE_ID, SCORE\n")
                             for iinfo in reversed(imginfo_list3):
                                 if i <= args.num_images:
+                                    num_image_contribs.append(iinfo)
                                     file.write(f'{iinfo.scene_id}, {iinfo.score}\n')
                                     i += 1
                                 else:
                                     break
+
+                        # write out component shp
+                        contribs = [(iinfo, iinfo.geom) for iinfo in num_image_contribs]
+                        logger.info("Number of scenes in selection: %d", len(num_image_contribs))
+                        logger.info("Building component index")
+                        comp_shp = os.path.join(querypath, "{}_{}_qa_scenes_components.shp".format(args.mosaic, t.name))
+                        if len(contribs) > 0:
+                            if os.path.isfile(comp_shp):
+                                logger.info("Components shapefile already exists: %s", comp_shp)
+                            else:
+                                create_shp(comp_shp, t_srs, contribs)
+                        else:
+                            logger.error("No contributing images")
                     
                 else:
                     if not args.mosaic_layers:
@@ -441,56 +456,64 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
                             contrib_iinfo_to_remove = [item[0] for item in contribs_to_append]
                             imginfo_list3 = [item for item in imginfo_list3 if item not in contrib_iinfo_to_remove]
                             layers += 1
-                
+                        output_txt_path = os.path.join(querypath, "{}_{}_qa_scenes.txt".format(args.mosaic, t.name))
+                        logger.info(f"Outputting to text file: {output_txt_path}")
+                        contrib_iinfo_to_write = [item[0] for item in contribs_to_append]
+                        with open(output_txt_path, 'w') as file:
+                            file.write("SCENE_ID, SCORE\n")
+                            for iinfo in contrib_iinfo_to_write:
+                                file.write(f'{iinfo.scene_id}, {iinfo.score}\n')
+
                     if len(contribs) > 0:
                         os.makedirs(querypath, exist_ok=True)
                         if args.build_shp:
                             
                             ## Create Shp
                             shp = os.path.join(querypath, "{}_{}_imagery.shp".format(args.mosaic, t.name))
-                            logger.debug("Creating shapefile of geoms: %s", shp)
-                            fields = [("IMAGENAME", ogr.OFTString, 100), ("SCORE", ogr.OFTReal, 0)]
-                            OGR_DRIVER = "ESRI Shapefile"
-                            ogrDriver = ogr.GetDriverByName(OGR_DRIVER)
-                            if ogrDriver is None:
-                                logger.debug("OGR: Driver %s is not available", OGR_DRIVER)
-                                sys.exit(-1)
-                            
-                            if os.path.isfile(shp):
-                                ogrDriver.DeleteDataSource(shp)
-                            vds = ogrDriver.CreateDataSource(shp)
-                            if vds is None:
-                                logger.debug("Could not create shp")
-                                sys.exit(-1)
-                            
-                            shpd, shpn = os.path.split(shp)
-                            shpbn, shpe = os.path.splitext(shpn)
-                            
-                            lyr = vds.CreateLayer(shpbn, t_srs, ogr.wkbPolygon)
-                            if lyr is None:
-                                logger.debug("ERROR: Failed to create layer: %s", shpbn)
-                                sys.exit(-1)
-                            
-                            for fld, fdef, flen in fields:
-                                field_defn = ogr.FieldDefn(fld, fdef)
-                                if fdef == ogr.OFTString:
-                                    field_defn.SetWidth(flen)
-                                if lyr.CreateField(field_defn) != 0:
-                                    logger.debug("ERROR: Failed to create field: %s", fld)
-                            
-                            for iinfo, geom in contribs:
-                                logger.debug("Image: %s", iinfo.srcfn)
-                                feat = ogr.Feature(lyr.GetLayerDefn())
-                                feat.SetField("IMAGENAME", iinfo.srcfn)
-                                feat.SetField("SCORE", iinfo.score)
-                                feat.SetGeometry(geom)
-                                try:
-                                    lyr.CreateFeature(feat)
-                                except RuntimeError as e:
-                                    logger.warning("Could not create feature for image %s: %s", iinfo.srcfn, e)
-                                else:
-                                    logger.debug("Created feature for image: %s", iinfo.srcfn)
-                                feat.Destroy()
+                            create_shp(shp, t_srs, contribs)
+                            # logger.debug("Creating shapefile of geoms: %s", shp)
+                            # fields = [("IMAGENAME", ogr.OFTString, 100), ("SCORE", ogr.OFTReal, 0)]
+                            # OGR_DRIVER = "ESRI Shapefile"
+                            # ogrDriver = ogr.GetDriverByName(OGR_DRIVER)
+                            # if ogrDriver is None:
+                            #     logger.debug("OGR: Driver %s is not available", OGR_DRIVER)
+                            #     sys.exit(-1)
+                            #
+                            # if os.path.isfile(shp):
+                            #     ogrDriver.DeleteDataSource(shp)
+                            # vds = ogrDriver.CreateDataSource(shp)
+                            # if vds is None:
+                            #     logger.debug("Could not create shp")
+                            #     sys.exit(-1)
+                            #
+                            # shpd, shpn = os.path.split(shp)
+                            # shpbn, shpe = os.path.splitext(shpn)
+                            #
+                            # lyr = vds.CreateLayer(shpbn, t_srs, ogr.wkbPolygon)
+                            # if lyr is None:
+                            #     logger.debug("ERROR: Failed to create layer: %s", shpbn)
+                            #     sys.exit(-1)
+                            #
+                            # for fld, fdef, flen in fields:
+                            #     field_defn = ogr.FieldDefn(fld, fdef)
+                            #     if fdef == ogr.OFTString:
+                            #         field_defn.SetWidth(flen)
+                            #     if lyr.CreateField(field_defn) != 0:
+                            #         logger.debug("ERROR: Failed to create field: %s", fld)
+                            #
+                            # for iinfo, geom in contribs:
+                            #     logger.debug("Image: %s", iinfo.srcfn)
+                            #     feat = ogr.Feature(lyr.GetLayerDefn())
+                            #     feat.SetField("IMAGENAME", iinfo.srcfn)
+                            #     feat.SetField("SCORE", iinfo.score)
+                            #     feat.SetGeometry(geom)
+                            #     try:
+                            #         lyr.CreateFeature(feat)
+                            #     except RuntimeError as e:
+                            #         logger.warning("Could not create feature for image %s: %s", iinfo.srcfn, e)
+                            #     else:
+                            #         logger.debug("Created feature for image: %s", iinfo.srcfn)
+                            #     feat.Destroy()
                         
                         #### Write textfiles
                         rn_fromtape_basedir = os.path.join(dstdir, "renamed_fromtape")
@@ -579,6 +602,51 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
                                         "orthorectification).".
                                         format(tape_ct, otxtpath_ontape, rn_fromtape_path, otxtpath))
 
+
+def create_shp(shp, t_srs, contribs):
+    logger.debug("Creating shapefile of geoms: %s", shp)
+    fields = [("IMAGENAME", ogr.OFTString, 100), ("SCORE", ogr.OFTReal, 0)]
+    OGR_DRIVER = "ESRI Shapefile"
+    ogrDriver = ogr.GetDriverByName(OGR_DRIVER)
+    if ogrDriver is None:
+        logger.debug("OGR: Driver %s is not available", OGR_DRIVER)
+        sys.exit(-1)
+
+    if os.path.isfile(shp):
+        ogrDriver.DeleteDataSource(shp)
+    vds = ogrDriver.CreateDataSource(shp)
+    if vds is None:
+        logger.debug("Could not create shp")
+        sys.exit(-1)
+
+    shpd, shpn = os.path.split(shp)
+    shpbn, shpe = os.path.splitext(shpn)
+
+    lyr = vds.CreateLayer(shpbn, t_srs, ogr.wkbPolygon)
+    if lyr is None:
+        logger.debug("ERROR: Failed to create layer: %s", shpbn)
+        sys.exit(-1)
+
+    for fld, fdef, flen in fields:
+        field_defn = ogr.FieldDefn(fld, fdef)
+        if fdef == ogr.OFTString:
+            field_defn.SetWidth(flen)
+        if lyr.CreateField(field_defn) != 0:
+            logger.debug("ERROR: Failed to create field: %s", fld)
+
+    for iinfo, geom in contribs:
+        logger.debug("Image: %s", iinfo.srcfn)
+        feat = ogr.Feature(lyr.GetLayerDefn())
+        feat.SetField("IMAGENAME", iinfo.srcfn)
+        feat.SetField("SCORE", iinfo.score)
+        feat.SetGeometry(geom)
+        try:
+            lyr.CreateFeature(feat)
+        except RuntimeError as e:
+            logger.warning("Could not create feature for image %s: %s", iinfo.srcfn, e)
+        else:
+            logger.debug("Created feature for image: %s", iinfo.srcfn)
+        feat.Destroy()
 
 if __name__ == '__main__':
     main()
