@@ -421,18 +421,19 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
                                 else:
                                     break
 
-                        # write out component shp
-                        contribs = [(iinfo, iinfo.geom) for iinfo in num_image_contribs]
-                        logger.info("Number of scenes in selection: %d", len(num_image_contribs))
-                        logger.info("Building component index")
-                        comp_shp = os.path.join(querypath, "{}_{}_qa_scenes_components.shp".format(args.mosaic, t.name))
-                        if len(contribs) > 0:
-                            if os.path.isfile(comp_shp):
-                                logger.info("Components shapefile already exists: %s", comp_shp)
+                        if args.build_shp:
+                            # write out component shp
+                            contribs = [(iinfo, iinfo.geom) for iinfo in num_image_contribs]
+                            logger.info("Number of scenes in selection: %d", len(num_image_contribs))
+                            logger.info("Building component index")
+                            comp_shp = os.path.join(querypath, "{}_{}_qa_scenes_components.shp".format(args.mosaic, t.name))
+                            if len(contribs) > 0:
+                                if os.path.isfile(comp_shp):
+                                    logger.info("Components shapefile already exists: %s", comp_shp)
+                                else:
+                                    create_shp(comp_shp, t_srs, contribs)
                             else:
-                                create_shp(comp_shp, t_srs, contribs)
-                        else:
-                            logger.error("No contributing images")
+                                logger.error("No contributing images")
                     
                 else:
                     if not args.mosaic_layers:
