@@ -4,19 +4,20 @@
 #SBATCH -N 1
 
 # number of cpus per task
-#SBATCH -c 1
+#SBATCH -c 2
 
 # memory
 #SBATCH --mem 12G
 
 # wallclock
-#SBATCH -t 1:00:00
+#SBATCH -t 2:00:00
 
 # job log path
 #SBATCH -o %x.o%j
 #SBATCH -e %x.o%j
 
 #SBATCH --licenses=vida:25
+#SBATCH --gres=bandwidth:500
 
 echo ________________________________________
 echo
