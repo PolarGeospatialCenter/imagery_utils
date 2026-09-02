@@ -526,7 +526,7 @@ def get_source_names(src_fp):
         src_dsp = src_fp
         src_lyr = os.path.splitext(os.path.basename(src_fp))[0]
     elif ".gdb" in src_fp.lower() and not src_fp.lower().endswith(".gdb"):
-        src_dsp, src_lyr = re.split(r"(?<=\.gdb)/", src_fp, re.I)
+        src_dsp, src_lyr = re.split(r"(?<=\.gdb)[\\/]", src_fp, re.I)
     else:
         msg = "The source {} does not appear to be a shapefile or File GDB".format(src_fp)
         raise RuntimeError(msg)

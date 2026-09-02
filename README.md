@@ -73,11 +73,14 @@ The mosaicking toolset mosaics multiple input images into a set of non-overlappi
 images according to several factors including cloud cover, sun elevation angle, off-nadir angle, probability of 
 overexposure, and proximity to a specific date.  It consists of 3 scripts:
 
-1. pgc_mosaic.py - initializes the output mosaic, creates cutlines, and run the subtile processes.
-2. pgc_mosaic_query_index.py - takes mosaic parameters and a shapefile index and determines which images will contribute
+1. **_pgc_mosaic.py_** - initializes the output mosaic, creates cutlines, and run the subtile processes.
+2. **_pgc_mosaic_query_index.py_** - takes mosaic parameters and a shapefile index and determines which images will contribute
 to the resulting mosaic. The resulting list can be used to reduce the number of images that are run through the 
-orthorectification script to those that will be eventually used.
-3. pgc_mosaic_build_tile.py - builds an individual mosaic tile.  This script is invoked by pgc_mosaic.
+orthorectification script to those that will be eventually used. There are three different modes of query selection available in the script:
+   1. Default: query returns a single layer of imagery coverage for the input tile area, selecting the best scored images on top.
+   2. Mosaic layers `--mosaic-layers n`: use this flag to return multiple distinct full coverages of the input tile area. This is the equivalent of running the default script multiple times, removing any image present in previous coverages.
+   3. Best n images `--num-images n`: this flag returns the highest scored images for the tile, up to the input number (eg: 500), but does not guarantee full geographic coverage for the tile.
+3. **_pgc_mosaic_build_tile.py_** - builds an individual mosaic tile.  This script is invoked by pgc_mosaic.
 
 Example:
 ```
