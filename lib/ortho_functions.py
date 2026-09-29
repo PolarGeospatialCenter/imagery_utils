@@ -372,7 +372,7 @@ class ImageInfo:
             try:
                 spatial_ref = utils.SpatialRef(epsg_code)
             except RuntimeError:
-                raise RuntimeError("Invalid EPSG code: %i", epsg_code)
+                raise RuntimeError(f"Invalid EPSG code: {epsg_code} - {os.path.basename(srcfp)}")
             else:
                 self.epsg = epsg_code
                 self.spatial_ref = spatial_ref
@@ -380,7 +380,7 @@ class ImageInfo:
         ## Get vendor info and text-based metadata
         self.vendor, self.sat, self.prod_code, self.band_name, self.tile, self.regex = utils.get_sensor(self.srcfn)
         if self.vendor is None:
-            raise RuntimeError("Vendor not recognized")
+            raise RuntimeError(f"Vendor not recognized - {os.path.basename(srcfp)}")
 
         if (self.vendor == Vendor.GE and self.sat == 'IK01' and "_msi_" in self.srcfn
                 and not os.path.isfile(self.localsrc)):
@@ -412,13 +412,13 @@ class ImageInfo:
             self.image_type = IMAGE_TYPE_DICT[self.band_name]
 
         else:
-            raise RuntimeError(f"Vendor or sensor not recognized: {self.vendor} {self.sat}")
+            raise RuntimeError(f"Vendor or sensor not recognized: {self.vendor} {self.sat} - {os.path.basename(srcfp)}")
 
         if _mp:
             self.metapath = _mp
             self.metad_etree = _func(self.metapath)
         else:
-            raise RuntimeError(f"Cannot find metadata file")
+            raise RuntimeError(f"Cannot find metadata file - {os.path.basename(srcfp)}")
 
         # Initialize attribs set by get_image_stats
         self.extent = ''
@@ -441,7 +441,7 @@ class ImageInfo:
         if self.stretch == 'au' or self.epsg is None:
             _err = self.get_image_stats(args)
             if _err != 0:
-                raise RuntimeError(f"Error in stats calculation")
+                raise RuntimeError(f"Error in stats calculation - {os.path.basename(srcfp)}")
 
         self.dstfn = "{}_{}{}{}{}".format(
             os.path.splitext(self.srcfn)[0],
@@ -467,7 +467,7 @@ class ImageInfo:
             try:
                 ds = gdal.Open(self.src_image, gdalconst.GA_ReadOnly)
             except RuntimeError:
-                logger.error("Cannot open dataset: %s", self.src_image)
+                logger.error(f"Cannot open dataset: {self.src_image}")
                 rc = 1
             else:
                 if self.bands is None:
@@ -1320,7 +1320,6 @@ def calc_stats(args, info):
                             omax*oLUT[x]  # output value for each 0-1 oLUT step multiplied by omax
                         ), range(len(iLUT)))
                         LUT = ",".join(lLUT)
-                    #logger.debug(LUT)
 
                 if info.stretch != "ns":
                     logger.debug("Band Calibration Factors: %i %f %f", band, CFlist[band - 1][0], CFlist[band - 1][1])
