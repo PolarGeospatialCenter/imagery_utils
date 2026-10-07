@@ -411,7 +411,7 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
                     else:
                         logger.info(f"Outputtting to text file: ({output_txt_path})")
                         i = 1
-                        with open(output_txt_path, 'w') as file:
+                        with open(output_txt_path, 'a') as file:
                             file.write("SCENE_ID, SCORE\n")
                             for iinfo in reversed(imginfo_list3):
                                 if i <= args.num_images:
@@ -459,8 +459,11 @@ def HandleTile(t, src, dstdir, csvpath, args, exclude_list):
                             layers += 1
                         output_txt_path = os.path.join(querypath, "{}_{}_qa_scenes.txt".format(args.mosaic, t.name))
                         logger.info(f"Outputting to text file: {output_txt_path}")
-                        contrib_iinfo_to_write = [item[0] for item in contribs_to_append]
-                        with open(output_txt_path, 'w') as file:
+                        # sort contributing images by score
+                        contribs.sort(key=lambda x: x[0].score)
+                        contrib_iinfo_to_write = [item[0] for item in contribs]
+                        logger.info("Number of contributing images: %i", len(contrib_iinfo_to_write))
+                        with open(output_txt_path, 'a') as file:
                             file.write("SCENE_ID, SCORE\n")
                             for iinfo in contrib_iinfo_to_write:
                                 file.write(f'{iinfo.scene_id}, {iinfo.score}\n')
