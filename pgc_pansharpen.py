@@ -542,13 +542,17 @@ def main():
                 
         elif args.slurm:
             qsub_args = ""
+            # add number of cpus, vida licenses, and bandwidth limit for bundled jobs
+            qsub_args += ortho_functions.slurm_args
             if not slurm_log_dir == None:
                 qsub_args += '-o {}/%x.o%j '.format(slurm_log_dir)
                 qsub_args += '-e {}/%x.o%j '.format(slurm_log_dir)
             # adjust wallclock if submitting multiple tasks ro be run in serial for a single slurm job
-            # default wallclock for pansharpen jobs is 1:00:00, refer to slurm_pansh.sh to verify
+            # default wallclock for pansharpen jobs is 4:00:00, refer to slurm_pansharpen.sh to verify
             if args.tasks_per_job:
-                qsub_args += '-t {}:00:00 '.format(args.tasks_per_job)
+                # double the wall clock of ortho jobs for pansharpen jobs
+                wallclock_hrs = ortho_functions.wallclock_mult * args.tasks_per_job * 2
+                qsub_args += '-t {}:00:00 '.format(wallclock_hrs)
             if args.queue:
                 qsub_args += "-p {} ".format(args.queue)
             try:
@@ -698,9 +702,9 @@ def exec_pansharpen(image_pair, pansh_dstfp, args, orig_res):
 
     if args.format == 'GTiff':
         if args.gtiff_compression == 'lzw':
-            co = '-co "PHOTOMETRIC=MINISBLACK" -co "TILED=YES" -co "COMPRESS=LZW" -co "BIGTIFF=YES" '
+            co = '-co "TILED=YES" -co "COMPRESS=LZW" -co "BIGTIFF=YES" '
         elif args.gtiff_compression == 'jpeg95':
-            co = '-co "PHOTOMETRIC=MINISBLACK" -co "TILED=YES" -co "compress=jpeg" -co "jpeg_quality=95" -co ' \
+            co = '-co "TILED=YES" -co "compress=jpeg" -co "jpeg_quality=95" -co ' \
                  '"BIGTIFF=YES" '
 
     elif args.format == 'HFA':

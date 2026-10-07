@@ -39,6 +39,10 @@ gtiff_compressions = ["jpeg95", "lzw", "jpeg75", "zstd"]
 exts = ['.ntf', '.tif']
 ARGDEF_THREADS = 1
 
+# slurm settings for bundled jobs
+wallclock_mult = 2 # bundled ortho jobs will get this number of hours per job in the slurm submission
+slurm_args = "-c 2 --licenses=vida:25 --gres=bandwidth:500 "
+
 # slurm partitions as of 7/3/2024: update here for acceptable inputs to '--queue' arg if cluster partitions change
 slurm_partitions = ['batch','big_mem','low_priority']
 
