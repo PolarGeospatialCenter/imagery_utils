@@ -190,24 +190,27 @@ def main():
     if status == 0:
         ####  Write to Compressed file
         if os.path.isfile(localtile1):
-            compress_option = ""
+            creation_options = ""
             if args.gtiff_compression == 'lzw':
-                compress_option = '-co "compress=lzw" '
+                creation_options = '-co "compress=lzw" '
             elif args.gtiff_compression == 'jpeg95':
-                compress_option = '-co "compress=jpeg" -co "jpeg_quality=95" '
+                creation_options = '-co "compress=jpeg" -co "jpeg_quality=95" '
             elif args.gtiff_compression == 'jpeg75':
-                compress_option = '-co COMPRESS=JPEG -co QUALITY=75 '
+                creation_options = '-co COMPRESS=JPEG -co QUALITY=75 '
             elif args.gtiff_compression == 'zstd':
-                compress_option = '-co COMPRESS=ZSTD '
+                creation_options = '-co COMPRESS=ZSTD '
 
             if args.format == 'COG' and args.gtiff_compression in ['lzw', 'zstd']:
-                compress_option += '-co PREDICTOR=YES '
+                creation_options += '-co PREDICTOR=YES '
 
             if args.format == "GTiff":
-                compress_option += '-co "PHOTOMETRIC=MINISBLACK" '
+                creation_options += '-co "PHOTOMETRIC=MINISBLACK" '
+
+            if args.format == "COG":
+                creation_options += '-co OVERVIEW_RESAMPLING=CUBIC '
 
             cmd = 'gdal_translate -stats -of {} {} -co "TILED=YES" -co ' \
-                  '"BIGTIFF=YES" "{}" "{}"'.format(args.format, compress_option, localtile1, localtile2)
+                  '"BIGTIFF=YES" "{}" "{}"'.format(args.format, creation_options, localtile1, localtile2)
             taskhandler.exec_cmd(cmd)
         
         ####  Build Pyramids
