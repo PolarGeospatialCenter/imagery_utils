@@ -659,6 +659,24 @@ def exec_pansharpen(image_pair, pansh_dstfp, args, orig_res):
     if not os.path.isdir(wd):
         os.makedirs(wd)
 
+    # pansharpening should be run on all 8-bands to accurately apply band weights, then output to requested bands
+    # keep input rgb or bgrn args but process mul ortho with all bands
+    orig_rgb = None
+    orig_bgrn = None
+    if not args.skip_custom_weights and (args.rgb or args.bgrn):
+        logger.info("--IN IF STATEMENT--")
+        logger.info("input RGB arg: {}".format(args.rgb))
+        logger.info("orig_rgb variable prior to setting: {}".format(orig_rgb))
+        logger.info("Skip Custom Weights: {}".format(args.skip_custom_weights))
+
+        orig_rgb = copy.deepcopy(args.rgb)
+        oirg_bgrn = copy.deepcopy(args.bgrn)
+        args.rgb = None
+        args.bgrn = None
+        logger.info("updated input RGB arg: {}".format(args.rgb))
+        logger.info("orig RGB arg: {}".format(orig_rgb))
+
+
     logger.info("-----------------------------------")
 
     ####  Ortho pan
@@ -726,39 +744,41 @@ def exec_pansharpen(image_pair, pansh_dstfp, args, orig_res):
     weight_args = ''
     if not args.skip_custom_weights:
         # add specific pansharpening weights for WV02 and WV03 images - get band count of input mul from image info
-        iinfo = ortho_functions.ImageInfo(mul_dstfp, dstdir, wd, args)
+        # reset output band args
+        args.rgb = orig_rgb
+        args.bgrn = orig_bgrn
+        logger.info("Reset RGB arg: {}".format(args.rgb))
+        iinfo = ortho_functions.ImageInfo(image_pair.mul_srcfp, dstdir, wd, args)
         _err = iinfo.get_image_stats(args)
         if _err != 0:
             raise RuntimeError(f"Error in stats calculation")
 
-        if "WV02" in iinfo.sat or "WV03" in iinfo.sat:
-            red_wt = ortho_functions.WV03_BAND_WEIGHT_DICT['RED']
-            green_wt = ortho_functions.WV03_BAND_WEIGHT_DICT['GREEN']
-            blue_wt = ortho_functions.WV03_BAND_WEIGHT_DICT['BLUE']
-            nir_wt = ortho_functions.WV03_BAND_WEIGHT_DICT['NEAR_IR1']
+        if args.rgb or args.bgrn:
+            output_bands = iinfo.rgb_bands
+        else:
+            output_bands = ''
 
-            if iinfo.bands == 3:
-                # set rgb weights - Assumes RGB band order
-                weight_args = '-w {0} -w {1} -w {2} '.format(red_wt, green_wt, blue_wt)
-            elif iinfo.bands == 4:
-                # set 4-band weights - assumes BGRN band order
-                weight_args = '-w {0} -w {1} -w {2} -w {3}'.format(blue_wt, green_wt, red_wt, nir_wt)
-            elif iinfo.bands == 8:
+        if "WV02" in iinfo.sat or "WV03" in iinfo.sat:
+            if iinfo.bands == 8:
                 # 8-band weights - use WV03 weights for both WV02 and WV03, assumes default WV band order
                 weight_args = ''
                 for value in ortho_functions.WV03_BAND_WEIGHT_DICT.values():
                     weight_args += '-w {} '.format(value)
+            elif iinfo_bands in (3, 4):
+                # if image only has 4 bands, apply equal band weights (gdal default)
+                weight_args = ''
             else:
                 logger.warning("Incompatible numnber of bands for pansharpening weights: {} bands in multispectral image".format(iinfo.bands))
 
     else:
         logger.info("using GDAL default weights for pansharpening: each band weighted equally")
+        output_bands = ''
     
     logger.info("Pansharpening multispectral image")
     if os.path.isfile(pan_local_dstfp) and os.path.isfile(mul_local_dstfp):
         if not os.path.isfile(pansh_local_dstfp):
-            cmd = '{}gdal_pansharpen{} -of {} {} {} {} "{}" "{}" "{}"'.\
-                format(conda_prefix, py_ext, args.format, pan_threading, co, weight_args,
+            cmd = '{}gdal_pansharpen{} -of {} {} {} {} {} "{}" "{}" "{}"'.\
+                format(conda_prefix, py_ext, args.format, pan_threading, co, weight_args, output_bands,
                        pan_local_dstfp, mul_local_dstfp, pansh_local_dstfp)
             logger.info(cmd)
             try:
