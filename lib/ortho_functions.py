@@ -311,7 +311,7 @@ BiasDict = {
 
 # Defines the relationship between the output type and the NoData value that will be assigned to the destination rasters
 NO_DATA_DICT = {
-    OutputType.BYTE: 0,
+    OutputType.BYTE: 255,
     OutputType.UINT16: 65535,
     OutputType.FLOAT32: -9999.0,
 }
@@ -1260,14 +1260,14 @@ def calc_stats(args, info):
 
     if info.stretch == 'ns':
         if args.outtype == OutputType.BYTE.value:
-            omax = 255.0
+            omax = 254.0 # CAVIS only
         elif args.outtype == OutputType.UINT16.value:
             omax = imax
         elif args.outtype == OutputType.FLOAT32.value:
             omax = imax
     elif info.stretch == 'mr':
         if args.outtype == OutputType.BYTE.value:
-            omax = 255.0
+            omax = 254.0
         elif args.outtype == OutputType.UINT16.value:
             omax = imax
         elif args.outtype == OutputType.FLOAT32.value:

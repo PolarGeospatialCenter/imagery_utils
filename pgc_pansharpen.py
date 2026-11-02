@@ -6,16 +6,14 @@ import argparse
 import copy
 import glob
 import logging
-import math
 import os
 import platform
 import re
 import shutil
 import sys
-import xml.etree.ElementTree as ET
 import datetime
 
-from osgeo import gdal, gdalconst, ogr, osr
+from osgeo import gdal
 
 from lib import ortho_functions, taskhandler, utils
 from lib.taskhandler import argval2str
@@ -437,14 +435,15 @@ def main():
                 continue
         else:
             img_epsg = args.epsg
-        
-        pansh_dstfp = os.path.join(dstdir, "{}_{}{}{}_pansh{}".format(
+
+        pansh_dstfn = "{}_{}{}{}_pansh{}".format(
             os.path.splitext(image_pair.mul_srcfn)[0],
             bittype,
             args.stretch,
             img_epsg,
             ortho_functions.formats[args.format]
-        ))
+        )
+        pansh_dstfp = os.path.join(dstdir, pansh_dstfn)
 
         done = os.path.isfile(pansh_dstfp)
         if done is False:
@@ -487,12 +486,14 @@ def main():
                     continue
             else:
                 img_epsg = args.epsg
-            pansh_dstfp = os.path.join(dstdir, "{}_{}{}{}_pansh.tif".format(
+
+            pansh_dstfn = "{}_{}{}{}_pansh.tif".format(
                 os.path.splitext(image_pair.mul_srcfn)[0],
                 bittype,
                 args.stretch,
                 img_epsg
-            ))
+            )
+            pansh_dstfp = os.path.join(dstdir, pansh_dstfn)
             task_item_srcfp = image_pair.mul_srcfp
             task_item_srcfn = image_pair.mul_srcfn
         else:
@@ -629,11 +630,6 @@ def exec_pansharpen(image_pair, pansh_dstfp, args, orig_res):
     print("Multispectral image: {}".format(image_pair.mul_srcfp))
     print("Panchromatic image: {}".format(image_pair.pan_srcfp))
 
-    if args.dem is not None:
-        dem_arg = '-d "{}" '.format(args.dem)
-    else:
-        dem_arg = ""
-
     # args.epsg has been converted to an int type if possible already,
     # Look up the correct epsg if it's still a string
     if type(args.epsg) is str:
@@ -650,11 +646,9 @@ def exec_pansharpen(image_pair, pansh_dstfp, args, orig_res):
     mul_local_dstfp = os.path.join(wd, "{}_{}{}{}{}".format(mul_basename, bittype, args.stretch, img_epsg, out_ext))
     pan_dstfp = os.path.join(dstdir, "{}_{}{}{}{}".format(pan_basename, bittype, args.stretch, img_epsg, out_ext))
     mul_dstfp = os.path.join(dstdir, "{}_{}{}{}{}".format(mul_basename, bittype, args.stretch, img_epsg, out_ext))
-    pansh_tempfp = os.path.join(wd, "{}_{}{}{}_pansh_temp{}".format(mul_basename, bittype, args.stretch, img_epsg, out_ext))
     pansh_local_dstfp = os.path.join(wd, "{}_{}{}{}_pansh{}".format(mul_basename, bittype, args.stretch, img_epsg, out_ext))
     pansh_xmlfp = os.path.join(dstdir, "{}_{}{}{}_pansh.xml".format(mul_basename, bittype, args.stretch, img_epsg))
     mul_xmlfp = os.path.join(dstdir, "{}_{}{}{}.xml".format(mul_basename, bittype, args.stretch, img_epsg))
-
 
     if not os.path.isdir(wd):
         os.makedirs(wd)
@@ -664,18 +658,10 @@ def exec_pansharpen(image_pair, pansh_dstfp, args, orig_res):
     orig_rgb = None
     orig_bgrn = None
     if not args.skip_custom_weights and (args.rgb or args.bgrn):
-        logger.info("--IN IF STATEMENT--")
-        logger.info("input RGB arg: {}".format(args.rgb))
-        logger.info("orig_rgb variable prior to setting: {}".format(orig_rgb))
-        logger.info("Skip Custom Weights: {}".format(args.skip_custom_weights))
-
         orig_rgb = copy.deepcopy(args.rgb)
-        oirg_bgrn = copy.deepcopy(args.bgrn)
+        orig_bgrn = copy.deepcopy(args.bgrn)
         args.rgb = None
         args.bgrn = None
-        logger.info("updated input RGB arg: {}".format(args.rgb))
-        logger.info("orig RGB arg: {}".format(orig_rgb))
-
 
     logger.info("-----------------------------------")
 
@@ -741,6 +727,7 @@ def exec_pansharpen(image_pair, pansh_dstfp, args, orig_res):
     else:
         co = ''
 
+    nd = ortho_functions.get_destination_nodata(output_type=args.outtype)
     weight_args = ''
     if not args.skip_custom_weights:
         # add specific pansharpening weights for WV02 and WV03 images - get band count of input mul from image info
@@ -764,11 +751,14 @@ def exec_pansharpen(image_pair, pansh_dstfp, args, orig_res):
                 weight_args = ''
                 for value in ortho_functions.WV03_BAND_WEIGHT_DICT.values():
                     weight_args += '-w {} '.format(value)
-            elif iinfo_bands in (3, 4):
+                    logger.info("Using custom 8-band weights for pansharpening")
+
+            elif iinfo.bands in (3, 4):
                 # if image only has 4 bands, apply equal band weights (gdal default)
                 weight_args = ''
+                logger.info("Custom pansharpening weights not available for 3 and 4-band imagery: each band will be weighted equally")
             else:
-                logger.warning("Incompatible numnber of bands for pansharpening weights: {} bands in multispectral image".format(iinfo.bands))
+                logger.warning("Incompatible number of bands for pansharpening weights: {} bands in multispectral image".format(iinfo.bands))
 
     else:
         logger.info("using GDAL default weights for pansharpening: each band weighted equally")
@@ -785,14 +775,16 @@ def exec_pansharpen(image_pair, pansh_dstfp, args, orig_res):
                 taskhandler.exec_cmd(cmd)
             except Exception as e:
                 logger.warning("There was an error running gdal_pansharpen.py: {}".format(e))
-                logger.warning("Please run this script in the recommended mamba/conda environment with GDAL => 3.7.2")
+                logger.warning("Please run this script in the recommended conda environment with GDAL => 3.7.2")
                 logger.error(utils.capture_error_trace())
     else:
         logger.warning("Pan or Multi warped image does not exist\n\t{}\n\t{}".format(pan_local_dstfp, mul_local_dstfp))
         return 1
 
-    #### Make pyramids
+    #### Edit nodata and build overviews
     if (not args.no_pyramids) and os.path.isfile(pansh_local_dstfp):
+        cmd = '{}gdal_edit{} -a_nodata {} "{}"'.format(conda_prefix, py_ext, nd, pansh_local_dstfp)
+        taskhandler.exec_cmd(cmd)
         cmd = 'gdaladdo -r {} "{}" 2 4 8 16'.format(args.pyramid_type, pansh_local_dstfp)
         taskhandler.exec_cmd(cmd)
        
