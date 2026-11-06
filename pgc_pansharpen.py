@@ -748,15 +748,15 @@ def exec_pansharpen(image_pair, pansh_dstfp, args, orig_res):
         if "WV02" in iinfo.sat or "WV03" in iinfo.sat:
             if iinfo.bands == 8:
                 # 8-band weights - use WV03 weights for both WV02 and WV03, assumes default WV band order
+                logger.info("Using custom 8-band weights for pansharpening")
                 weight_args = ''
                 for value in ortho_functions.WV03_BAND_WEIGHT_DICT.values():
                     weight_args += '-w {} '.format(value)
-                    logger.info("Using custom 8-band weights for pansharpening")
 
             elif iinfo.bands in (3, 4):
                 # if image only has 4 bands, apply equal band weights (gdal default)
-                weight_args = ''
                 logger.info("Custom pansharpening weights not available for 3 and 4-band imagery: each band will be weighted equally")
+                weight_args = ''
             else:
                 logger.warning("Incompatible number of bands for pansharpening weights: {} bands in multispectral image".format(iinfo.bands))
 
