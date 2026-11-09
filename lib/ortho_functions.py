@@ -1313,7 +1313,7 @@ def calc_stats(args, info):
                         if dst_nodata == 255: # cap valid data values at 254
                             valid_data_max = dst_nodata - 1
                             max_stretched_input = ((valid_data_max/omax)-offset)/calfact
-                            local_imax = max([imax, max_stretched_input])
+                            local_imax = max([imax, max_stretched_input]) # make sure last LUT item includes all values but is not lower than max_stretched_input
                             LUT = "0:{},{}:{},{}:{}".format(offset*omax, max_stretched_input, valid_data_max, local_imax, valid_data_max)
                         else:
                             LUT = "0:{},{}:{}".format(offset*omax, imax, (imax*calfact+offset)*omax)
@@ -1325,8 +1325,8 @@ def calc_stats(args, info):
                         iLUT = [0, 0.125, 0.25, 0.375, 0.625, 1]
                         oLUT = [0, 0.375, 0.625, 0.75, 0.875, 1]
                         lLUT = map(lambda x: "{}:{}".format(
-                            (iLUT[x]-offset)/calfact,  # find original DN for each 0-1 iLUT
-                            # step by applying reverse reflectance transformation
+                            min(imax,(iLUT[x]-offset)/calfact),  # find original DN for each 0-1 iLUT
+                            # step by applying reverse reflectance transformation (cap at imax)
                             omax*oLUT[x]  # output value for each 0-1 oLUT step multiplied by omax
                         ), range(len(iLUT)))
                         LUT = ",".join(lLUT)
@@ -2462,7 +2462,7 @@ def xml_to_j2w(jp2p):
 
 def get_cog_creation_options(bittype, gtiff_compression):
     # default/universal COG settings
-    co = '-co BIGTIFF=YES -co OVERVIEW_RESAMPLING=CUBIC -co TILED=YES '
+    co = '-co BIGTIFF=YES -co OVERVIEW_RESAMPLING=CUBIC '
 
     if bittype == OutputType.BYTE.value:
         co += '-co BLOCKSIZE=1024 '
