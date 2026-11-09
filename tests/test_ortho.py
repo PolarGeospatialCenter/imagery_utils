@@ -25,12 +25,41 @@ class TestOrthoFunc(unittest.TestCase):
             self.gimpdem = '/mnt/pgc/data/elev/dem/gimp/GIMPv1/gimpdem_v1_30m.tif'
             self.rampdem = '/mnt/pgc/data/elev/dem/ramp/RAMPv2_wgs84_200m.tif'
 
-        # if os.path.isdir(self.dstdir):
-        #     shutil.rmtree(self.dstdir)
-        if not os.path.isdir(self.dstdir):
-            os.makedirs(self.dstdir)
+        shutil.rmtree(self.dstdir, ignore_errors=True)
+        os.makedirs(self.dstdir, exist_ok=True)
 
-    # @unittest.skip("skipping")
+        self.no_dempath_config = os.path.join(self.dstdir, "no_dempath_config.ini")
+        self.no_dempath_gpkg = os.path.join(
+            os.path.join(testdata_dir, "auto_dem", "no_dempath.gpkg")
+        )
+        with open(self.no_dempath_config, "w") as f:
+            f.write(f"[default]\ngpkg_path = {self.no_dempath_gpkg}")
+
+        self.good_config = os.path.join(self.dstdir, "good_config.ini")
+        self.good_config_gpkg = os.path.join(
+            os.path.join(testdata_dir, "auto_dem", "dems_list.gpkg")
+        )
+        with open(self.good_config, "w") as f:
+            f.write(f"[default]\ngpkg_path = {self.good_config_gpkg}")
+
+    def check_output_image(self, fn, test_args, succeeded, suffix, ext):
+
+        print(fn)
+        cmd = f'python "{self.scriptpath}" {test_args} {self.srcdir}/{fn} {self.dstdir}'
+        print(cmd)
+        p = subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True
+        )
+        se, so = p.communicate()
+        print(so)
+        print(se)
+        output_file = os.path.join(self.dstdir, f"{os.path.splitext(fn)[0]}_{suffix}.{ext}")
+        print(output_file)
+        self.assertTrue(os.path.exists(output_file) == succeeded)
+        if "COG" in cmd:
+            with gdal.Open(output_file, gdalconst.GA_ReadOnly) as ds:
+                self.assertIn("LAYOUT=COG", ds.GetMetadata_List("IMAGE_STRUCTURE"))
+
     def test_image_types(self):
         
         test_images = [
@@ -65,165 +94,199 @@ class TestOrthoFunc(unittest.TestCase):
             cmd = f'python "{self.scriptpath}" -r 100 -p {epsg} "{srcfp}" "{self.dstdir}" '
             p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
             se, so = p.communicate()
-            # print(so)
-            # print(se)
-            self.assertTrue(os.path.isfile(dstfp) == result)
-
-    def test_input_parameters(self):
-
-        # Build configs
-        no_dempath_config = os.path.join(self.dstdir, "no_dempath_config.ini")
-        no_dempath_gpkg = os.path.join(os.path.join(testdata_dir, 'auto_dem', 'no_dempath.gpkg'))
-        with open(no_dempath_config, "w") as f:
-            f.write(f"[default]\ngpkg_path = {no_dempath_gpkg}")
-
-        good_config = os.path.join(self.dstdir, "good_config.ini")
-        good_config_gpkg = os.path.join(os.path.join(testdata_dir, 'auto_dem', 'dems_list.gpkg'))
-        with open(good_config, "w") as f:
-            f.write(f"[default]\ngpkg_path = {good_config_gpkg}")
-
-        cmds = [
-            # (file name, arg string, should succeed, output extension)
-            # epsg: 3413
-            # stretch: mr
-            # resample: cubic
-            # outtype: Byte
-            # gtiff compression: jpeg95
-            # dem: gimpdem_v2_30m.tif
-            ('QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.ntf',
-             f'-r 10 --epsg 3413 --stretch mr --resample cubic --format GTiff --outtype Byte --gtiff-compression jpeg95 --dem {self.gimpdem}',
-             True,
-             '.tif'),
-
-            # --rgb with Geoeye image
-            # epsg: 3413
-            # stretch: rf
-            # outtype: Byte
-            # gtiff compression: jpeg95
-            ('GE01_20110108171314_1016023_5V110108M0010160234A222000100252M_000500940.ntf',
-             '-r 10 --epsg 3413 --stretch mr --rgb --format GTiff --outtype Byte --gtiff-compression jpeg95',
-             True,
-             '.tif'),
-
-            # ns, rgb, and Byte with CAVIS image
-            # epsg: auto
-            # stretch: ns
-            # outtype: Byte
-            # gtiff compression: jpeg95
-            ('WV03_20190114103353_104C0100462B2500_19JAN14103353-C1BA-502817502010_01_P001.ntf',
-             '-r 10 --epsg auto --stretch ns --rgb --format GTiff --outtype Byte --gtiff-compression jpeg95',
-             True,
-             '.tif'),
-
-            # --rgb with SWIR image
-            # epsg: 3413
-            # stretch: auto
-            ('WV03_20150712212305_104A01000E7C1F00_15JUL12212305-A1BS-500802261010_01_P001.ntf',
-             '-r 10 --epsg 3413 --stretch au --rgb --format GTiff --outtype Byte --gtiff-compression jpeg95',
-             True,
-             '.tif'),
-
-            # epsg: 3413
-            # stretch: rf
-            # resample: near
-            # format: ENVI
-            # outtype: Byte
-            # gtiff compression: lzw
-            # dem: gimpdem_v2_30m.tif
-            ('QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.ntf',
-             f'-r 10 --epsg 3413 --stretch rf --resample near --format ENVI --outtype Byte --gtiff-compression lzw --dem {self.gimpdem}',
-             True,
-             '.envi'),
-
-            # epsg: 3413
-            # stretch: rf
-            # resample: near
-            # format: .img
-            # outtype: Float32
-            # gtiff compression: lzw
-            # dem: Y:/private/elevation/dem/GIMP/GIMPv2/gimpdem_v2_30m.tif
-            ('QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.ntf',
-             f'-r 10 --epsg 3413 --stretch rf --resample near --format HFA --outtype Float32 --gtiff-compression lzw --dem {self.gimpdem}',
-             True,
-             '.img'),
-
-            # epsg: 3413
-            # stretch: rd
-            # outtype: UInt16
-            # format: .jp2
-            ('QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.ntf',
-             '-r 10 --epsg 3413 --stretch rd --resample near --format JP2OpenJPEG --outtype UInt16 --gtiff-compression lzw',
-             True,
-             '.jp2'),
-
-            # epsg: 3413
-            # stretch: rf
-            # outtype: Byte
-            # format: COG (.tif)
-            ('QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.ntf',
-             '-r 10 --epsg 3413 --stretch rf --resample near --format COG --outtype Byte --gtiff-compression lzw',
-             True,
-             '.tif'),
-
-            # dem: Y:/private/elevation/dem/RAMP/RAMPv2/RAMPv2_wgs84_200m.tif
-            # should fail: the image is not contained within the DEM
-            ('QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.ntf',
-             f'-r 10 --epsg 3413 --dem {self.rampdem}',
-             False,
-             '.tif'),
-
-            # stretch, dem, and epsg: auto
-            ('WV02_20120719233558_103001001B998D00_12JUL19233558-M1BS-052754253040_01_P001.tif',
-             f'-r 10 --skip-cmd-txt --epsg auto --stretch au --dem auto '
-             f'--config {good_config}',
-             True,
-             '.tif'),
-
-            # stretch, dem, and epsg: auto with image over the ocean
-            ('WV03_20210811190908_104001006CD51400_21AUG11190908-M1BS-505623932030_01_P001.ntf',
-             f'-r 10 --skip-cmd-txt --epsg auto --stretch au --dem auto '
-             f'--config {good_config}',
-             True,
-             '.tif'),
-
-            # bad auto dem config
-            (f'QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.ntf',
-             f'-r 10 --skip-cmd-txt --epsg auto --stretch au --dem auto '
-             f'--config {no_dempath_config}',
-             False,
-             '.tif'),
-
-            # non-existing auto dem config
-            (f'QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.ntf',
-             f'-r 10 --skip-cmd-txt --epsg auto --stretch au --dem auto '
-             f'--config {os.path.join(self.dstdir, "does_not_exist_config.ini")}',
-             False,
-             '.tif'),
-        ]
-
-        i = 0
-        for fn, test_args, succeeded, ext in cmds:
-            i += 1
-            _dstdir = os.path.join(self.dstdir, str(i))
-            os.mkdir(_dstdir)
-            print(fn)
-            cmd = f'python "{self.scriptpath}" {test_args} {self.srcdir}/{fn} {_dstdir}'
-            print(cmd)
-            p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-            se, so = p.communicate()
             print(so)
             print(se)
-            output_files = glob.glob(os.path.join(_dstdir, f'{os.path.splitext(fn)[0]}*{ext}'))
-            self.assertEqual(len(output_files) > 0, succeeded)
-            if "COG" in cmd:
-                with gdal.Open(output_files[0], gdalconst.GA_ReadOnly) as ds:
-                    self.assertIn('LAYOUT=COG', ds.GetMetadata_List('IMAGE_STRUCTURE'))
+            self.assertTrue(os.path.isfile(dstfp) == result)
+
+    def test_input_parameters_1(self):
+        # (file name, arg string, should succeed, output extension)
+        # epsg: 3413
+        # stretch: mr
+        # resample: cubic
+        # outtype: Byte
+        # gtiff compression: jpeg95
+        # dem: gimpdem_v2_30m.tif
+        fn, test_args, succeeded, suffix, ext = (
+            "QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.ntf",
+            f"-r 10 --epsg 3413 --stretch mr --resample cubic --format GTiff --outtype Byte --gtiff-compression jpeg95 --dem {self.gimpdem}",
+            True,
+            "u08mr3413",
+            "tif",
+        )
+        self.check_output_image(fn, test_args, succeeded, suffix, ext)
+
+    def test_input_parameters_2(self):
+        # --rgb with Geoeye image
+        # epsg: 3413
+        # stretch: rf
+        # outtype: Byte
+        # gtiff compression: jpeg95
+        fn, test_args, succeeded, suffix, ext = (
+            "GE01_20110108171314_1016023_5V110108M0010160234A222000100252M_000500940.ntf",
+            "-r 10 --epsg 3413 --stretch mr --rgb --format GTiff --outtype Byte --gtiff-compression jpeg95",
+            True,
+            "u08mr3413",
+            "tif",
+        )
+        self.check_output_image(fn, test_args, succeeded, suffix, ext)
+
+    def test_input_parameters_3(self):
+        # ns, rgb, and Byte with CAVIS image
+        # epsg: auto
+        # stretch: ns
+        # outtype: Byte
+        # gtiff compression: jpeg95
+        fn, test_args, succeeded, suffix, ext = (
+            "WV03_20190114103353_104C0100462B2500_19JAN14103353-C1BA-502817502010_01_P001.ntf",
+            "-r 10 --epsg auto --stretch ns --rgb --format GTiff --outtype Byte --gtiff-compression jpeg95",
+            True,
+            "u08ns3031",
+            "tif",
+        )
+        self.check_output_image(fn, test_args, succeeded, suffix, ext)
+
+    def test_input_parameters_4(self):
+        # --rgb with SWIR image
+        # epsg: 3413
+        # stretch: auto
+        fn, test_args, succeeded, suffix, ext = (
+            "WV03_20150712212305_104A01000E7C1F00_15JUL12212305-A1BS-500802261010_01_P001.ntf",
+            "-r 10 --epsg 3413 --stretch au --rgb --format GTiff --outtype Byte --gtiff-compression jpeg95",
+            True,
+            "u08rf3413",
+            "tif",
+        )
+        self.check_output_image(fn, test_args, succeeded, suffix, ext)
+
+    def test_input_parameters_5(self):
+        # epsg: 3413
+        # stretch: rf
+        # resample: near
+        # format: ENVI
+        # outtype: Byte
+        # gtiff compression: lzw
+        # dem: gimpdem_v2_30m.tif
+        fn, test_args, succeeded, suffix, ext = (
+            "QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.ntf",
+            f"-r 10 --epsg 3413 --stretch rf --resample near --format ENVI --outtype Byte --gtiff-compression lzw --dem {self.gimpdem}",
+            True,
+            "u08rf3413",
+            "envi",
+        )
+        self.check_output_image(fn, test_args, succeeded, suffix, ext)
+
+    def test_input_parameters_6(self):
+        # epsg: 3413
+        # stretch: rf
+        # resample: near
+        # format: .img
+        # outtype: Float32
+        # gtiff compression: lzw
+        # dem: Y:/private/elevation/dem/GIMP/GIMPv2/gimpdem_v2_30m.tif
+        fn, test_args, succeeded, suffix, ext = (
+            "QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.ntf",
+            f"-r 10 --epsg 3413 --stretch rf --resample near --format HFA --outtype Float32 --gtiff-compression lzw --dem {self.gimpdem}",
+            True,
+            "f32rf3413",
+            "img",
+        )
+        self.check_output_image(fn, test_args, succeeded, suffix, ext)
+
+    def test_input_parameters_7(self):
+        # epsg: 3413
+        # stretch: rd
+        # outtype: UInt16
+        # format: .jp2
+        fn, test_args, succeeded, suffix, ext = (
+            "QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.ntf",
+            "-r 10 --epsg 3413 --stretch rd --resample near --format JP2OpenJPEG --outtype UInt16 --gtiff-compression lzw",
+            True,
+            "u16rd3413",
+            "jp2",
+        )
+        self.check_output_image(fn, test_args, succeeded, suffix, ext)
+
+    def test_input_parameters_8(self):
+        # epsg: 3413
+        # stretch: rf
+        # outtype: Byte
+        # format: COG (.tif)
+        fn, test_args, succeeded, suffix, ext = (
+            "QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.ntf",
+            "-r 10 --epsg 3413 --stretch rf --resample near --format COG --outtype Byte --gtiff-compression lzw",
+            True,
+            "u08rf3413",
+            "tif",
+        )
+        self.check_output_image(fn, test_args, succeeded, suffix, ext)
+
+    def test_input_parameters_9(self):
+
+        # dem: Y:/private/elevation/dem/RAMP/RAMPv2/RAMPv2_wgs84_200m.tif
+        # should fail: the image is not contained within the DEM
+        fn, test_args, succeeded, suffix, ext = (
+            "QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.ntf",
+            f"-r 10 --epsg 3413 --dem {self.rampdem}",
+            False,
+            "u08mr3413",
+            "tif",
+        )
+        self.check_output_image(fn, test_args, succeeded, suffix, ext)
+
+    def test_input_parameters_10(self):
+        # stretch, dem, and epsg: auto
+        fn, test_args, succeeded, suffix, ext = (
+            "WV02_20120719233558_103001001B998D00_12JUL19233558-M1BS-052754253040_01_P001.tif",
+            f"-r 10 --skip-cmd-txt --epsg auto --stretch au --dem auto "
+            f"--config {self.good_config}",
+            True,
+            "u08mr3413",
+            "tif",
+        )
+        self.check_output_image(fn, test_args, succeeded, suffix, ext)
+
+    def test_input_parameters_11(self):
+        # stretch, dem, and epsg: auto with image over the ocean
+        fn, test_args, succeeded, suffix, ext = (
+            "WV03_20210811190908_104001006CD51400_21AUG11190908-M1BS-505623932030_01_P001.ntf",
+            f"-r 10 --skip-cmd-txt --epsg auto --stretch au --dem auto "
+            f"--config {self.good_config}",
+            True,
+            "u08mr3413",
+            "tif",
+        )
+        self.check_output_image(fn, test_args, succeeded, suffix, ext)
+
+    def test_input_parameters_12(self):
+        # bad auto dem config
+        fn, test_args, succeeded, suffix, ext = (
+            f"QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.ntf",
+            f"-r 10 --skip-cmd-txt --epsg auto --stretch au --dem auto "
+            f"--config {self.no_dempath_config}",
+            False,
+            "u08mr3413",
+            "tif",
+        )
+        self.check_output_image(fn, test_args, succeeded, suffix, ext)
+
+    def test_input_parameters_13(self):
+        # non-existing auto dem config
+        fn, test_args, succeeded, suffix, ext = (
+            f"QB02_20120827132242_10100100101AD000_12AUG27132242-M1BS-500122876080_01_P006.ntf",
+            f"-r 10 --skip-cmd-txt --epsg auto --stretch au --dem auto "
+            f"--config {os.path.join(self.dstdir, 'does_not_exist_config.ini')}",
+            False,
+            "u08mr3413",
+            "tif",
+        )
+        self.check_output_image(fn, test_args, succeeded, suffix, ext)
 
     def tearDown(self):
         shutil.rmtree(self.dstdir)
+        # pass
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
         
     test_cases = [
         TestOrthoFunc
