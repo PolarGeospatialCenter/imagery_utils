@@ -1,7 +1,10 @@
 """Runs pgc_ortho with a variety of images and input parameters to achieve test coverage."""
 import shutil
+import sys
 import unittest, os, subprocess
 import platform
+from unittest import skipIf
+
 from osgeo import gdal, gdalconst
 
 from setuptools import glob
@@ -233,6 +236,7 @@ class TestOrthoFunc(unittest.TestCase):
         )
         self.check_output_image(fn, test_args, succeeded, suffix, ext)
 
+    @skipIf(sys.platform == "win32", "V: paths fail in Admin mode needed for testdata link on Windows")
     def test_input_parameters_10(self):
         # stretch, dem, and epsg: auto
         fn, test_args, succeeded, suffix, ext = (
