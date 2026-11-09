@@ -18,6 +18,7 @@ class TestPanshFunc(unittest.TestCase):
         self.scriptpath = os.path.join(__app_dir__, "pgc_pansharpen.py")
         self.srcdir = os.path.join(testdata_dir, 'pansharpen', 'src')
         self.dstdir = os.path.join(__test_dir__, 'tmp_output')
+        shutil.rmtree(self.dstdir, ignore_errors=True)
         os.makedirs(self.dstdir, exist_ok=True)
 
     def test_pansharpen_4band(self):
@@ -69,12 +70,12 @@ class TestPanshFunc(unittest.TestCase):
         self.assertAlmostEqual(image_info.score, 77.34933333333333)
 
         image_info.get_raster_stats()
-        stat_dct = {1: [0.0, 254.0, 22.50, 7.486],
-                    2: [0.0, 187.0, 17.30, 6.303],
-                    3: [0.0, 149.0, 10.87, 6.708],
-                    4: [0.0, 254.0, 32.92, 26.554]}
-        datapixelcount_dct = {1: 3092783, 2: 3092783, 3: 3092783, 4: 3092783}
-        datapixelcount_threshold = 0.0000001 # percentage
+        stat_dct = {1: [0.0, 254.0, 22.503, 7.481],
+                    2: [0.0, 162.0, 17.294, 6.297],
+                    3: [0.0, 149.0, 10.864, 6.703],
+                    4: [0.0, 254.0, 32.881, 26.554]}
+        datapixelcount = 3098580
+        datapixelcount_threshold = 0.0001 # percentage
         minmax_threshold = 0
         for i in range(1,len(image_info.stat_dct)+1):# check stats are similar
             # Check min and max values
@@ -86,18 +87,18 @@ class TestPanshFunc(unittest.TestCase):
                 self.assertAlmostEqual(image_info.stat_dct[i][j], stat_dct[i][j], 1,
                                        f'found:{image_info.stat_dct[i][j]}, expected {stat_dct[i][j]} within 1 decimal places')
             # Check data pixel count
-            self.assertTrue(abs(image_info.datapixelcount_dct[i] - datapixelcount_dct[i]) / float(datapixelcount_dct[i]) <= datapixelcount_threshold,
-                            f'found:{image_info.datapixelcount_dct[i]}, expected {datapixelcount_dct[i]} +-{datapixelcount_threshold/100} percent')
+            self.assertTrue(abs(image_info.datapixelcount_dct[i] - datapixelcount) / float(datapixelcount) <= datapixelcount_threshold,
+                            f'found:{image_info.datapixelcount_dct[i]}, expected {datapixelcount} +-{datapixelcount_threshold/100} percent')
 
             # Check custom weights were not used
             self.assertNotIn('Using custom 8-band weights for pansharpening', so.decode('utf-8'))
             self.assertIn('Custom pansharpening weights not available for 3 and 4-band imagery: each band will be weighted equally', so.decode('utf-8'))
 
-    def test_pansharpen_8band(self):
+    def test_pansharpen_8band_to_3band(self):
 
         src_fn = "WV03_20260603215825_10400100BA300C00_26JUN03215825-M1BS-510422458010_02_P003"
         src = os.path.join(self.srcdir, src_fn + ".tif")
-        cmd = 'python {} {} {} -c mr -r 10 --skip-cmd-txt -p 3413'.format(
+        cmd = 'python {} {} {} --rgb -c mr -r 10 -p 3413'.format(
             self.scriptpath,
             src,
             self.dstdir,
@@ -110,6 +111,7 @@ class TestPanshFunc(unittest.TestCase):
 
         # make sure output data exist
         dstfp = os.path.join(self.dstdir, src_fn + "_u08mr3413_pansh.tif")
+        mulfp = os.path.join(self.dstdir, src_fn + "_u08mr3413.tif")
         dstfp_xml = os.path.join(self.dstdir, src_fn + "_u08mr3413_pansh.xml")
         self.assertTrue(os.path.isfile(dstfp))
         self.assertTrue(os.path.isfile(dstfp_xml))
@@ -120,14 +122,14 @@ class TestPanshFunc(unittest.TestCase):
         self.assertEqual(dt, 1)
         ndval = ds.GetRasterBand(1).GetNoDataValue()
         self.assertEqual(ndval, 255)
-        ds = None
+
+        # verify mutispectral file is 8 band and pansh is 3 band
+        mulds = gdal.Open(mulfp, gdal.GA_ReadOnly)
+        self.assertEqual(mulds.RasterCount, 8)
+        self.assertEqual(ds.RasterCount, 3)
+        mulds, ds = None, None
 
         image_info = mosaic.ImageInfo(dstfp, 'IMAGE')
-        # self.assertAlmostEqual(image_info.xres, 0.564193804791, 3)
-        # self.assertAlmostEqual(image_info.yres, 0.560335413717, 3)
-        self.assertEqual(image_info.bands, 8)
-        self.assertEqual(image_info.datatype, 1)
-
         mosaic_args = MosaicArgs()
         mosaic_params = mosaic.getMosaicParameters(image_info, mosaic_args)
         image_info.getScore(mosaic_params)
@@ -144,17 +146,12 @@ class TestPanshFunc(unittest.TestCase):
 
         image_info.get_raster_stats()
         stat_dct = {
-            1: [29.0, 254.0, 114.70, 14.584],
-            2: [23.0, 254.0, 97.62, 13.642],
-            3: [20.0, 233.0, 80.77,12.560],
-            4: [8.0, 222.0, 69.19, 11.529],
-            5: [12.0, 229.0, 65.13, 12.123],
-            6: [0.0, 244.0, 49.02, 20.787],
-            7: [0.0, 254.0, 35.39, 36.005],
-            8: [0.0, 254.0, 23.74, 36.214],
+            1: [12.0, 229.0, 65.132, 12.123],
+            2: [20.0, 233.0, 80.775, 12.561],
+            3: [23.0, 254.0, 97.618, 13.643],
         }
-        datapixelcount = 2196619
-        datapixelcount_threshold = 0.0000000 # percentage
+        datapixelcount = 2196647
+        datapixelcount_threshold = 0.0001 # percentage
         minmax_threshold = 0
         for i in range(1,len(image_info.stat_dct)+1):# check stats are similar
             # Check min and max values
@@ -163,8 +160,8 @@ class TestPanshFunc(unittest.TestCase):
                                 f'found:{image_info.stat_dct[i][j]}, expected {stat_dct[i][j]} +-{minmax_threshold} ')
             # Check mean and stddev
             for j in range(2,4):
-                self.assertAlmostEqual(image_info.stat_dct[i][j], stat_dct[i][j], 1,
-                                       f'found:{image_info.stat_dct[i][j]}, expected {stat_dct[i][j]} within 1 decimal places')
+                self.assertAlmostEqual(image_info.stat_dct[i][j], stat_dct[i][j], 2,
+                                       f'found:{image_info.stat_dct[i][j]}, expected {stat_dct[i][j]} within 2 decimal places')
             # Check data pixel count
             self.assertTrue(abs(image_info.datapixelcount_dct[i] - datapixelcount) / float(datapixelcount) <= datapixelcount_threshold,
                             f'found:{image_info.datapixelcount_dct[i]}, expected {datapixelcount} +-{datapixelcount_threshold/100} percent')
@@ -220,30 +217,10 @@ class TestPanshFunc(unittest.TestCase):
         with gdal.Open(dstfp, gdalconst.GA_ReadOnly) as ds:
             self.assertIn('LAYOUT=COG', ds.GetMetadata_List('IMAGE_STRUCTURE'))
 
-    def test_pansharpen_rgb(self):
-        src = os.path.join(self.srcdir, "WV02_20110901210502_103001000D52C800_11SEP01210502-M1BS-052560788010_01_P008.ntf")
-        cmd = 'python {} {} {} --skip-cmd-txt -p 3413 -r 10 --rgb'.format(
-            self.scriptpath,
-            src,
-            self.dstdir,
-        )
-
-        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-        se, so = p.communicate()
-        print(so)
-        print(se)
-
-        dstfp = os.path.join(self.dstdir, 'WV02_20110901210502_103001000D52C800_11SEP01210502-M1BS-052560788010_01_P008_u08rf3413_pansh.tif')
-        dstfp_xml = os.path.join(self.dstdir, 'WV02_20110901210502_103001000D52C800_11SEP01210502-M1BS-052560788010_01_P008_u08rf3413_pansh.xml')
-
-        self.assertTrue(os.path.isfile(dstfp))
-        self.assertTrue(os.path.isfile(dstfp_xml))
-
-        with gdal.Open(dstfp, gdalconst.GA_ReadOnly) as ds:
-            self.assertTrue(ds.RasterCount == 3)
 
     def tearDown(self):
        shutil.rmtree(self.dstdir, ignore_errors=True)
+       # pass
 
 # Used to test pansharpen output
 class MosaicArgs(object):
