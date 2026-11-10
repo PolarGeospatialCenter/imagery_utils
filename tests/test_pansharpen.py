@@ -18,19 +18,14 @@ class TestPanshFunc(unittest.TestCase):
         self.scriptpath = os.path.join(__app_dir__, "pgc_pansharpen.py")
         self.srcdir = os.path.join(testdata_dir, 'pansharpen', 'src')
         self.dstdir = os.path.join(__test_dir__, 'tmp_output')
-        if not os.path.isdir(self.dstdir):
-            os.makedirs(self.dstdir)
-        self.dstdircog = os.path.join(__test_dir__, 'tmp_output_cog')
-        if not os.path.isdir(self.dstdircog):
-            os.makedirs(self.dstdircog)
-        self.dstdirrgb = os.path.join(__test_dir__, 'tmp_output_rgb')
-        if not os.path.isdir(self.dstdirrgb):
-            os.makedirs(self.dstdirrgb)
+        shutil.rmtree(self.dstdir, ignore_errors=True)
+        os.makedirs(self.dstdir, exist_ok=True)
 
-    def test_pansharpen(self):
+    def test_pansharpen_4band(self):
 
-        src = self.srcdir
-        cmd = 'python {} {} {} --skip-cmd-txt -p 3413 --skip-custom-weights'.format(
+        src_fn = 'WV02_20110901210502_103001000D52C800_11SEP01210502-M1BS-052560788010_01_P008'
+        src = os.path.join(self.srcdir, src_fn+'.ntf')
+        cmd = 'python {} {} {} -r 10 --skip-cmd-txt -p 3413'.format(
             self.scriptpath,
             src,
             self.dstdir,
@@ -42,28 +37,21 @@ class TestPanshFunc(unittest.TestCase):
         print(se)
 
         # make sure output data exist
-        dstfp = os.path.join(self.dstdir, 'WV02_20110901210502_103001000D52C800_11SEP01210502-M1BS-052560788010_01_P008_u08rf3413_pansh.tif')
-        dstfp_xml = os.path.join(self.dstdir, 'WV02_20110901210502_103001000D52C800_11SEP01210502-M1BS-052560788010_01_P008_u08rf3413_pansh.xml')
+        dstfp = os.path.join(self.dstdir, src_fn+'_u08rf3413_pansh.tif')
+        dstfp_xml = os.path.join(self.dstdir, src_fn+'_u08rf3413_pansh.xml')
 
         self.assertTrue(os.path.isfile(dstfp))
         self.assertTrue(os.path.isfile(dstfp_xml))
-
-        # check second image from proccessing
-        dstfp_2 = os.path.join(self.dstdir, 'WV02_20110901210434_103001000B41DC00_11SEP01210434-M1BS-052730735130_01_P007_u08rf3413_pansh.tif')
-        dstfp_xml_2 = os.path.join(self.dstdir, 'WV02_20110901210434_103001000B41DC00_11SEP01210434-M1BS-052730735130_01_P007_u08rf3413_pansh.xml')
-
-        self.assertTrue(os.path.isfile(dstfp_2))
-        self.assertTrue(os.path.isfile(dstfp_xml_2))
 
         # verify data type
         ds = gdal.Open(dstfp, gdal.GA_ReadOnly)
         dt = ds.GetRasterBand(1).DataType
         self.assertEqual(dt, 1)
+        ndval = ds.GetRasterBand(1).GetNoDataValue()
+        self.assertEqual(ndval, 255)
         ds = None
 
         image_info = mosaic.ImageInfo(dstfp, 'IMAGE')
-        self.assertAlmostEqual(image_info.xres, 0.564193804791, 11)
-        self.assertAlmostEqual(image_info.yres, 0.560335413717, 11)
         self.assertEqual(image_info.bands, 4)
         self.assertEqual(image_info.datatype, 1)
 
@@ -82,13 +70,89 @@ class TestPanshFunc(unittest.TestCase):
         self.assertAlmostEqual(image_info.score, 77.34933333333333)
 
         image_info.get_raster_stats()
-        stat_dct = {1: [2.0, 153.0, 21.934843, 7.315011],
-                    2: [1.0, 141.0, 17.149106, 6.760020],
-                    3: [1.0, 145.0, 11.088902, 7.401054],
-                    4: [1.0, 172.0, 37.812614, 27.618598]}
-        datapixelcount_dct = {1: 857617457, 2: 857617457, 3: 857617457, 4: 857617457}
-        datapixelcount_threshold = 0.00001 # percentage
-        minmax_threshold = 10
+        stat_dct = {1: [0.0, 254.0, 22.503, 7.481],
+                    2: [0.0, 162.0, 17.294, 6.297],
+                    3: [0.0, 149.0, 10.864, 6.703],
+                    4: [0.0, 254.0, 32.881, 26.554]}
+        datapixelcount = 3098580
+        datapixelcount_threshold = 0.0001 # percentage
+        minmax_threshold = 0
+        for i in range(1,len(image_info.stat_dct)+1):# check stats are similar
+            # Check min and max values
+            for j in range(2):
+                self.assertTrue(abs(image_info.stat_dct[i][j] - stat_dct[i][j]) <= minmax_threshold,
+                                f'found:{image_info.stat_dct[i][j]}, expected {stat_dct[i][j]} +-{minmax_threshold} ')
+            # Check mean and stddev
+            for j in range(2,4):
+                self.assertAlmostEqual(image_info.stat_dct[i][j], stat_dct[i][j], 1,
+                                       f'found:{image_info.stat_dct[i][j]}, expected {stat_dct[i][j]} within 1 decimal places')
+            # Check data pixel count
+            self.assertTrue(abs(image_info.datapixelcount_dct[i] - datapixelcount) / float(datapixelcount) <= datapixelcount_threshold,
+                            f'found:{image_info.datapixelcount_dct[i]}, expected {datapixelcount} +-{datapixelcount_threshold/100} percent')
+
+            # Check custom weights were not used
+            self.assertNotIn('Using custom 8-band weights for pansharpening', so.decode('utf-8'))
+            self.assertIn('Custom pansharpening weights not available for 3 and 4-band imagery: each band will be weighted equally', so.decode('utf-8'))
+
+    def test_pansharpen_8band_to_3band(self):
+
+        src_fn = "WV03_20260603215825_10400100BA300C00_26JUN03215825-M1BS-510422458010_02_P003"
+        src = os.path.join(self.srcdir, src_fn + ".tif")
+        cmd = 'python {} {} {} --rgb -c mr -r 10 -p 3413'.format(
+            self.scriptpath,
+            src,
+            self.dstdir,
+        )
+
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        se, so = p.communicate()
+        print(so)
+        print(se)
+
+        # make sure output data exist
+        dstfp = os.path.join(self.dstdir, src_fn + "_u08mr3413_pansh.tif")
+        mulfp = os.path.join(self.dstdir, src_fn + "_u08mr3413.tif")
+        dstfp_xml = os.path.join(self.dstdir, src_fn + "_u08mr3413_pansh.xml")
+        self.assertTrue(os.path.isfile(dstfp))
+        self.assertTrue(os.path.isfile(dstfp_xml))
+
+        # verify data type
+        ds = gdal.Open(dstfp, gdal.GA_ReadOnly)
+        dt = ds.GetRasterBand(1).DataType
+        self.assertEqual(dt, 1)
+        ndval = ds.GetRasterBand(1).GetNoDataValue()
+        self.assertEqual(ndval, 255)
+
+        # verify mutispectral file is 8 band and pansh is 3 band
+        mulds = gdal.Open(mulfp, gdal.GA_ReadOnly)
+        self.assertEqual(mulds.RasterCount, 8)
+        self.assertEqual(ds.RasterCount, 3)
+        mulds, ds = None, None
+
+        image_info = mosaic.ImageInfo(dstfp, 'IMAGE')
+        mosaic_args = MosaicArgs()
+        mosaic_params = mosaic.getMosaicParameters(image_info, mosaic_args)
+        image_info.getScore(mosaic_params)
+
+        self.assertEqual(image_info.sensor, 'WV03')
+        self.assertEqual(image_info.sunel, 51.7)
+        self.assertEqual(image_info.ona, 29.9)
+        self.assertEqual(image_info.cloudcover, 0.000)
+        self.assertEqual(image_info.tdi, 14.0)
+        self.assertEqual(image_info.panfactor, 1)
+        self.assertEqual(image_info.date_diff, -9999)
+        self.assertEqual(image_info.year_diff, -9999)
+        self.assertAlmostEqual(image_info.score, 80.111, 2)
+
+        image_info.get_raster_stats()
+        stat_dct = {
+            1: [12.0, 229.0, 65.132, 12.123],
+            2: [20.0, 233.0, 80.775, 12.561],
+            3: [23.0, 254.0, 97.618, 13.643],
+        }
+        datapixelcount = 2196647
+        datapixelcount_threshold = 0.0001 # percentage
+        minmax_threshold = 0
         for i in range(1,len(image_info.stat_dct)+1):# check stats are similar
             # Check min and max values
             for j in range(2):
@@ -99,15 +163,21 @@ class TestPanshFunc(unittest.TestCase):
                 self.assertAlmostEqual(image_info.stat_dct[i][j], stat_dct[i][j], 2,
                                        f'found:{image_info.stat_dct[i][j]}, expected {stat_dct[i][j]} within 2 decimal places')
             # Check data pixel count
-            self.assertTrue(abs(image_info.datapixelcount_dct[i] - datapixelcount_dct[i]) / float(datapixelcount_dct[i]) <= datapixelcount_threshold,
-                            f'found:{image_info.datapixelcount_dct[i]}, expected {datapixelcount_dct[i]} +-{datapixelcount_threshold/100} percent')
+            self.assertTrue(abs(image_info.datapixelcount_dct[i] - datapixelcount) / float(datapixelcount) <= datapixelcount_threshold,
+                            f'found:{image_info.datapixelcount_dct[i]}, expected {datapixelcount} +-{datapixelcount_threshold/100} percent')
 
-    def test_pansharpen_cog(self):
-        src = os.path.join(self.srcdir, "WV02_20110901210502_103001000D52C800_11SEP01210502-M1BS-052560788010_01_P008.ntf")
-        cmd = 'python {} {} {} --skip-cmd-txt -p 3413 -r 10 -f COG'.format(
+            # Check custom weights were not used
+            self.assertIn('Using custom 8-band weights for pansharpening', so.decode('utf-8'))
+            self.assertNotIn('Custom pansharpening weights not available for 3 and 4-band imagery: each band will be weighted equally', so.decode('utf-8'))
+
+    def test_pansharpen_full_res(self):
+
+        src_fn = "WV02_20110901210502_103001000D52C800_11SEP01210502-M1BS-052560788010_01_P008"
+        src = os.path.join(self.srcdir, src_fn + ".ntf")
+        cmd = 'python {} {} {} --skip-cmd-txt -p 3413'.format(
             self.scriptpath,
             src,
-            self.dstdircog,
+            self.dstdir,
         )
 
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
@@ -115,8 +185,31 @@ class TestPanshFunc(unittest.TestCase):
         print(so)
         print(se)
 
-        dstfp = os.path.join(self.dstdircog, 'WV02_20110901210502_103001000D52C800_11SEP01210502-M1BS-052560788010_01_P008_u08rf3413_pansh.tif')
-        dstfp_xml = os.path.join(self.dstdircog, 'WV02_20110901210502_103001000D52C800_11SEP01210502-M1BS-052560788010_01_P008_u08rf3413_pansh.xml')
+        # make sure output data exist
+        dstfp = os.path.join(self.dstdir, src_fn + "_u08rf3413_pansh.tif")
+        dstfp_xml = os.path.join(self.dstdir, src_fn + "_u08rf3413_pansh.xml")
+        self.assertTrue(os.path.isfile(dstfp))
+        self.assertTrue(os.path.isfile(dstfp_xml))
+
+        image_info = mosaic.ImageInfo(dstfp, 'IMAGE')
+        self.assertAlmostEqual(image_info.xres, 0.564, 3)
+        self.assertAlmostEqual(image_info.yres, 0.560, 3)
+
+    def test_pansharpen_cog(self):
+        src = os.path.join(self.srcdir, "WV02_20110901210502_103001000D52C800_11SEP01210502-M1BS-052560788010_01_P008.ntf")
+        cmd = 'python {} {} {} --skip-cmd-txt -p 3413 -r 10 -f COG'.format(
+            self.scriptpath,
+            src,
+            self.dstdir,
+        )
+
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        se, so = p.communicate()
+        print(so)
+        print(se)
+
+        dstfp = os.path.join(self.dstdir, 'WV02_20110901210502_103001000D52C800_11SEP01210502-M1BS-052560788010_01_P008_u08rf3413_pansh.tif')
+        dstfp_xml = os.path.join(self.dstdir, 'WV02_20110901210502_103001000D52C800_11SEP01210502-M1BS-052560788010_01_P008_u08rf3413_pansh.xml')
 
         self.assertTrue(os.path.isfile(dstfp))
         self.assertTrue(os.path.isfile(dstfp_xml))
@@ -124,32 +217,10 @@ class TestPanshFunc(unittest.TestCase):
         with gdal.Open(dstfp, gdalconst.GA_ReadOnly) as ds:
             self.assertIn('LAYOUT=COG', ds.GetMetadata_List('IMAGE_STRUCTURE'))
 
-    def test_pansharpen_rgb(self):
-        src = os.path.join(self.srcdir, "WV02_20110901210502_103001000D52C800_11SEP01210502-M1BS-052560788010_01_P008.ntf")
-        cmd = 'python {} {} {} --skip-cmd-txt -p 3413 -r 10 --rgb'.format(
-            self.scriptpath,
-            src,
-            self.dstdirrgb,
-        )
-
-        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-        se, so = p.communicate()
-        print(so)
-        print(se)
-
-        dstfp = os.path.join(self.dstdirrgb, 'WV02_20110901210502_103001000D52C800_11SEP01210502-M1BS-052560788010_01_P008_u08rf3413_pansh.tif')
-        dstfp_xml = os.path.join(self.dstdirrgb, 'WV02_20110901210502_103001000D52C800_11SEP01210502-M1BS-052560788010_01_P008_u08rf3413_pansh.xml')
-
-        self.assertTrue(os.path.isfile(dstfp))
-        self.assertTrue(os.path.isfile(dstfp_xml))
-
-        with gdal.Open(dstfp, gdalconst.GA_ReadOnly) as ds:
-            self.assertTrue(ds.RasterCount == 3)
-
 
     def tearDown(self):
        shutil.rmtree(self.dstdir, ignore_errors=True)
-       shutil.rmtree(self.dstdircog, ignore_errors=True)
+       # pass
 
 # Used to test pansharpen output
 class MosaicArgs(object):

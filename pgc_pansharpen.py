@@ -6,16 +6,14 @@ import argparse
 import copy
 import glob
 import logging
-import math
 import os
 import platform
 import re
 import shutil
 import sys
-import xml.etree.ElementTree as ET
 import datetime
 
-from osgeo import gdal, gdalconst, ogr, osr
+from osgeo import gdal
 
 from lib import ortho_functions, taskhandler, utils
 from lib.taskhandler import argval2str
@@ -437,14 +435,15 @@ def main():
                 continue
         else:
             img_epsg = args.epsg
-        
-        pansh_dstfp = os.path.join(dstdir, "{}_{}{}{}_pansh{}".format(
+
+        pansh_dstfn = "{}_{}{}{}_pansh{}".format(
             os.path.splitext(image_pair.mul_srcfn)[0],
             bittype,
             args.stretch,
             img_epsg,
             ortho_functions.formats[args.format]
-        ))
+        )
+        pansh_dstfp = os.path.join(dstdir, pansh_dstfn)
 
         done = os.path.isfile(pansh_dstfp)
         if done is False:
@@ -487,12 +486,14 @@ def main():
                     continue
             else:
                 img_epsg = args.epsg
-            pansh_dstfp = os.path.join(dstdir, "{}_{}{}{}_pansh.tif".format(
+
+            pansh_dstfn = "{}_{}{}{}_pansh.tif".format(
                 os.path.splitext(image_pair.mul_srcfn)[0],
                 bittype,
                 args.stretch,
                 img_epsg
-            ))
+            )
+            pansh_dstfp = os.path.join(dstdir, pansh_dstfn)
             task_item_srcfp = image_pair.mul_srcfp
             task_item_srcfn = image_pair.mul_srcfn
         else:
@@ -629,11 +630,6 @@ def exec_pansharpen(image_pair, pansh_dstfp, args, orig_res):
     print("Multispectral image: {}".format(image_pair.mul_srcfp))
     print("Panchromatic image: {}".format(image_pair.pan_srcfp))
 
-    if args.dem is not None:
-        dem_arg = '-d "{}" '.format(args.dem)
-    else:
-        dem_arg = ""
-
     # args.epsg has been converted to an int type if possible already,
     # Look up the correct epsg if it's still a string
     if type(args.epsg) is str:
@@ -650,14 +646,22 @@ def exec_pansharpen(image_pair, pansh_dstfp, args, orig_res):
     mul_local_dstfp = os.path.join(wd, "{}_{}{}{}{}".format(mul_basename, bittype, args.stretch, img_epsg, out_ext))
     pan_dstfp = os.path.join(dstdir, "{}_{}{}{}{}".format(pan_basename, bittype, args.stretch, img_epsg, out_ext))
     mul_dstfp = os.path.join(dstdir, "{}_{}{}{}{}".format(mul_basename, bittype, args.stretch, img_epsg, out_ext))
-    pansh_tempfp = os.path.join(wd, "{}_{}{}{}_pansh_temp{}".format(mul_basename, bittype, args.stretch, img_epsg, out_ext))
     pansh_local_dstfp = os.path.join(wd, "{}_{}{}{}_pansh{}".format(mul_basename, bittype, args.stretch, img_epsg, out_ext))
     pansh_xmlfp = os.path.join(dstdir, "{}_{}{}{}_pansh.xml".format(mul_basename, bittype, args.stretch, img_epsg))
     mul_xmlfp = os.path.join(dstdir, "{}_{}{}{}.xml".format(mul_basename, bittype, args.stretch, img_epsg))
 
-
     if not os.path.isdir(wd):
         os.makedirs(wd)
+
+    # pansharpening should be run on all 8-bands to accurately apply band weights, then output to requested bands
+    # keep input rgb or bgrn args but process mul ortho with all bands
+    orig_rgb = None
+    orig_bgrn = None
+    if not args.skip_custom_weights and (args.rgb or args.bgrn):
+        orig_rgb = copy.deepcopy(args.rgb)
+        orig_bgrn = copy.deepcopy(args.bgrn)
+        args.rgb = None
+        args.bgrn = None
 
     logger.info("-----------------------------------")
 
@@ -723,56 +727,64 @@ def exec_pansharpen(image_pair, pansh_dstfp, args, orig_res):
     else:
         co = ''
 
+    nd = ortho_functions.get_destination_nodata(output_type=args.outtype)
     weight_args = ''
     if not args.skip_custom_weights:
         # add specific pansharpening weights for WV02 and WV03 images - get band count of input mul from image info
-        iinfo = ortho_functions.ImageInfo(mul_dstfp, dstdir, wd, args)
+        # reset output band args
+        args.rgb = orig_rgb
+        args.bgrn = orig_bgrn
+        logger.info("Reset RGB arg: {}".format(args.rgb))
+        iinfo = ortho_functions.ImageInfo(image_pair.mul_srcfp, dstdir, wd, args)
         _err = iinfo.get_image_stats(args)
         if _err != 0:
             raise RuntimeError(f"Error in stats calculation")
 
-        if "WV02" in iinfo.sat or "WV03" in iinfo.sat:
-            red_wt = ortho_functions.WV03_BAND_WEIGHT_DICT['RED']
-            green_wt = ortho_functions.WV03_BAND_WEIGHT_DICT['GREEN']
-            blue_wt = ortho_functions.WV03_BAND_WEIGHT_DICT['BLUE']
-            nir_wt = ortho_functions.WV03_BAND_WEIGHT_DICT['NEAR_IR1']
+        if args.rgb or args.bgrn:
+            output_bands = iinfo.rgb_bands
+        else:
+            output_bands = ''
 
-            if iinfo.bands == 3:
-                # set rgb weights - Assumes RGB band order
-                weight_args = '-w {0} -w {1} -w {2} '.format(red_wt, green_wt, blue_wt)
-            elif iinfo.bands == 4:
-                # set 4-band weights - assumes BGRN band order
-                weight_args = '-w {0} -w {1} -w {2} -w {3}'.format(blue_wt, green_wt, red_wt, nir_wt)
-            elif iinfo.bands == 8:
+        if "WV02" in iinfo.sat or "WV03" in iinfo.sat:
+            if iinfo.bands == 8:
                 # 8-band weights - use WV03 weights for both WV02 and WV03, assumes default WV band order
+                logger.info("Using custom 8-band weights for pansharpening")
                 weight_args = ''
                 for value in ortho_functions.WV03_BAND_WEIGHT_DICT.values():
                     weight_args += '-w {} '.format(value)
+
+            elif iinfo.bands in (3, 4):
+                # if image only has 4 bands, apply equal band weights (gdal default)
+                logger.info("Custom pansharpening weights not available for 3 and 4-band imagery: each band will be weighted equally")
+                weight_args = ''
             else:
-                logger.warning("Incompatible numnber of bands for pansharpening weights: {} bands in multispectral image".format(iinfo.bands))
+                logger.warning("Incompatible number of bands for pansharpening weights: {} bands in multispectral image".format(iinfo.bands))
 
     else:
         logger.info("using GDAL default weights for pansharpening: each band weighted equally")
+        output_bands = ''
     
     logger.info("Pansharpening multispectral image")
     if os.path.isfile(pan_local_dstfp) and os.path.isfile(mul_local_dstfp):
         if not os.path.isfile(pansh_local_dstfp):
-            cmd = '{}gdal_pansharpen{} -of {} {} {} {} "{}" "{}" "{}"'.\
-                format(conda_prefix, py_ext, args.format, pan_threading, co, weight_args,
+            cmd = '{}gdal_pansharpen{} -of {} {} {} {} {} "{}" "{}" "{}"'.\
+                format(conda_prefix, py_ext, args.format, pan_threading, co, weight_args, output_bands,
                        pan_local_dstfp, mul_local_dstfp, pansh_local_dstfp)
             logger.info(cmd)
             try:
                 taskhandler.exec_cmd(cmd)
             except Exception as e:
                 logger.warning("There was an error running gdal_pansharpen.py: {}".format(e))
-                logger.warning("Please run this script in the recommended mamba/conda environment with GDAL => 3.7.2")
+                logger.warning("Please run this script in the recommended conda environment with GDAL => 3.7.2")
                 logger.error(utils.capture_error_trace())
     else:
         logger.warning("Pan or Multi warped image does not exist\n\t{}\n\t{}".format(pan_local_dstfp, mul_local_dstfp))
         return 1
 
-    #### Make pyramids
+    #### Edit nodata and build overviews
     if (not args.no_pyramids) and os.path.isfile(pansh_local_dstfp):
+        cmd = '{}gdal_edit{} -a_nodata {} "{}"'.format(conda_prefix, py_ext, nd, pansh_local_dstfp)
+        taskhandler.exec_cmd(cmd)
         cmd = 'gdaladdo -r {} "{}" 2 4 8 16'.format(args.pyramid_type, pansh_local_dstfp)
         taskhandler.exec_cmd(cmd)
        

@@ -60,6 +60,7 @@ srs_wgs84.ImportFromEPSG(4326)
 formatVRT = "VRT"
 VRTdriver = gdal.GetDriverByName(formatVRT)
 ikMsiBands = ['blu', 'grn', 'red', 'nir']
+warp_nodata = 65535 # nodata for warping step (always 16 bit)
 
 # Calibration factors taken from https://resources.maxar.com/white-papers/absolute-radiometric-calibration-white-paper
 # IKONOS and QuickBird factors from https://dg-cms-uploads-production.s3.amazonaws.com/uploads/document/file/209/ABSRADCAL_FLEET_2016v0_Rel20170606.pdf
@@ -311,7 +312,7 @@ BiasDict = {
 
 # Defines the relationship between the output type and the NoData value that will be assigned to the destination rasters
 NO_DATA_DICT = {
-    OutputType.BYTE: 0,
+    OutputType.BYTE: 255,
     OutputType.UINT16: 65535,
     OutputType.FLOAT32: -9999.0,
 }
@@ -1033,18 +1034,17 @@ def process_image(srcfp, dstfp, args, target_extent_geom=None):
             logger.error("Processing failed: %s", info.srcfn)
             if not args.save_temps:
                 if args.wd or os.path.isfile(ik_stacked_sem):
-                    utils.delete_temp_files([info.dstfp, info.rawvrt, info.warpfile, info.vrtfile, info.localsrc])
+                    utils.delete_temp_files([info.dstfp, info.warpfile, info.vrtfile, info.localsrc])
                 else:
-                    utils.delete_temp_files([info.dstfp, info.rawvrt, info.warpfile, info.vrtfile])
+                    utils.delete_temp_files([info.dstfp, info.warpfile, info.vrtfile])
 
         elif not args.save_temps:
             if args.wd or os.path.isfile(ik_stacked_sem):
-                utils.delete_temp_files([info.rawvrt, info.warpfile, info.vrtfile, info.localsrc])
+                utils.delete_temp_files([info.warpfile, info.vrtfile, info.localsrc])
             else:
-                utils.delete_temp_files([info.rawvrt, info.warpfile, info.vrtfile])
+                utils.delete_temp_files([info.warpfile, info.vrtfile])
         # Rename temp files if --save-temps
         elif args.save_temps:
-            os.rename(info.rawvrt, info.rawvrt + ".save")
             os.rename(info.vrtfile, info.vrtfile + ".save")
             os.rename(info.warpfile, info.warpfile + ".save")
 
@@ -1260,14 +1260,14 @@ def calc_stats(args, info):
 
     if info.stretch == 'ns':
         if args.outtype == OutputType.BYTE.value:
-            omax = 255.0
+            omax = 254.0 # CAVIS only
         elif args.outtype == OutputType.UINT16.value:
             omax = imax
         elif args.outtype == OutputType.FLOAT32.value:
             omax = imax
     elif info.stretch == 'mr':
         if args.outtype == OutputType.BYTE.value:
-            omax = 255.0
+            omax = 254.0
         elif args.outtype == OutputType.UINT16.value:
             omax = imax
         elif args.outtype == OutputType.FLOAT32.value:
@@ -1310,20 +1310,29 @@ def calc_stats(args, info):
                 else:
                     calfact, offset = CFlist[band-1]
                     if info.stretch == "rf":
-                        LUT = "0:{},{}:{}".format(offset*omax, imax, (imax*calfact+offset)*omax)
-                    elif info.stretch == "rd":
+                        if dst_nodata == 255: # cap valid data values at 254
+                            valid_data_max = dst_nodata - 1
+                            max_stretched_input = ((valid_data_max/omax)-offset)/calfact
+                            local_imax = max([imax, max_stretched_input]) # make sure last LUT item includes all values but is not lower than max_stretched_input
+                            LUT = "0:{},{}:{},{}:{}".format(offset*omax, max_stretched_input, valid_data_max, local_imax, valid_data_max)
+                        else:
+                            LUT = "0:{},{}:{}".format(offset*omax, imax, (imax*calfact+offset)*omax)
+                    elif info.stretch == "rd": # should never be Byte output
                         LUT = "0:{},{}:{}".format(offset, imax, imax*calfact+offset)
-                    elif info.stretch == "mr":
+                    elif info.stretch == "mr": # should always be Byte output
                         # modified reflectance is rf with a non-linear curve applied according
                         # to the following histgram points
                         iLUT = [0, 0.125, 0.25, 0.375, 0.625, 1]
                         oLUT = [0, 0.375, 0.625, 0.75, 0.875, 1]
                         lLUT = map(lambda x: "{}:{}".format(
-                            (iLUT[x]-offset)/calfact,  # find original DN for each 0-1 iLUT
-                            # step by applying reverse reflectance transformation
+                            min(imax,(iLUT[x]-offset)/calfact),  # find original DN for each 0-1 iLUT
+                            # step by applying reverse reflectance transformation (cap at imax)
                             omax*oLUT[x]  # output value for each 0-1 oLUT step multiplied by omax
                         ), range(len(iLUT)))
                         LUT = ",".join(lLUT)
+                        if dst_nodata == 255: # cap valid data values at 254
+                            valid_data_max = dst_nodata - 1
+                            LUT += (",{}:{}".format(imax, valid_data_max))
 
                 if info.stretch != "ns":
                     logger.debug("Band Calibration Factors: %i %f %f", band, CFlist[band - 1][0], CFlist[band - 1][1])
@@ -1338,12 +1347,11 @@ def calc_stats(args, info):
                                     '   <SrcRect xOff="0" yOff="0" xSize="{3}" ySize="{4}"/>'
                                     '   <DstRect xOff="0" yOff="0" xSize="{3}" ySize="{4}"/>'
                                     '   <NODATA>{5}</NODATA>'
-                                    '</ComplexSource>)'.format(info.warpfile, band, LUT, xsize, ysize, dst_nodata))
+                                    '</ComplexSource>)'.format(info.warpfile, band, LUT, xsize, ysize, warp_nodata))
 
                 vds.GetRasterBand(band).SetMetadataItem("source_0", ComplexSourceXML, "vrt_sources")
                 vds.GetRasterBand(band).SetNoDataValue(dst_nodata)
-                if vds.GetRasterBand(band).GetColorInterpretation() == gdalconst.GCI_AlphaBand:
-                    vds.GetRasterBand(band).SetColorInterpretation(gdalconst.GCI_Undefined)
+
         else:
             logger.error("Cannot create virtual dataset: %s", info.vrtfile)
 
@@ -1355,10 +1363,9 @@ def calc_stats(args, info):
 
     if args.format == 'GTiff':
         if args.gtiff_compression == 'lzw':
-            co = '-co "PHOTOMETRIC=MINISBLACK" -co "TILED=YES" -co "COMPRESS=LZW" -co "BIGTIFF=YES" '
+            co = '-co "TILED=YES" -co "COMPRESS=LZW" -co "BIGTIFF=YES" '
         elif args.gtiff_compression == 'jpeg95':
-            co = '-co "PHOTOMETRIC=MINISBLACK" -co "TILED=YES" -co "compress=jpeg" -co "jpeg_quality=95" -co ' \
-                 '"BIGTIFF=YES" '
+            co = '-co "TILED=YES" -co "compress=jpeg" -co "jpeg_quality=95" -co "BIGTIFF=YES" '
 
     elif args.format == 'HFA':
         co = '-co "COMPRESSED=YES" -co "STATISTICS=YES" '
@@ -1855,25 +1862,9 @@ def warp_image(args, info, gdal_thread_count=1):
                                      "elevation.")
                         rc = 1
 
-        #### convert to VRT and modify 4th band
-        cmd = 'gdal_translate -of VRT "{0}" "{1}"'.format(info.localsrc, info.rawvrt)
-        (err, so, se) = taskhandler.exec_cmd(cmd)
-        if err == 1:
-            rc = 1
-
-        if os.path.isfile(info.rawvrt) and info.bands > 3:
-            vds = gdal.Open(info.rawvrt, gdalconst.GA_Update)
-            if vds.GetRasterBand(4).GetColorInterpretation() == 6:
-                vds.GetRasterBand(4).SetColorInterpretation(gdalconst.GCI_Undefined)
-            vds = None
-
-        # This sets 0 as the NoData value in all bands in the source image
-        src_nodata_list = ["0"] * info.bands
-
-        # This sets the NoData value in all bands in the destination image based on output data type
-        dst_nodata = get_destination_nodata(args.outtype)
-        dst_nodata_list = [str(dst_nodata)] * info.bands
-
+        # Set the NoData value in all bands in the destination to a temporary 16-bit nodata value
+        dst_nodata_list = [str(warp_nodata)] * info.bands
+        src_nodata_list = [str(0)] * info.bands
         if not args.skip_warp:
             if rc != 1:
                 ####  Set RPC_DEM or RPC_HEIGHT transformation option
@@ -1905,7 +1896,7 @@ def warp_image(args, info, gdal_thread_count=1):
                         info.spatial_ref.proj4,
                         args.resample,
                         to,
-                        info.rawvrt,
+                        info.localsrc,
                         info.warpfile
                         )
 
@@ -1924,7 +1915,7 @@ def warp_image(args, info, gdal_thread_count=1):
                     info.tap,
                     info.spatial_ref.proj4,
                     args.resample,
-                    info.rawvrt,
+                    info.localsrc,
                     info.warpfile
                     )
 
@@ -2471,7 +2462,7 @@ def xml_to_j2w(jp2p):
 
 def get_cog_creation_options(bittype, gtiff_compression):
     # default/universal COG settings
-    co = '-co BIGTIFF=YES -co OVERVIEW_RESAMPLING=CUBIC -co TILED=YES '
+    co = '-co BIGTIFF=YES -co OVERVIEW_RESAMPLING=CUBIC '
 
     if bittype == OutputType.BYTE.value:
         co += '-co BLOCKSIZE=1024 '

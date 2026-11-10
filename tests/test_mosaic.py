@@ -13,8 +13,8 @@ class TestMosaicFunc(unittest.TestCase):
         self.srcdir = os.path.join(os.path.join(testdata_dir, 'mosaic', 'ortho'))
         self.scriptpath = os.path.join(__app_dir__, "pgc_mosaic.py")
         self.dstdir = os.path.join(__test_dir__, 'tmp_output')
-        if not os.path.isdir(self.dstdir):
-            os.makedirs(self.dstdir)
+        shutil.rmtree(self.dstdir, ignore_errors=True)
+        os.makedirs(self.dstdir, exist_ok=True)
 
     def test_pan_mosaic(self):
         # extent = -820000.0, -800000.0, -2420000.0, -2400000.0
@@ -159,6 +159,37 @@ class TestMosaicFunc(unittest.TestCase):
 
         with gdal.Open(os.path.join(mosaicname + '_1_1.tif'), gdalconst.GA_ReadOnly) as ds:
             self.assertIn('LAYOUT=COG', ds.GetMetadata_List('IMAGE_STRUCTURE'))
+
+    def test_rgb_pansh_mosaic_with_nodata255(self):
+        srcdir = os.path.join(os.path.join(testdata_dir, 'mosaic', 'pansharpen'))
+        mosaicname = os.path.join(self.dstdir, 'testmosaic6')
+        args = ' -e 405000 435000 -1855000 -1825000 -t 30000 30000 -r 20 20 -f COG'
+        cmd = 'python {} {} {} {}'.format(
+            self.scriptpath,
+            srcdir,
+            mosaicname,
+            args
+        )
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        se, so = p.communicate()
+        print(so)
+        print(se)
+
+        self.assertTrue(os.path.isfile(mosaicname + '_1_1.tif'))
+        self.assertFalse(os.path.isfile(mosaicname + "_1_2.tif"))
+        self.assertTrue(os.path.isfile(mosaicname + '_cutlines.shp'))
+        self.assertTrue(os.path.isfile(mosaicname + '_tiles.shp'))
+
+        # test data pixel statistics
+        ds = gdal.Open(mosaicname + '_1_1.tif')
+        ndval = ds.GetRasterBand(1).GetNoDataValue()
+        self.assertEqual(ndval, 255)
+        stats = ds.GetRasterBand(1).GetStatistics(0, 1)
+        self.assertEqual(stats[0], 0)
+        self.assertEqual(stats[1], 254)
+        self.assertAlmostEqual(stats[2], 154.418, 2)
+        self.assertAlmostEqual(stats[3], 58.161, 2)
+
 
     def tearDown(self):
         shutil.rmtree(self.dstdir)

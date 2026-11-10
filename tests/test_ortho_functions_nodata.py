@@ -10,8 +10,8 @@ sys.path.append(root_dir)
 from lib.ortho_functions import get_destination_nodata, OutputType
 
 def test_get_destination_nodata_succeeds():
-    assert get_destination_nodata(output_type=OutputType.BYTE) == 0
-    assert get_destination_nodata(output_type="Byte") == 0
+    assert get_destination_nodata(output_type=OutputType.BYTE) == 255
+    assert get_destination_nodata(output_type="Byte") == 255
 
     assert get_destination_nodata(output_type=OutputType.UINT16) == 65535
     assert get_destination_nodata(output_type="UInt16") == 65535
