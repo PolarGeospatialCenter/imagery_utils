@@ -166,7 +166,7 @@ ln -s <test_data_location>/tests/testdata tests/
 pytest
 ```
 
-On Windows, you have to use the full network path and not a mounted drive letter path:
+On Windows, you have to use the full network path and not a mounted drive letter path. Link creation may require running `cmd` as an administrator and pytest in a regular user session:
 ```sh
 # first time only
 mklink /d tests\testdata <\\server.school.edu\test_data_location>\tests\testdata
