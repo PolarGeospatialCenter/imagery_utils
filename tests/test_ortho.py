@@ -236,7 +236,6 @@ class TestOrthoFunc(unittest.TestCase):
         )
         self.check_output_image(fn, test_args, succeeded, suffix, ext)
 
-    @skipIf(sys.platform == "win32", "V: paths fail in Admin mode needed for testdata link on Windows")
     def test_input_parameters_10(self):
         # stretch, dem, and epsg: auto
         fn, test_args, succeeded, suffix, ext = (
