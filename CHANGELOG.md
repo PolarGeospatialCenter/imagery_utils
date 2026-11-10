@@ -1,6 +1,14 @@
 History
 =======
 
+2.3.2 (2026-11-10)
+------------------
+* Add file identifiers to ortho_functions logging
+* Update ortho slurm settings
+* Update mosaic query processing for more flexible QA options
+* Pansharpen Bugfix
+* Byte Nodata Change
+
 2.3.1 (2026-06-09)
 ------------------
 * Pansh weight bug fix
