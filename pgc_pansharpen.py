@@ -782,11 +782,12 @@ def exec_pansharpen(image_pair, pansh_dstfp, args, orig_res):
         return 1
 
     #### Edit nodata and build overviews
-    if (not args.no_pyramids) and os.path.isfile(pansh_local_dstfp):
+    if os.path.isfile(pansh_local_dstfp):
         cmd = '{}gdal_edit{} -a_nodata {} "{}"'.format(conda_prefix, py_ext, nd, pansh_local_dstfp)
         taskhandler.exec_cmd(cmd)
-        cmd = 'gdaladdo -r {} "{}" 2 4 8 16'.format(args.pyramid_type, pansh_local_dstfp)
-        taskhandler.exec_cmd(cmd)
+        if (not args.no_pyramids):
+            cmd = 'gdaladdo -r {} "{}" 2 4 8 16'.format(args.pyramid_type, pansh_local_dstfp)
+            taskhandler.exec_cmd(cmd)
        
     ## Copy warped multispectral xml to pansharpened output
     shutil.copy2(mul_xmlfp, pansh_xmlfp)
